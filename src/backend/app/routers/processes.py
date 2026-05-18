@@ -24,6 +24,11 @@ from app.schemas.process import (
     ProjectProcessListResponse,
     ProjectProcessResponse,
 )
+from app.schemas.process_stats import ProcessStatsListResponse, ProcessStatsResponse
+from app.services.process_analytics.analytics import (
+    stats_all_processes,
+    stats_for_process,
+)
 
 router = APIRouter()
 
@@ -158,6 +163,30 @@ async def detach_process_from_project(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Link not found")
     await db.delete(link)
     await db.commit()
+
+
+@router.get("/stats", response_model=ProcessStatsListResponse)
+async def list_process_stats(
+    _user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ProcessStatsListResponse:
+    """Average duration per process across all projects — feeds AI planning."""
+    items = await stats_all_processes(db)
+    return ProcessStatsListResponse(
+        data=[ProcessStatsResponse(**item.__dict__) for item in items]
+    )
+
+
+@router.get("/{process_id}/stats", response_model=ProcessStatsResponse)
+async def get_process_stats(
+    process_id: uuid.UUID,
+    _user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ProcessStatsResponse:
+    stats = await stats_for_process(process_id, db)
+    if stats is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Process not found")
+    return ProcessStatsResponse(**stats.__dict__)
 
 
 @router.get("/{process_id}", response_model=ProcessResponse)
