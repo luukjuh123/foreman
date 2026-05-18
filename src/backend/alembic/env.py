@@ -16,6 +16,7 @@ import app.models.project  # noqa: F401
 import app.models.material  # noqa: F401
 import app.models.staff  # noqa: F401
 import app.models.payroll  # noqa: F401
+import app.models.loan  # noqa: F401
 
 config = context.config
 
