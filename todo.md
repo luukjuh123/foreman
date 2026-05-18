@@ -2,7 +2,7 @@
 
 ## Priority: High (Phase 1 — Foundation)
 
-- [ ] Backend: FastAPI app skeleton with /healthz, CORS, env config, structured logging
+- [x] Backend: FastAPI app skeleton with /healthz, CORS, env config, structured logging — PR #1
 - [ ] Backend: Database models (Project, Phase, Task, Material, User) with SQLAlchemy + UUID PKs + Alembic migrations
 - [ ] Backend: User authentication — JWT-based login/register endpoints (bcrypt passwords)
 - [ ] Frontend: Next.js 16 app skeleton with Tailwind CSS, shadcn/ui, dark theme config
