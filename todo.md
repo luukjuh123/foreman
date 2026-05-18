@@ -3,7 +3,7 @@
 ## Priority: High (Phase 1 — Foundation)
 
 - [ ] Backend: FastAPI app skeleton with /healthz, CORS, env config, structured logging
-- [ ] Backend: Database models (Project, Phase, Task, Material, User) with SQLAlchemy + UUID PKs + Alembic migrations
+- [x] Backend: Database models (Project, Phase, Task, Material, User) with SQLAlchemy + UUID PKs + Alembic migrations — PR #2
 - [ ] Backend: User authentication — JWT-based login/register endpoints (bcrypt passwords)
 - [ ] Frontend: Next.js 16 app skeleton with Tailwind CSS, shadcn/ui, dark theme config
 - [ ] Frontend: Auth pages (login/register) with API integration and token storage
