@@ -127,8 +127,8 @@
 
 ## Priority: Medium (Phase 13 — Material Calculator)
 
-- [ ] Backend: Material estimation algorithms — paint (m2/liter), tiles (m2 + 10% waste), concrete (m3), lumber (linear meters)
-- [ ] Backend: Room/area dimension API — inputs dimensions -> material quantities
+- [x] Backend: Material estimation algorithms — paint (m2/liter), tiles (m2 + 10% waste), concrete (m3), lumber (linear meters) — branch `feat/material-estimation-algorithms`
+- [x] Backend: Room/area dimension API — inputs dimensions -> material quantities — branch `feat/room-dimension-api`
 - [ ] Frontend: Material calculator wizard — input dimensions -> quantities + costs -> shopping list
 - [ ] Frontend: Shopping list generator with store deep-links
 
