@@ -26,6 +26,7 @@ async def app_with_db():
             yield session
 
     app.dependency_overrides[get_db] = override_get_db
+    app.state.test_session_factory = session_factory
     yield app
     await engine.dispose()
 
@@ -33,6 +34,7 @@ async def app_with_db():
 @pytest_asyncio.fixture
 async def client(app_with_db):
     async with AsyncClient(transport=ASGITransport(app=app_with_db), base_url="http://test") as ac:
+        ac._session_factory = app_with_db.state.test_session_factory
         yield ac
 
 
@@ -48,6 +50,25 @@ async def _register_and_token(client: AsyncClient, email: str = "user@example.co
 async def _auth_headers(client: AsyncClient, email: str = "user@example.com") -> dict:
     token = await _register_and_token(client, email)
     return {"Authorization": f"Bearer {token}"}
+
+
+async def _upgrade_to_paid(client: AsyncClient, email: str = "user@example.com") -> None:
+    """Bump the user's subscription to a paid (unlimited) tier for tests
+    that need to create multiple projects."""
+    from sqlalchemy import select
+
+    from app.models.subscription import Subscription, SubscriptionTier
+    from app.models.user import User
+
+    session_factory = client._session_factory
+    async with session_factory() as session:
+        user = (await session.execute(select(User).where(User.email == email))).scalar_one()
+        sub = (
+            await session.execute(select(Subscription).where(Subscription.owner_id == user.id))
+        ).scalar_one()
+        sub.tier = SubscriptionTier.PRO.value
+        sub.project_limit = None
+        await session.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -98,6 +119,7 @@ async def test_list_projects_returns_own_only(client: AsyncClient) -> None:
 @pytest.mark.asyncio
 async def test_list_projects_pagination(client: AsyncClient) -> None:
     headers = await _auth_headers(client)
+    await _upgrade_to_paid(client)
     for i in range(5):
         await client.post("/api/v1/projects/", json={"name": f"Project {i}"}, headers=headers)
 

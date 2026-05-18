@@ -14,8 +14,7 @@ from app.core.database import Base
 import app.models.user  # noqa: F401
 import app.models.project  # noqa: F401
 import app.models.material  # noqa: F401
-import app.models.notification  # noqa: F401
-import app.models.notification_preference  # noqa: F401
+import app.models.subscription  # noqa: F401
 
 config = context.config
 
