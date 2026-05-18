@@ -22,6 +22,7 @@ from app.schemas.project import (
     TaskUpdate,
 )
 from app.services.planning.cpm import detect_cycle
+from app.services.billing.subscriptions import enforce_project_limit
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -95,6 +96,7 @@ async def create_project(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ProjectResponse:
+    await enforce_project_limit(current_user.id, db)
     project = Project(
         owner_id=current_user.id,
         name=body.name,

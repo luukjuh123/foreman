@@ -17,6 +17,7 @@ from app.core.security import (
     verify_password,
 )
 from app.models.user import User
+from app.services.billing.subscriptions import ensure_free_subscription
 from app.schemas.auth import (
     LoginRequest,
     RefreshRequest,
@@ -64,6 +65,8 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)) ->
     db.add(user)
     await db.commit()
     await db.refresh(user)
+    await ensure_free_subscription(user.id, db)
+    await db.commit()
     return TokenResponse(
         access_token=create_access_token(str(user.id)),
         refresh_token=create_refresh_token(str(user.id)),
