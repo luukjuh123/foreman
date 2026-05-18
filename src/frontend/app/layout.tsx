@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { ThemeProvider } from "@/lib/theme-provider";
+import { AuthProvider } from "@/lib/auth-context";
 
 export const metadata: Metadata = {
   title: "Foreman — Construction Management",
@@ -13,9 +13,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="nl" suppressHydrationWarning>
+    <html lang="nl" className="dark">
       <body className="font-sans antialiased">
-        <ThemeProvider>{children}</ThemeProvider>
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );
