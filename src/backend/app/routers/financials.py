@@ -5,7 +5,7 @@ All monetary values are integer euro cents.
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -22,7 +22,16 @@ from app.schemas.budget import (
     BudgetResponse,
     BudgetUpsert,
 )
-from app.schemas.cost import MaterialCostResponse, MaterialLineResponse
+from app.schemas.cost import (
+    LaborCostResponse,
+    MaterialCostResponse,
+    MaterialLineResponse,
+    TaskLaborResponse,
+)
+from app.services.financials.labor_cost import (
+    DEFAULT_HOURLY_RATE_CENTS,
+    LaborCostEstimator,
+)
 from app.services.financials.material_cost import (
     DefaultStorePriceProvider,
     MaterialCostAggregator,
@@ -216,4 +225,44 @@ async def get_material_cost(
         total_cents=report.total_cents,
         items=[_line_to_response(item) for item in report.items],
         missing=[_line_to_response(item) for item in report.missing],
+    )
+
+
+# ---------------------------------------------------------------------------
+# Labor cost estimation
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/projects/{project_id}/labor-cost",
+    response_model=LaborCostResponse,
+)
+async def get_labor_cost(
+    project_id: uuid.UUID,
+    hourly_rate_cents: int = Query(default=DEFAULT_HOURLY_RATE_CENTS, ge=0),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> LaborCostResponse:
+    """Estimate labor cost = sum(task.estimated_hours) × hourly_rate_cents.
+
+    The rate defaults to ``DEFAULT_HOURLY_RATE_CENTS`` (5000 ¢ = €50/hr) and
+    can be overridden via query param to support what-if modelling on the
+    financial dashboard without mutating per-task ``labor_cost_cents``.
+    """
+    await _project_for_user_or_404(project_id, current_user, db)
+    estimator = LaborCostEstimator(hourly_rate_cents=hourly_rate_cents)
+    report = await estimator.estimate(project_id, db)
+    return LaborCostResponse(
+        hourly_rate_cents=report.hourly_rate_cents,
+        total_hours=report.total_hours,
+        total_cents=report.total_cents,
+        tasks=[
+            TaskLaborResponse(
+                task_id=t.task_id,
+                name=t.name,
+                estimated_hours=t.estimated_hours,
+                cost_cents=t.cost_cents,
+            )
+            for t in report.tasks
+        ],
     )
