@@ -28,10 +28,9 @@ def test_initial_migration_importable() -> None:
 def test_alembic_script_directory_loads() -> None:
     cfg = Config("alembic.ini")
     scripts = ScriptDirectory.from_config(cfg)
-    revisions = list(scripts.walk_revisions())
-    assert len(revisions) >= 1
-    revs = {r.revision for r in revisions}
-    assert "30246b22cf35" in revs
+    revisions = {r.revision for r in scripts.walk_revisions()}
+    # Initial migration must still be present in the chain.
+    assert "30246b22cf35" in revisions
 
 
 def test_initial_migration_creates_all_tables() -> None:
