@@ -144,9 +144,9 @@
 
 ## Priority: Medium (Phase 15 — Google Reviews)
 
-- [ ] Backend: Google Business Profile API integration — fetch reviews, ratings, reply
-- [ ] Backend: Review aggregation — track rating trends over time
-- [ ] Backend: AI-assisted review responses — draft professional replies to customer reviews
+- [x] Backend: Google Business Profile API integration — fetch reviews, ratings, reply — PR #38
+- [x] Backend: Review aggregation — track rating trends over time — PR #60
+- [x] Backend: AI-assisted review responses — draft professional replies to customer reviews — PR #61
 - [ ] Frontend: Reviews dashboard — latest reviews, avg rating, trend chart
 - [ ] Frontend: Review response composer — AI draft + manual edit + post
 
