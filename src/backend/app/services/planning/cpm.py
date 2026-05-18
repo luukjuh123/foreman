@@ -1,5 +1,6 @@
 """Critical Path Method (CPM) algorithm for construction task scheduling."""
 
+from collections import deque
 from dataclasses import dataclass, field
 
 
@@ -34,26 +35,28 @@ def compute_critical_path(tasks: list[CpmTask]) -> list[CpmTask]:
     """
     task_map = {t.id: t for t in tasks}
 
-    # Topological sort (Kahn's algorithm)
+    # Build reverse adjacency map and in-degree in one pass — O(n)
     in_degree: dict[str, int] = {t.id: 0 for t in tasks}
+    successors: dict[str, list[str]] = {t.id: [] for t in tasks}
     for task in tasks:
         for dep_id in task.dependencies:
             if dep_id not in task_map:
                 msg = f"Unknown dependency: {dep_id}"
                 raise ValueError(msg)
             in_degree[task.id] += 1
+            successors[dep_id].append(task.id)
 
-    queue = [t.id for t in tasks if in_degree[t.id] == 0]
+    # Topological sort (Kahn's algorithm) using deque — O(n)
+    queue: deque[str] = deque(t.id for t in tasks if in_degree[t.id] == 0)
     order: list[str] = []
 
     while queue:
-        current_id = queue.pop(0)
+        current_id = queue.popleft()
         order.append(current_id)
-        for task in tasks:
-            if current_id in task.dependencies:
-                in_degree[task.id] -= 1
-                if in_degree[task.id] == 0:
-                    queue.append(task.id)
+        for successor_id in successors[current_id]:
+            in_degree[successor_id] -= 1
+            if in_degree[successor_id] == 0:
+                queue.append(successor_id)
 
     if len(order) != len(tasks):
         msg = "Dependency cycle detected in task graph"
@@ -73,14 +76,14 @@ def compute_critical_path(tasks: list[CpmTask]) -> list[CpmTask]:
     # Project duration
     project_duration = max(t.early_finish for t in tasks)
 
-    # Backward pass
+    # Backward pass — uses successors map, no O(n) scan
     for task_id in reversed(order):
         task = task_map[task_id]
-        successors = [t for t in tasks if task_id in t.dependencies]
-        if not successors:
+        successor_tasks = [task_map[s] for s in successors[task_id]]
+        if not successor_tasks:
             task.late_finish = project_duration
         else:
-            task.late_finish = min(s.late_start for s in successors)
+            task.late_finish = min(s.late_start for s in successor_tasks)
         task.late_start = task.late_finish - task.duration_hours
         task.total_float = task.late_start - task.early_start
 
