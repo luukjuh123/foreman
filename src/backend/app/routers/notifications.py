@@ -1,8 +1,10 @@
-"""Notifications router — in-app feed + mark-as-read.
+"""Notifications router — in-app feed + mark-as-read + customer triggers.
 
 The dispatcher itself is a service used by other modules (project updates,
-inbound detection, AI alerts). HTTP surface here is read-only from the
-user's perspective.
+inbound detection, AI alerts). HTTP surface here covers (a) the read-only
+in-app feed for the current user and (b) explicit customer-notification
+triggers used by upstream business logic (or tests) to send templated
+project/invoice/report emails.
 """
 
 from __future__ import annotations
@@ -11,6 +13,7 @@ import uuid
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,8 +26,35 @@ from app.schemas.notification import (
     NotificationListResponse,
     NotificationResponse,
 )
+from app.services.notifications.channels import (
+    EmailChannel,
+    InAppChannel,
+    PushChannel,
+)
+from app.services.notifications.customer_emails import (
+    notify_invoice_sent,
+    notify_project_update,
+    notify_report_ready,
+)
+from app.services.notifications.engine import NotificationDispatcher
 
 router = APIRouter()
+
+
+# ---------------------------------------------------------------------------
+# Dispatcher dependency
+# ---------------------------------------------------------------------------
+
+
+def get_default_dispatcher() -> NotificationDispatcher:
+    """Singleton-ish dispatcher with all three built-in channels.
+
+    Exposed as a FastAPI dependency so tests can override with channel
+    fakes via `app.dependency_overrides[get_default_dispatcher] = ...`.
+    """
+    return NotificationDispatcher(
+        channels=[InAppChannel(), EmailChannel(), PushChannel()]
+    )
 
 
 @router.get("/", response_model=NotificationListResponse)
@@ -86,4 +116,114 @@ async def mark_read(
         n.read_at = datetime.now(UTC)
         await db.commit()
         await db.refresh(n)
+    return NotificationEnvelope(data=NotificationResponse.model_validate(n))
+
+
+# ---------------------------------------------------------------------------
+# Customer notification triggers
+# ---------------------------------------------------------------------------
+
+
+class ProjectUpdateRequest(BaseModel):
+    customer_user_id: uuid.UUID
+    project_id: uuid.UUID
+    project_name: str
+    update_summary: str
+
+
+class InvoiceSentRequest(BaseModel):
+    customer_user_id: uuid.UUID
+    invoice_id: uuid.UUID
+    invoice_number: str
+    amount_cents: int
+
+
+class ReportReadyRequest(BaseModel):
+    customer_user_id: uuid.UUID
+    report_id: uuid.UUID
+    report_url: str
+    report_title: str
+
+
+async def _assert_recipient_exists(user_id: uuid.UUID, db: AsyncSession) -> None:
+    exists = (
+        await db.execute(select(User).where(User.id == user_id))
+    ).scalar_one_or_none()
+    if exists is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Recipient user not found"
+        )
+
+
+@router.post(
+    "/customer/project-update",
+    response_model=NotificationEnvelope,
+    status_code=status.HTTP_201_CREATED,
+)
+async def post_project_update(
+    body: ProjectUpdateRequest,
+    _current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    dispatcher: NotificationDispatcher = Depends(get_default_dispatcher),
+) -> NotificationEnvelope:
+    await _assert_recipient_exists(body.customer_user_id, db)
+    n = await notify_project_update(
+        db,
+        dispatcher,
+        user_id=body.customer_user_id,
+        project_id=body.project_id,
+        project_name=body.project_name,
+        update_summary=body.update_summary,
+    )
+    return NotificationEnvelope(data=NotificationResponse.model_validate(n))
+
+
+@router.post(
+    "/customer/invoice-sent",
+    response_model=NotificationEnvelope,
+    status_code=status.HTTP_201_CREATED,
+)
+async def post_invoice_sent(
+    body: InvoiceSentRequest,
+    _current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    dispatcher: NotificationDispatcher = Depends(get_default_dispatcher),
+) -> NotificationEnvelope:
+    await _assert_recipient_exists(body.customer_user_id, db)
+    try:
+        n = await notify_invoice_sent(
+            db,
+            dispatcher,
+            user_id=body.customer_user_id,
+            invoice_id=body.invoice_id,
+            invoice_number=body.invoice_number,
+            amount_cents=body.amount_cents,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
+        )
+    return NotificationEnvelope(data=NotificationResponse.model_validate(n))
+
+
+@router.post(
+    "/customer/report-ready",
+    response_model=NotificationEnvelope,
+    status_code=status.HTTP_201_CREATED,
+)
+async def post_report_ready(
+    body: ReportReadyRequest,
+    _current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    dispatcher: NotificationDispatcher = Depends(get_default_dispatcher),
+) -> NotificationEnvelope:
+    await _assert_recipient_exists(body.customer_user_id, db)
+    n = await notify_report_ready(
+        db,
+        dispatcher,
+        user_id=body.customer_user_id,
+        report_id=body.report_id,
+        report_url=body.report_url,
+        report_title=body.report_title,
+    )
     return NotificationEnvelope(data=NotificationResponse.model_validate(n))
