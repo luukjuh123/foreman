@@ -94,6 +94,121 @@ def compute_critical_path(tasks: list[CpmTask]) -> list[CpmTask]:
     return tasks
 
 
+def resolve_dependencies(tasks: list[CpmTask]) -> list[CpmTask]:
+    """Return tasks in a valid execution order.
+
+    Produces a topological ordering of the dependency graph. Among tasks that
+    are simultaneously ready (in-degree zero at the same step), critical-path
+    tasks come first — schedulers should prefer them to avoid pushing out the
+    project end date.
+
+    Raises ValueError on a dependency cycle.
+    """
+    if not tasks:
+        return []
+
+    # Snapshot to avoid mutating the caller's task objects (compute_critical_path
+    # populates early_finish in-place, which we use for tie-breaking).
+    snapshot = [
+        CpmTask(
+            id=t.id,
+            name=t.name,
+            duration_hours=t.duration_hours,
+            dependencies=list(t.dependencies),
+        )
+        for t in tasks
+    ]
+    compute_critical_path(snapshot)
+    task_map = {t.id: t for t in snapshot}
+    original_map = {t.id: t for t in tasks}
+
+    in_degree: dict[str, int] = {t.id: 0 for t in snapshot}
+    successors: dict[str, list[str]] = {t.id: [] for t in snapshot}
+    for t in snapshot:
+        for dep_id in t.dependencies:
+            in_degree[t.id] += 1
+            successors[dep_id].append(t.id)
+
+    # Ready set, ordered by (not critical first, then -early_finish) so the
+    # most-critical / longest tasks come out first.
+    def sort_key(task_id: str) -> tuple[int, float, str]:
+        task = task_map[task_id]
+        return (0 if task.is_critical else 1, -task.early_finish, task.id)
+
+    ready = sorted([t.id for t in snapshot if in_degree[t.id] == 0], key=sort_key)
+    ordered: list[CpmTask] = []
+    while ready:
+        cur = ready.pop(0)
+        ordered.append(original_map[cur])
+        new_ready: list[str] = []
+        for succ in successors[cur]:
+            in_degree[succ] -= 1
+            if in_degree[succ] == 0:
+                new_ready.append(succ)
+        if new_ready:
+            ready.extend(new_ready)
+            ready.sort(key=sort_key)
+
+    if len(ordered) != len(snapshot):
+        msg = "Dependency cycle detected in task graph"
+        raise ValueError(msg)
+    return ordered
+
+
+def critical_path_sequence(tasks: list[CpmTask]) -> list[CpmTask]:
+    """Return one valid critical-path chain from start to end.
+
+    Walks from a critical task with no dependencies to a critical task whose
+    early_finish equals the project duration, always following a critical
+    predecessor/successor edge. If multiple chains are tied, returns one of
+    them (deterministically by task id).
+    """
+    if not tasks:
+        return []
+
+    snapshot = [
+        CpmTask(
+            id=t.id,
+            name=t.name,
+            duration_hours=t.duration_hours,
+            dependencies=list(t.dependencies),
+        )
+        for t in tasks
+    ]
+    compute_critical_path(snapshot)
+    task_map = {t.id: t for t in snapshot}
+    original_map = {t.id: t for t in tasks}
+
+    # Find a critical starter: critical, no critical predecessor.
+    critical_ids = {t.id for t in snapshot if t.is_critical}
+    successors: dict[str, list[str]] = {t.id: [] for t in snapshot}
+    for t in snapshot:
+        for dep in t.dependencies:
+            successors[dep].append(t.id)
+
+    def critical_starts() -> list[str]:
+        starts = []
+        for tid in critical_ids:
+            preds = [d for d in task_map[tid].dependencies if d in critical_ids]
+            if not preds:
+                starts.append(tid)
+        return sorted(starts)
+
+    chain: list[str] = []
+    starts = critical_starts()
+    if not starts:
+        return []
+    cur = starts[0]
+    while True:
+        chain.append(cur)
+        next_critical = sorted(s for s in successors[cur] if s in critical_ids)
+        if not next_critical:
+            break
+        cur = next_critical[0]
+
+    return [original_map[tid] for tid in chain]
+
+
 async def detect_cycle(task_id: uuid.UUID, depends_on_task_id: uuid.UUID, db: AsyncSession) -> bool:
     """Return True if adding task_id -> depends_on_task_id would create a cycle.
 
