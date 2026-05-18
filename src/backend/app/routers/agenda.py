@@ -2,7 +2,7 @@
 
 from datetime import date, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +16,7 @@ from app.schemas.agenda import (
     AgendaTask,
     AgendaWeekResponse,
 )
+from app.services.calendar import build_ics
 
 router = APIRouter()
 
@@ -152,3 +153,39 @@ async def range_view(
 
 # Re-exported for the iCal exporter (separate PR will use it).
 __all__ = ["router", "_fetch_tasks_in_range"]
+
+
+@router.get(
+    "/export.ics",
+    response_class=Response,
+    responses={200: {"content": {"text/calendar": {}}}},
+)
+async def export_ics(
+    start: date = Query(..., description="Inclusive range start."),
+    end: date = Query(..., description="Inclusive range end."),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Export agenda tasks in [start, end] as an RFC 5545 iCalendar (.ics) file."""
+    if end < start:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="`end` must be on or after `start`",
+        )
+    if (end - start).days > 366:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Range cannot exceed 366 days",
+        )
+
+    rows = await _fetch_tasks_in_range(current_user, start, end, db)
+    body = build_ics(rows)
+    return Response(
+        content=body,
+        media_type="text/calendar; charset=utf-8",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="foreman-agenda-{start.isoformat()}-{end.isoformat()}.ics"'
+            ),
+        },
+    )
