@@ -4,9 +4,12 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import DateTime, ForeignKey, String, Text, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
+
+# Categories that drive the project total-cost breakdown.
+BUDGET_ITEM_CATEGORIES = ("materials", "labor", "equipment", "overhead", "other")
 
 
 class Material(Base):
@@ -52,3 +55,33 @@ class Budget(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+    items: Mapped[list["BudgetItem"]] = relationship(
+        back_populates="budget", cascade="all, delete-orphan"
+    )
+
+
+class BudgetItem(Base):
+    """A single line item attached to a project's budget.
+
+    Categories track the breakdown used by the financial dashboard:
+    materials, labor, equipment, overhead, other.
+    """
+
+    __tablename__ = "budget_items"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    budget_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("budgets.id"), nullable=False, index=True
+    )
+    category: Mapped[str] = mapped_column(String(50), nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    estimated_cents: Mapped[int] = mapped_column(default=0)
+    actual_cents: Mapped[int] = mapped_column(default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    budget: Mapped["Budget"] = relationship(back_populates="items")

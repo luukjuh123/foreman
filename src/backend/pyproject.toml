@@ -17,6 +17,7 @@ dependencies = [
     "openai>=1.57",
     "python-multipart>=0.0.20",
     "email-validator>=2.1",
+    "icalendar>=5.0",
 ]
 
 [project.scripts]
@@ -68,8 +69,11 @@ python-version = "3.12"
 [tool.pytest.ini_options]
 testpaths = ["../../tests/backend"]
 pythonpath = ["."]
-addopts = "-v --tb=short"
+addopts = "-v --tb=short -m 'not live'"
 asyncio_mode = "strict"
+markers = [
+    "live: hits real external services; skipped by default",
+]
 
 [tool.coverage.run]
 source = ["app"]
