@@ -4,7 +4,7 @@
 
 - [x] Backend: FastAPI app skeleton with /healthz, CORS, env config, structured logging — PR #1
 - [ ] Backend: Database models (Project, Phase, Task, Material, User) with SQLAlchemy + UUID PKs + Alembic migrations
-- [ ] Backend: User authentication — JWT-based login/register endpoints (bcrypt passwords)
+- [x] Backend: User authentication — JWT-based login/register endpoints (bcrypt passwords) — PR #3
 - [ ] Frontend: Next.js 16 app skeleton with Tailwind CSS, shadcn/ui, dark theme config
 - [ ] Frontend: Auth pages (login/register) with API integration and token storage
 - [ ] Frontend: Main dashboard layout with sidebar navigation and route structure
