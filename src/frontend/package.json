@@ -13,7 +13,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "next": "16.3.0",
+    "next": "^15.3.0",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "clsx": "^2.1.1",
@@ -38,7 +38,7 @@
     "@typescript-eslint/eslint-plugin": "^8.20.0",
     "@typescript-eslint/parser": "^8.20.0",
     "eslint": "^9.18.0",
-    "eslint-config-next": "16.3.0",
+    "eslint-config-next": "^15.3.0",
     "eslint-config-prettier": "^9.1.0",
     "prettier": "^3.4.2",
     "vitest": "^2.1.8",
@@ -47,6 +47,6 @@
     "@testing-library/user-event": "^14.5.2",
     "@testing-library/jest-dom": "^6.6.3",
     "jsdom": "^26.0.0",
-    "codespell": "^2.4.1"
+    "@vitejs/plugin-react": "^4.3.4"
   }
 }
