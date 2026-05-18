@@ -21,10 +21,45 @@ from app.routers.auth import get_current_user
 from app.schemas.notification import (
     NotificationEnvelope,
     NotificationListResponse,
+    NotificationPreferencesEnvelope,
+    NotificationPreferencesResponse,
+    NotificationPreferencesUpdate,
     NotificationResponse,
 )
+from app.services.notifications.preferences import get_or_create_preferences
 
 router = APIRouter()
+
+
+@router.get("/preferences", response_model=NotificationPreferencesEnvelope)
+async def get_preferences(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> NotificationPreferencesEnvelope:
+    prefs = await get_or_create_preferences(db, user_id=current_user.id)
+    await db.commit()
+    await db.refresh(prefs)
+    return NotificationPreferencesEnvelope(
+        data=NotificationPreferencesResponse.model_validate(prefs)
+    )
+
+
+@router.put("/preferences", response_model=NotificationPreferencesEnvelope)
+async def update_preferences(
+    payload: NotificationPreferencesUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> NotificationPreferencesEnvelope:
+    prefs = await get_or_create_preferences(db, user_id=current_user.id)
+    for field in ("in_app_enabled", "email_enabled", "push_enabled", "type_overrides"):
+        new_val = getattr(payload, field)
+        if new_val is not None:
+            setattr(prefs, field, new_val)
+    await db.commit()
+    await db.refresh(prefs)
+    return NotificationPreferencesEnvelope(
+        data=NotificationPreferencesResponse.model_validate(prefs)
+    )
 
 
 @router.get("/", response_model=NotificationListResponse)
