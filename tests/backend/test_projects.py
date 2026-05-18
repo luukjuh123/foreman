@@ -469,6 +469,17 @@ async def test_transitive_cycle_rejected(client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
+async def test_get_project_other_user_forbidden(client: AsyncClient) -> None:
+    h1 = await _auth_headers(client, "getowner@example.com")
+    h2 = await _auth_headers(client, "getother@example.com")
+    create_resp = await client.post("/api/v1/projects/", json={"name": "Secret Project"}, headers=h1)
+    project_id = create_resp.json()["id"]
+
+    resp = await client.get(f"/api/v1/projects/{project_id}", headers=h2)
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
 async def test_get_project_includes_phases_and_tasks(client: AsyncClient) -> None:
     headers = await _auth_headers(client)
     proj = (await client.post("/api/v1/projects/", json={"name": "Full"}, headers=headers)).json()
