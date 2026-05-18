@@ -23,6 +23,7 @@ from app.schemas.invoice import (
     InvoiceResponse,
 )
 from app.services.invoices.numbering import allocate_invoice_number
+from app.services.invoices.pdf import render_invoice_pdf
 from app.services.invoices.totals import compute_line_totals
 from app.services.invoices.ubl import build_invoice_ubl_xml
 
@@ -215,6 +216,7 @@ def _invoice_to_dict(invoice: Invoice) -> dict:
         "due_date": invoice.due_date,
         "currency": invoice.currency,
         "notes": invoice.notes,
+        "payment_terms_days": invoice.payment_terms_days,
         "subtotal_cents": invoice.subtotal_cents,
         "vat_total_cents": invoice.vat_total_cents,
         "total_cents": invoice.total_cents,
@@ -282,5 +284,33 @@ async def get_invoice_ubl(
     return Response(
         content=xml_bytes,
         media_type="application/xml",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get(
+    "/{invoice_id}/pdf",
+    response_class=Response,
+    responses={200: {"content": {"application/pdf": {}}}},
+)
+async def get_invoice_pdf(
+    invoice_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    invoice = await _load_invoice(db, current_user.id, invoice_id)
+    customer = await _load_customer(db, current_user.id, invoice.customer_id)
+    # Import the function lazily via the module so tests can monkeypatch it.
+    from app.services.invoices import pdf as pdf_mod
+
+    pdf_bytes = pdf_mod.render_invoice_pdf(
+        _invoice_to_dict(invoice),
+        customer=_customer_to_dict(customer),
+        supplier=_supplier_from_settings(),
+    )
+    filename = f"invoice-{invoice.invoice_number}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
