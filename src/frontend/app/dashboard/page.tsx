@@ -1,31 +1,62 @@
-import React from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FolderKanban, CheckSquare, FileText, Users } from "lucide-react";
+"use client";
 
-const STAT_CARDS = [
-  {
-    title: "Actieve Projecten",
-    value: "0",
-    icon: FolderKanban,
-  },
-  {
-    title: "Taken Vandaag",
-    value: "0",
-    icon: CheckSquare,
-  },
-  {
-    title: "Openstaande Facturen",
-    value: "€0,00",
-    icon: FileText,
-  },
-  {
-    title: "Personeel Actief",
-    value: "0",
-    icon: Users,
-  },
-];
+import React, { useEffect, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { FolderKanban, CheckSquare, DollarSign, Users } from "lucide-react";
+import { listProjects, formatBudget } from "@/lib/projects";
+import type { ProjectResponse } from "@/lib/types";
+
+interface DashboardStats {
+  activeProjects: number;
+  activeTasks: number;
+  totalBudgetCents: number;
+}
+
+function computeStats(projects: ProjectResponse[]): DashboardStats {
+  const activeProjects = projects.filter((p) => p.status === "active").length;
+
+  const activeTasks = projects
+    .flatMap((p) => p.phases ?? [])
+    .flatMap((ph) => ph.tasks ?? [])
+    .filter((t) => t.status === "todo" || t.status === "in_progress").length;
+
+  const totalBudgetCents = projects.reduce(
+    (sum, p) => sum + (p.budget_cents ?? 0),
+    0
+  );
+
+  return { activeProjects, activeTasks, totalBudgetCents };
+}
 
 export default function DashboardPage() {
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+
+    listProjects(1, 100)
+      .then((res) => {
+        if (!cancelled) {
+          setStats(computeStats(res.data));
+          setLoading(false);
+        }
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Onbekende fout");
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <div className="space-y-6">
       <div>
@@ -35,43 +66,111 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      {/* Stat cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {STAT_CARDS.map(({ title, value, icon: Icon }) => (
-          <Card key={title}>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {title}
-              </CardTitle>
-              <Icon className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold">{value}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {loading && (
+        <div data-testid="dashboard-loading" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {[0, 1, 2, 3].map((i) => (
+            <Card key={i}>
+              <CardHeader className="pb-2">
+                <div className="h-4 w-24 animate-pulse rounded bg-muted" />
+              </CardHeader>
+              <CardContent>
+                <div className="h-8 w-16 animate-pulse rounded bg-muted" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
-      {/* Recent activity placeholder */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Recente Activiteit</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">Geen recente activiteit.</p>
-          </CardContent>
-        </Card>
+      {error && (
+        <div
+          data-testid="dashboard-error"
+          className="rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive"
+        >
+          Gegevens konden niet worden geladen: {error}
+        </div>
+      )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Aankomende Taken</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">Geen aankomende taken.</p>
-          </CardContent>
-        </Card>
-      </div>
+      {!loading && !error && stats && (
+        <>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Actieve Projecten
+                </CardTitle>
+                <FolderKanban className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold" data-testid="stat-actieve-projecten">
+                  {stats.activeProjects}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Taken Vandaag
+                </CardTitle>
+                <CheckSquare className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold" data-testid="stat-taken-vandaag">
+                  {stats.activeTasks}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Totaal Budget
+                </CardTitle>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold" data-testid="stat-totaal-budget">
+                  {formatBudget(stats.totalBudgetCents)}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Personeel Actief
+                </CardTitle>
+                <Users className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold" data-testid="stat-personeel-actief">
+                  0
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Recente Activiteit</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">Geen recente activiteit.</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Aankomende Taken</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">Geen aankomende taken.</p>
+              </CardContent>
+            </Card>
+          </div>
+        </>
+      )}
     </div>
   );
 }
