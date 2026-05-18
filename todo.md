@@ -33,11 +33,11 @@
 
 ## Priority: High (Phase 4 — AI Planning Engine)
 
-- [ ] Backend: AI agent service — analyze project specs and generate optimal task ordering
-- [ ] Backend: Critical path calculation (CPM algorithm) and dependency resolution
-- [ ] Backend: AI schedule optimizer accounting for weather, resource, and dependency constraints
-- [ ] Backend: Agent decision engine — returns prioritized task list with human-readable reasoning per decision
-- [ ] Backend: AI learns from historical process data — uses past durations to predict future schedules
+- [x] Backend: AI agent service — analyze project specs and generate optimal task ordering — PR #23
+- [x] Backend: Critical path calculation (CPM algorithm) and dependency resolution — PR #27
+- [x] Backend: AI schedule optimizer accounting for weather, resource, and dependency constraints — PR #31
+- [x] Backend: Agent decision engine — returns prioritized task list with human-readable reasoning per decision — PR #34
+- [x] Backend: AI learns from historical process data — uses past durations to predict future schedules — PR #35
 
 ## Priority: High (Phase 5 — Agenda)
 
