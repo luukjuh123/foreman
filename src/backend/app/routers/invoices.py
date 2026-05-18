@@ -23,6 +23,7 @@ from app.schemas.invoice import (
     InvoiceResponse,
     InvoiceStatusUpdate,
 )
+from app.services.invoices.from_project import build_project_lines
 from app.services.invoices.numbering import allocate_invoice_number
 from app.services.invoices.pdf import render_invoice_pdf
 from app.services.invoices.status import apply_transition, sweep_overdue
@@ -371,4 +372,102 @@ async def transition_invoice(
         ) from exc
     await db.commit()
     loaded = await _load_invoice(db, current_user.id, invoice_id)
+    return InvoiceResponse.model_validate(loaded)
+
+
+# ---------------------------------------------------------------------------
+# Build invoice from project
+# ---------------------------------------------------------------------------
+
+
+class _FromProjectRequest(BaseModel):
+    customer_id: uuid.UUID
+    issue_date: _date | None = None
+    payment_terms_days: int = 30
+    default_vat_rate_bp: int = 2100
+    include_materials: bool = True
+    include_labor: bool = True
+    notes: str | None = None
+
+
+@router.post(
+    "/from-project/{project_id}",
+    response_model=InvoiceResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_invoice_from_project(
+    project_id: uuid.UUID,
+    body: _FromProjectRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> InvoiceResponse:
+    customer = await _load_customer(db, current_user.id, body.customer_id)
+
+    try:
+        project, draft_lines = await build_project_lines(
+            db,
+            project_id=project_id,
+            owner_id=current_user.id,
+            vat_rate_bp=body.default_vat_rate_bp,
+            include_materials=body.include_materials,
+            include_labor=body.include_labor,
+        )
+    except LookupError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
+
+    if not draft_lines:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Project has no billable materials or labor — invoice would be empty.",
+        )
+
+    issue_date = body.issue_date or _date.today()
+    invoice_number = await allocate_invoice_number(
+        db, owner_id=current_user.id, year=issue_date.year
+    )
+
+    invoice = Invoice(
+        owner_id=current_user.id,
+        customer_id=customer.id,
+        project_id=project.id,
+        invoice_number=invoice_number,
+        issue_date=issue_date,
+        due_date=issue_date + timedelta(days=body.payment_terms_days),
+        payment_terms_days=body.payment_terms_days,
+        notes=body.notes,
+        status="draft",
+    )
+
+    subtotal = 0
+    vat_total = 0
+    for idx, dl in enumerate(draft_lines):
+        net, vat = compute_line_totals(
+            quantity=dl.quantity,
+            unit_price_cents=dl.unit_price_cents,
+            vat_rate_bp=dl.vat_rate_bp,
+        )
+        invoice.lines.append(
+            InvoiceLine(
+                position=idx,
+                description=dl.description,
+                quantity=dl.quantity,
+                unit=dl.unit,
+                unit_price_cents=dl.unit_price_cents,
+                vat_rate_bp=dl.vat_rate_bp,
+                line_net_cents=net,
+                line_vat_cents=vat,
+            )
+        )
+        subtotal += net
+        vat_total += vat
+
+    invoice.subtotal_cents = subtotal
+    invoice.vat_total_cents = vat_total
+    invoice.total_cents = subtotal + vat_total
+
+    db.add(invoice)
+    await db.commit()
+    loaded = await _load_invoice(db, current_user.id, invoice.id)
     return InvoiceResponse.model_validate(loaded)
