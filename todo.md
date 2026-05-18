@@ -18,7 +18,7 @@
 - [ ] Frontend: Project overview dashboard with phase cards and progress bars
 - [ ] Frontend: Task board (kanban-style) per project phase
 - [x] Frontend: Gantt chart / timeline view with drag-and-drop rescheduling — PR #17
-- [ ] Backend: AI auto-fill planning — generate Gantt schedule from todo list + historical process durations
+- [x] Backend: AI auto-fill planning — generate Gantt schedule from todo list + historical process durations — PR #16
 - [ ] Frontend: AI planning panel — trigger planning, stream agent reasoning, accept/reject suggestions
 
 ## Priority: High (Phase 3 — History + Process Tracking)
