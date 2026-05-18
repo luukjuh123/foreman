@@ -81,17 +81,6 @@ export interface AgendaTask {
   location: string | null;
 }
 
-export interface AgendaDay {
-  date: string; // YYYY-MM-DD
-  tasks: AgendaTask[];
-}
-
-export interface AgendaWeekResponse {
-  week_start: string;
-  week_end: string;
-  days: AgendaDay[];
-}
-
 export interface AgendaDayResponse {
   date: string;
   tasks: AgendaTask[];

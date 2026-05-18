@@ -1,14 +1,5 @@
 import { apiFetch } from "@/lib/api";
-import type { AgendaWeekResponse, AgendaDayResponse } from "@/lib/types";
-
-/**
- * Fetch agenda tasks for the week containing week_start (YYYY-MM-DD).
- * If week_start is omitted, the backend defaults to the current week.
- */
-export async function fetchWeekAgenda(weekStart?: string): Promise<AgendaWeekResponse> {
-  const qs = weekStart ? `?week_start=${weekStart}` : "";
-  return apiFetch<AgendaWeekResponse>(`/agenda/week${qs}`);
-}
+import type { AgendaDayResponse } from "@/lib/types";
 
 /**
  * Fetch agenda tasks for a single day (YYYY-MM-DD).
@@ -20,8 +11,7 @@ export async function fetchDayAgenda(day?: string): Promise<AgendaDayResponse> {
 }
 
 /**
- * Generate a consistent, visually distinct background color from a project_id string.
- * Uses a simple djb2-style hash mapped to a curated palette of construction-themed colors.
+ * Generate a consistent background color from a project_id string.
  */
 const PROJECT_COLORS = [
   "#3b82f6", // blue-500
@@ -34,8 +24,6 @@ const PROJECT_COLORS = [
   "#84cc16", // lime-500
   "#ec4899", // pink-500
   "#14b8a6", // teal-500
-  "#6366f1", // indigo-500
-  "#a855f7", // purple-500
 ];
 
 export function getProjectColor(projectId: string): string {
@@ -43,6 +31,5 @@ export function getProjectColor(projectId: string): string {
   for (let i = 0; i < projectId.length; i++) {
     hash = (hash * 33) ^ projectId.charCodeAt(i);
   }
-  const index = Math.abs(hash) % PROJECT_COLORS.length;
-  return PROJECT_COLORS[index];
+  return PROJECT_COLORS[Math.abs(hash) % PROJECT_COLORS.length];
 }
