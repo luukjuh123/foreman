@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     scraper_rate_limit_delay_seconds: float = 1.0
     scraper_cache_ttl_seconds: int = 3600  # 1 hour
 
+    # Mollie (payment provider)
+    mollie_api_key: str = ""
+    mollie_webhook_secret: str = "change-me-in-production"
+
     # App
     debug: bool = False
     log_level: str = "INFO"
