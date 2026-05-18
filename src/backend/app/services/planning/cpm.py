@@ -1,7 +1,10 @@
 """Critical Path Method (CPM) algorithm for construction task scheduling."""
 
-from collections import deque
+import uuid
 from dataclasses import dataclass, field
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @dataclass
@@ -88,3 +91,36 @@ def compute_critical_path(tasks: list[CpmTask]) -> list[CpmTask]:
         task.total_float = task.late_start - task.early_start
 
     return tasks
+
+
+async def detect_cycle(task_id: uuid.UUID, depends_on_task_id: uuid.UUID, db: AsyncSession) -> bool:
+    """Return True if adding task_id -> depends_on_task_id would create a cycle.
+
+    We DFS from depends_on_task_id following existing depends_on edges.
+    If we reach task_id, a cycle would form.
+    """
+    from app.models.project import TaskDependency  # local import to avoid circular
+
+    result = await db.execute(select(TaskDependency))
+    all_deps = result.scalars().all()
+
+    # adjacency: task_id -> list of depends_on_task_id (i.e. "task depends on these")
+    # To detect cycle: we walk the graph from depends_on_task_id through its own dependencies.
+    # If we reach task_id, adding the edge would form a cycle.
+    adj: dict[uuid.UUID, list[uuid.UUID]] = {}
+    for dep in all_deps:
+        adj.setdefault(dep.task_id, []).append(dep.depends_on_task_id)
+
+    # DFS from depends_on_task_id
+    visited: set[uuid.UUID] = set()
+    stack = [depends_on_task_id]
+    while stack:
+        current = stack.pop()
+        if current == task_id:
+            return True
+        if current in visited:
+            continue
+        visited.add(current)
+        for neighbor in adj.get(current, []):
+            stack.append(neighbor)
+    return False
