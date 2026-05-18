@@ -17,6 +17,7 @@ dependencies = [
     "openai>=1.57",
     "python-multipart>=0.0.20",
     "email-validator>=2.1",
+    "icalendar>=5.0",
 ]
 
 [project.scripts]
