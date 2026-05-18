@@ -134,10 +134,10 @@
 
 ## Priority: Medium (Phase 14 — Voice Prompting)
 
-- [ ] Backend: Voice input endpoint — accept audio, transcribe (Whisper or Nvidia Riva)
-- [ ] Backend: Nvidia Personaplex integration — conversational AI for hands-free project management
-- [ ] Backend: Voice command parser — map spoken commands to actions (create task, log hours, check schedule)
-- [ ] Backend: Voice response generation — TTS for AI responses (status updates, schedule readouts)
+- [x] Backend: Voice input endpoint — accept audio, transcribe (Whisper or Nvidia Riva) — PR #24
+- [x] Backend: Nvidia Personaplex integration — conversational AI for hands-free project management — PR #25
+- [x] Backend: Voice command parser — map spoken commands to actions (create task, log hours, check schedule) — PR #28
+- [x] Backend: Voice response generation — TTS for AI responses (status updates, schedule readouts) — PR #32
 - [ ] Frontend: Voice input button — push-to-talk or continuous listening mode
 - [ ] Frontend: Voice conversation UI — transcript view with AI responses
 - [ ] Frontend: Hands-free mode — optimized for mobile use while commuting or on-site
