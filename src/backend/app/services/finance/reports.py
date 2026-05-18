@@ -234,3 +234,56 @@ def compute_net_income_cents(aggregates: list[AccountAggregate]) -> int:
     revenue = sum(a.balance_cents for a in aggregates if a.account_type == "revenue")
     expense = sum(a.balance_cents for a in aggregates if a.account_type == "expense")
     return revenue - expense
+
+
+# ---------------------------------------------------------------------------
+# Income statement (winst- en verliesrekening)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class IncomeStatement:
+    start_date: date
+    end_date: date
+    revenue: list[BalanceSheetNode]
+    expenses: list[BalanceSheetNode]
+    total_revenue_cents: int
+    total_expenses_cents: int
+
+    @property
+    def net_income_cents(self) -> int:
+        return self.total_revenue_cents - self.total_expenses_cents
+
+    def to_dict(self) -> dict:
+        return {
+            "start_date": self.start_date.isoformat(),
+            "end_date": self.end_date.isoformat(),
+            "revenue": {
+                "accounts": [n.to_dict() for n in self.revenue],
+                "total_cents": self.total_revenue_cents,
+            },
+            "expenses": {
+                "accounts": [n.to_dict() for n in self.expenses],
+                "total_cents": self.total_expenses_cents,
+            },
+            "net_income_cents": self.net_income_cents,
+            "is_profit": self.net_income_cents > 0,
+        }
+
+
+def build_income_statement(
+    aggregates_for_period: list[AccountAggregate],
+    *,
+    start_date: date,
+    end_date: date,
+) -> IncomeStatement:
+    revenue_tree, total_rev = _build_tree(aggregates_for_period, "revenue")
+    expense_tree, total_exp = _build_tree(aggregates_for_period, "expense")
+    return IncomeStatement(
+        start_date=start_date,
+        end_date=end_date,
+        revenue=revenue_tree,
+        expenses=expense_tree,
+        total_revenue_cents=total_rev,
+        total_expenses_cents=total_exp,
+    )

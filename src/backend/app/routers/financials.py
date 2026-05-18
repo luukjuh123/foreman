@@ -329,3 +329,32 @@ async def balance_sheet(
         aggregates, as_of=as_of, net_income_to_date_cents=net_income
     )
     return sheet.to_dict()
+
+
+# ---------------------------------------------------------------------------
+# Income statement (winst- en verliesrekening)
+# ---------------------------------------------------------------------------
+
+
+from app.services.finance.reports import build_income_statement  # noqa: E402
+
+
+@router.get("/reports/income-statement")
+async def income_statement(
+    start_date: _date = _Query(..., description="Period start (inclusive)"),
+    end_date: _date = _Query(..., description="Period end (inclusive)"),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Winst- en verliesrekening over een periode: opbrengsten - kosten."""
+    if end_date < start_date:
+        raise HTTPException(
+            status_code=400, detail="end_date must be >= start_date"
+        )
+    aggregates = await aggregate_balances(
+        db, user.id, start_date=start_date, end_date=end_date
+    )
+    stmt = build_income_statement(
+        aggregates, start_date=start_date, end_date=end_date
+    )
+    return stmt.to_dict()
