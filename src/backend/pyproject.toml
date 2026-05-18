@@ -16,6 +16,7 @@ dependencies = [
     "httpx>=0.28",
     "openai>=1.57",
     "python-multipart>=0.0.20",
+    "email-validator>=2.1",
 ]
 
 [project.scripts]
@@ -32,6 +33,7 @@ dev = [
     "safety>=3.0",
     "codespell>=2.3",
     "pre-commit>=3.7",
+    "aiosqlite>=0.20",
 ]
 
 [tool.ruff]
@@ -66,7 +68,7 @@ python-version = "3.12"
 [tool.pytest.ini_options]
 testpaths = ["../../tests/backend"]
 addopts = "-v --tb=short"
-asyncio_mode = "auto"
+asyncio_mode = "strict"
 
 [tool.coverage.run]
 source = ["app"]
