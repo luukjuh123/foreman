@@ -12,7 +12,7 @@
 
 ## Priority: High (Phase 2 — Project Management + Planning)
 
-- [ ] Backend: CRUD endpoints for projects, phases, tasks (with pagination)
+- [x] Backend: CRUD endpoints for projects, phases, tasks (with pagination) — PR #12
 - [ ] Backend: Task dependency graph model and cycle-detection validation
 - [ ] Frontend: Project creation wizard (multi-step form: name -> phases -> tasks)
 - [ ] Frontend: Project overview dashboard with phase cards and progress bars
