@@ -1,8 +1,23 @@
-import React from "react";
+"use client";
+
+import React, { useEffect } from "react";
+import { redirect } from "next/navigation";
 import Sidebar from "@/components/sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
 
+const ACCESS_TOKEN_KEY = "foreman_access_token";
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  useEffect(() => {
+    const token =
+      typeof window !== "undefined"
+        ? localStorage.getItem(ACCESS_TOKEN_KEY)
+        : null;
+    if (!token) {
+      redirect("/login");
+    }
+  }, []);
+
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />
