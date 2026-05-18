@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
 
+    # Google Business Profile
+    google_business_access_token: str = ""
+
     # Store scraper
     scraper_rate_limit_delay_seconds: float = 1.0
     scraper_cache_ttl_seconds: int = 3600  # 1 hour
