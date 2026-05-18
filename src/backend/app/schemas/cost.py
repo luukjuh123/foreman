@@ -32,3 +32,18 @@ class LaborCostResponse(BaseModel):
     total_hours: float
     total_cents: int
     tasks: list[TaskLaborResponse]
+
+
+class CostBreakdownResponse(BaseModel):
+    materials_cents: int
+    labor_cents: int
+    equipment_cents: int
+    overhead_cents: int
+    other_cents: int
+
+
+class TotalCostResponse(BaseModel):
+    total_cents: int
+    hourly_rate_cents: int
+    breakdown: CostBreakdownResponse
+    materials_missing_count: int
