@@ -24,36 +24,44 @@ from app.routers.auth import get_current_user
 from app.schemas.notification import (
     NotificationEnvelope,
     NotificationListResponse,
+    NotificationPreferencesEnvelope,
+    NotificationPreferencesResponse,
+    NotificationPreferencesUpdate,
     NotificationResponse,
 )
-from app.services.notifications.channels import (
-    EmailChannel,
-    InAppChannel,
-    PushChannel,
-)
-from app.services.notifications.customer_emails import (
-    notify_invoice_sent,
-    notify_project_update,
-    notify_report_ready,
-)
-from app.services.notifications.engine import NotificationDispatcher
+from app.services.notifications.preferences import get_or_create_preferences
 
 router = APIRouter()
 
 
-# ---------------------------------------------------------------------------
-# Dispatcher dependency
-# ---------------------------------------------------------------------------
+@router.get("/preferences", response_model=NotificationPreferencesEnvelope)
+async def get_preferences(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> NotificationPreferencesEnvelope:
+    prefs = await get_or_create_preferences(db, user_id=current_user.id)
+    await db.commit()
+    await db.refresh(prefs)
+    return NotificationPreferencesEnvelope(
+        data=NotificationPreferencesResponse.model_validate(prefs)
+    )
 
 
-def get_default_dispatcher() -> NotificationDispatcher:
-    """Singleton-ish dispatcher with all three built-in channels.
-
-    Exposed as a FastAPI dependency so tests can override with channel
-    fakes via `app.dependency_overrides[get_default_dispatcher] = ...`.
-    """
-    return NotificationDispatcher(
-        channels=[InAppChannel(), EmailChannel(), PushChannel()]
+@router.put("/preferences", response_model=NotificationPreferencesEnvelope)
+async def update_preferences(
+    payload: NotificationPreferencesUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> NotificationPreferencesEnvelope:
+    prefs = await get_or_create_preferences(db, user_id=current_user.id)
+    for field in ("in_app_enabled", "email_enabled", "push_enabled", "type_overrides"):
+        new_val = getattr(payload, field)
+        if new_val is not None:
+            setattr(prefs, field, new_val)
+    await db.commit()
+    await db.refresh(prefs)
+    return NotificationPreferencesEnvelope(
+        data=NotificationPreferencesResponse.model_validate(prefs)
     )
 
 

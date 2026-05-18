@@ -22,6 +22,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.notification import Notification
 from app.models.user import User
 from app.services.notifications.channels import NotificationChannel
+from app.services.notifications.preferences import (
+    ALL_CHANNELS as KNOWN_CHANNELS,
+    allowed_channels_for,
+    get_or_create_preferences,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -69,8 +74,16 @@ class NotificationDispatcher:
         await db.flush()  # need PK for channels referencing it
 
         dispatched: list[str] = []
+        # User preferences always win — even an explicit `channels=[...]` arg
+        # is intersected with the user's allowed set so opt-outs are honored.
+        # Channels not registered in the prefs model (e.g. custom in-process
+        # channels) are passed through unfiltered.
+        prefs = await get_or_create_preferences(db, user_id=user_id)
+        allowed = allowed_channels_for(prefs, type)
         for channel in self.channels:
             if channels is not None and channel.name not in channels:
+                continue
+            if channel.name in KNOWN_CHANNELS and channel.name not in allowed:
                 continue
             try:
                 await channel.send(notification, user)
