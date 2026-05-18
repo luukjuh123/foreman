@@ -3,7 +3,7 @@
 ## Priority: High (Phase 1 — Foundation)
 
 - [ ] Backend: FastAPI app skeleton with /healthz, CORS, env config, structured logging
-- [ ] Backend: Database models (Project, Phase, Task, Material, User) with SQLAlchemy + UUID PKs + Alembic migrations
+- [x] Backend: Database models (Project, Phase, Task, Material, User) with SQLAlchemy + UUID PKs + Alembic migrations — PR #2
 - [ ] Backend: User authentication — JWT-based login/register endpoints (bcrypt passwords)
 - [ ] Frontend: Next.js 16 app skeleton with Tailwind CSS, shadcn/ui, dark theme config
 - [ ] Frontend: Auth pages (login/register) with API integration and token storage
@@ -33,11 +33,11 @@
 
 ## Priority: High (Phase 4 — AI Planning Engine)
 
-- [ ] Backend: AI agent service — analyze project specs and generate optimal task ordering
-- [ ] Backend: Critical path calculation (CPM algorithm) and dependency resolution
-- [ ] Backend: AI schedule optimizer accounting for weather, resource, and dependency constraints
-- [ ] Backend: Agent decision engine — returns prioritized task list with human-readable reasoning per decision
-- [ ] Backend: AI learns from historical process data — uses past durations to predict future schedules
+- [x] Backend: AI agent service — analyze project specs and generate optimal task ordering — PR #23
+- [x] Backend: Critical path calculation (CPM algorithm) and dependency resolution — PR #27
+- [x] Backend: AI schedule optimizer accounting for weather, resource, and dependency constraints — PR #31
+- [x] Backend: Agent decision engine — returns prioritized task list with human-readable reasoning per decision — PR #34
+- [x] Backend: AI learns from historical process data — uses past durations to predict future schedules — PR #35
 
 ## Priority: High (Phase 5 — Agenda)
 
@@ -134,10 +134,10 @@
 
 ## Priority: Medium (Phase 14 — Voice Prompting)
 
-- [ ] Backend: Voice input endpoint — accept audio, transcribe (Whisper or Nvidia Riva)
-- [ ] Backend: Nvidia Personaplex integration — conversational AI for hands-free project management
-- [ ] Backend: Voice command parser — map spoken commands to actions (create task, log hours, check schedule)
-- [ ] Backend: Voice response generation — TTS for AI responses (status updates, schedule readouts)
+- [x] Backend: Voice input endpoint — accept audio, transcribe (Whisper or Nvidia Riva) — PR #24
+- [x] Backend: Nvidia Personaplex integration — conversational AI for hands-free project management — PR #25
+- [x] Backend: Voice command parser — map spoken commands to actions (create task, log hours, check schedule) — PR #28
+- [x] Backend: Voice response generation — TTS for AI responses (status updates, schedule readouts) — PR #32
 - [ ] Frontend: Voice input button — push-to-talk or continuous listening mode
 - [ ] Frontend: Voice conversation UI — transcript view with AI responses
 - [ ] Frontend: Hands-free mode — optimized for mobile use while commuting or on-site
