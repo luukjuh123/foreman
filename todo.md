@@ -116,12 +116,12 @@
 
 ## Priority: Medium (Phase 12 — Hardware Store Integrations)
 
-- [ ] Backend: Scraping service base — async, rate-limited, cached (Redis or in-memory TTL)
-- [ ] Backend: Hornbach integration — product search, pricing (euro cents), stock availability
-- [ ] Backend: Gamma integration — product search, pricing (euro cents), stock availability
-- [ ] Backend: Praxis integration — product search, pricing (euro cents), stock availability
-- [ ] Backend: Bouwmaat integration — product search, pricing (euro cents), stock availability
-- [ ] Backend: Price comparison engine — cross-store ranking by price + availability
+- [x] Backend: Scraping service base — async, rate-limited, cached (Redis or in-memory TTL) — PR feat/scraper-base
+- [x] Backend: Hornbach integration — product search, pricing (euro cents), stock availability — PR feat/hornbach-integration
+- [x] Backend: Gamma integration — product search, pricing (euro cents), stock availability — PR feat/gamma-integration
+- [x] Backend: Praxis integration — product search, pricing (euro cents), stock availability — PR feat/praxis-integration
+- [x] Backend: Bouwmaat integration — product search, pricing (euro cents), stock availability — PR feat/bouwmaat-integration
+- [x] Backend: Price comparison engine — cross-store ranking by price + availability — PR feat/price-comparison-engine
 - [ ] Frontend: Material search with cross-store price comparison table
 - [ ] Frontend: Store availability map — per-store stock status badges
 
