@@ -203,6 +203,9 @@ export default function ProjectDetailPage({ params }: Props) {
         <Link href={`/dashboard/projects/${project.id}/processes`}>
           <Button variant="outline" size="sm">Processen</Button>
         </Link>
+        <Link href={`/dashboard/projects/${project.id}/timeline`}>
+          <Button variant="outline" size="sm">Tijdlijn</Button>
+        </Link>
       </div>
 
       {/* Phases */}

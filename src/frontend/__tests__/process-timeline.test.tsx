@@ -2,7 +2,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import React from "react";
 
-// Mock Next.js modules
+// ---------------------------------------------------------------------------
+// Shared mocks
+// ---------------------------------------------------------------------------
+
 vi.mock("next/navigation", () => ({
   useRouter: vi.fn(() => ({ push: vi.fn() })),
   useParams: vi.fn(() => ({ id: "project-1" })),
@@ -14,13 +17,12 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-// Mock apiFetch
 vi.mock("@/lib/api", () => ({
   apiFetch: vi.fn(),
 }));
 
 // ---------------------------------------------------------------------------
-// Mock data
+// Fixtures
 // ---------------------------------------------------------------------------
 
 const mockProcesses = {
@@ -98,21 +100,22 @@ const mockPhotos = {
 const mockPhotosEmpty = { data: [] };
 
 // ---------------------------------------------------------------------------
-// Helper: sets up standard mock call order.
+// Helper: standard mock call order
 // Component fetches (parallel): processes, photos
 // Then (parallel per process): time-tracking/pp-1, time-tracking/pp-2
 // ---------------------------------------------------------------------------
+
 async function setupStandardMocks() {
   const { apiFetch } = await import("@/lib/api");
   vi.mocked(apiFetch)
-    .mockResolvedValueOnce(mockProcesses)         // 1: /processes/projects/{id}
-    .mockResolvedValueOnce(mockPhotos)            // 2: /photos/projects/{id}
-    .mockResolvedValueOnce(mockTimeEntries)       // 3: /time-tracking/pp-1
-    .mockResolvedValueOnce(mockTimeEntriesEmpty); // 4: /time-tracking/pp-2
+    .mockResolvedValueOnce(mockProcesses)          // 1: /processes/projects/{id}
+    .mockResolvedValueOnce(mockPhotos)             // 2: /photos/projects/{id}
+    .mockResolvedValueOnce(mockTimeEntries)        // 3: /time-tracking/pp-1
+    .mockResolvedValueOnce(mockTimeEntriesEmpty);  // 4: /time-tracking/pp-2
 }
 
 // ---------------------------------------------------------------------------
-// Tests
+// Tests: ProcessTimelinePage (timeline route)
 // ---------------------------------------------------------------------------
 
 describe("ProcessTimelinePage", () => {
@@ -120,12 +123,12 @@ describe("ProcessTimelinePage", () => {
     vi.clearAllMocks();
   });
 
-  it("shows loading state initially", async () => {
+  it("renders loading state initially", async () => {
     const { apiFetch } = await import("@/lib/api");
     vi.mocked(apiFetch).mockImplementation(() => new Promise(() => {}));
 
     const { default: ProcessTimelinePage } = await import(
-      "@/app/dashboard/projects/[id]/processes/page"
+      "@/app/dashboard/projects/[id]/timeline/page"
     );
 
     render(<ProcessTimelinePage params={Promise.resolve({ id: "project-1" })} />);
@@ -133,56 +136,97 @@ describe("ProcessTimelinePage", () => {
     expect(screen.getByText(/laden/i)).toBeInTheDocument();
   });
 
-  it("renders process names after loading", async () => {
+  it("renders timeline entries grouped by day", async () => {
     await setupStandardMocks();
 
     const { default: ProcessTimelinePage } = await import(
-      "@/app/dashboard/projects/[id]/processes/page"
+      "@/app/dashboard/projects/[id]/timeline/page"
     );
 
     render(<ProcessTimelinePage params={Promise.resolve({ id: "project-1" })} />);
 
     await waitFor(() => {
-      expect(screen.getByText("Fundering")).toBeInTheDocument();
-      expect(screen.getByText("Ruwbouw")).toBeInTheDocument();
+      // Day header for 01-03-2024
+      expect(screen.getByText("01-03-2024")).toBeInTheDocument();
+      // Process name visible (may appear in summary + timeline)
+      expect(screen.getAllByText("Fundering").length).toBeGreaterThanOrEqual(1);
     });
   });
 
-  it("renders process slug badges", async () => {
+  it("shows photos with recognized process slug and completion percentage", async () => {
     await setupStandardMocks();
 
     const { default: ProcessTimelinePage } = await import(
-      "@/app/dashboard/projects/[id]/processes/page"
+      "@/app/dashboard/projects/[id]/timeline/page"
     );
 
     render(<ProcessTimelinePage params={Promise.resolve({ id: "project-1" })} />);
 
     await waitFor(() => {
-      expect(screen.getByText("fundering")).toBeInTheDocument();
-      expect(screen.getByText("ruwbouw")).toBeInTheDocument();
+      // Photo thumbnail
+      const img = screen.getByRole("img");
+      expect(img).toHaveAttribute("src", "https://example.com/photo1.jpg");
+      // Completion percentage
+      expect(screen.getByText(/75%/)).toBeInTheDocument();
+      // Recognized process slug (may appear multiple times — badge + photo caption)
+      expect(screen.getAllByText("fundering").length).toBeGreaterThanOrEqual(1);
     });
   });
 
-  it("shows time entries for a process", async () => {
+  it("shows summary card with total time per process", async () => {
     await setupStandardMocks();
 
     const { default: ProcessTimelinePage } = await import(
-      "@/app/dashboard/projects/[id]/processes/page"
+      "@/app/dashboard/projects/[id]/timeline/page"
     );
 
     render(<ProcessTimelinePage params={Promise.resolve({ id: "project-1" })} />);
 
     await waitFor(() => {
-      // Duration 9000 seconds = 2h 30min
+      // Summary section heading
+      expect(screen.getByText("Tijdlijn")).toBeInTheDocument();
+      // Duration for pp-1: 9000s = 2u 30min
       expect(screen.getAllByText("2u 30min").length).toBeGreaterThanOrEqual(1);
     });
   });
 
-  it("shows notes from a time entry", async () => {
+  it("shows empty state when no activities exist", async () => {
+    const { apiFetch } = await import("@/lib/api");
+    vi.mocked(apiFetch)
+      .mockResolvedValueOnce({ data: [] })     // processes
+      .mockResolvedValueOnce(mockPhotosEmpty); // photos
+
+    const { default: ProcessTimelinePage } = await import(
+      "@/app/dashboard/projects/[id]/timeline/page"
+    );
+
+    render(<ProcessTimelinePage params={Promise.resolve({ id: "project-1" })} />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/geen activiteiten/i)).toBeInTheDocument();
+    });
+  });
+
+  it("shows error state on API failure", async () => {
+    const { apiFetch } = await import("@/lib/api");
+    vi.mocked(apiFetch).mockRejectedValue(new Error("Netwerk fout"));
+
+    const { default: ProcessTimelinePage } = await import(
+      "@/app/dashboard/projects/[id]/timeline/page"
+    );
+
+    render(<ProcessTimelinePage params={Promise.resolve({ id: "project-1" })} />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/fout|netwerk/i)).toBeInTheDocument();
+    });
+  });
+
+  it("shows time entry notes", async () => {
     await setupStandardMocks();
 
     const { default: ProcessTimelinePage } = await import(
-      "@/app/dashboard/projects/[id]/processes/page"
+      "@/app/dashboard/projects/[id]/timeline/page"
     );
 
     render(<ProcessTimelinePage params={Promise.resolve({ id: "project-1" })} />);
@@ -192,73 +236,25 @@ describe("ProcessTimelinePage", () => {
     });
   });
 
-  it("shows process notes", async () => {
+  it("shows duration label for time entries", async () => {
     await setupStandardMocks();
 
     const { default: ProcessTimelinePage } = await import(
-      "@/app/dashboard/projects/[id]/processes/page"
+      "@/app/dashboard/projects/[id]/timeline/page"
     );
 
     render(<ProcessTimelinePage params={Promise.resolve({ id: "project-1" })} />);
 
     await waitFor(() => {
-      expect(screen.getByText("Fundering uitgevoerd op schema")).toBeInTheDocument();
+      expect(screen.getByText(/duur/i)).toBeInTheDocument();
     });
   });
 
-  it("shows photos associated with a process", async () => {
+  it("renders back link to project detail", async () => {
     await setupStandardMocks();
 
     const { default: ProcessTimelinePage } = await import(
-      "@/app/dashboard/projects/[id]/processes/page"
-    );
-
-    render(<ProcessTimelinePage params={Promise.resolve({ id: "project-1" })} />);
-
-    await waitFor(() => {
-      const img = screen.getByRole("img");
-      expect(img).toHaveAttribute("src", "https://example.com/photo1.jpg");
-    });
-  });
-
-  it("shows empty state when no processes are attached", async () => {
-    const { apiFetch } = await import("@/lib/api");
-    vi.mocked(apiFetch)
-      .mockResolvedValueOnce({ data: [] })   // processes
-      .mockResolvedValueOnce(mockPhotosEmpty); // photos
-
-    const { default: ProcessTimelinePage } = await import(
-      "@/app/dashboard/projects/[id]/processes/page"
-    );
-
-    render(<ProcessTimelinePage params={Promise.resolve({ id: "project-1" })} />);
-
-    await waitFor(() => {
-      expect(
-        screen.getByText("Geen processen gekoppeld aan dit project.")
-      ).toBeInTheDocument();
-    });
-  });
-
-  it("shows the page title", async () => {
-    await setupStandardMocks();
-
-    const { default: ProcessTimelinePage } = await import(
-      "@/app/dashboard/projects/[id]/processes/page"
-    );
-
-    render(<ProcessTimelinePage params={Promise.resolve({ id: "project-1" })} />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Procesgeschiedenis")).toBeInTheDocument();
-    });
-  });
-
-  it("renders back button linking to project detail", async () => {
-    await setupStandardMocks();
-
-    const { default: ProcessTimelinePage } = await import(
-      "@/app/dashboard/projects/[id]/processes/page"
+      "@/app/dashboard/projects/[id]/timeline/page"
     );
 
     render(<ProcessTimelinePage params={Promise.resolve({ id: "project-1" })} />);
@@ -269,19 +265,49 @@ describe("ProcessTimelinePage", () => {
     });
   });
 
-  it("shows total time tracked for a process", async () => {
+  it("shows process notes", async () => {
     await setupStandardMocks();
 
     const { default: ProcessTimelinePage } = await import(
-      "@/app/dashboard/projects/[id]/processes/page"
+      "@/app/dashboard/projects/[id]/timeline/page"
     );
 
     render(<ProcessTimelinePage params={Promise.resolve({ id: "project-1" })} />);
 
     await waitFor(() => {
-      // Total for pp-1: 9000s = 2u 30min, shown in both the entry row and the totaal row
-      const totalItems = screen.getAllByText("2u 30min");
-      expect(totalItems.length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText("Fundering uitgevoerd op schema")).toBeInTheDocument();
+    });
+  });
+
+  it("shows process slug badges", async () => {
+    await setupStandardMocks();
+
+    const { default: ProcessTimelinePage } = await import(
+      "@/app/dashboard/projects/[id]/timeline/page"
+    );
+
+    render(<ProcessTimelinePage params={Promise.resolve({ id: "project-1" })} />);
+
+    await waitFor(() => {
+      // slug badge in the timeline entry (may appear multiple times due to photo caption)
+      expect(screen.getAllByText("fundering").length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  it("shows second day group when processes span multiple days", async () => {
+    await setupStandardMocks();
+
+    const { default: ProcessTimelinePage } = await import(
+      "@/app/dashboard/projects/[id]/timeline/page"
+    );
+
+    render(<ProcessTimelinePage params={Promise.resolve({ id: "project-1" })} />);
+
+    await waitFor(() => {
+      // pp-2 was created on 2024-03-05
+      expect(screen.getByText("05-03-2024")).toBeInTheDocument();
+      // Ruwbouw appears in summary + timeline (multiple)
+      expect(screen.getAllByText("Ruwbouw").length).toBeGreaterThanOrEqual(1);
     });
   });
 });

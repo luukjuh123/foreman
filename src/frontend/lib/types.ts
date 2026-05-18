@@ -86,6 +86,61 @@ export interface AgendaDayResponse {
   tasks: AgendaTask[];
 }
 
+// Process timeline types
+
+export interface ProcessResponse {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  unit: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProjectProcessResponse {
+  id: string;
+  project_id: string;
+  process_id: string;
+  notes: string | null;
+  created_at: string;
+  process: ProcessResponse;
+}
+
+export interface ProjectProcessListResponse {
+  data: ProjectProcessResponse[];
+}
+
+export interface TimeEntryResponse {
+  id: string;
+  project_process_id: string;
+  started_at: string;
+  stopped_at: string | null;
+  duration_seconds: number | null;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface TimeEntryListResponse {
+  data: TimeEntryResponse[];
+  total_seconds: number;
+}
+
+export interface PhotoResponse {
+  id: string;
+  project_id: string;
+  recognized_process_id: string | null;
+  recognized_process_slug: string | null;
+  image_url: string;
+  completion_pct: number | null;
+  reasoning: string | null;
+  created_at: string;
+}
+
+export interface PhotoListResponse {
+  data: PhotoResponse[];
+}
+
 // Request types (to backend)
 
 export interface ProjectCreate {
