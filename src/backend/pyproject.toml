@@ -51,6 +51,8 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["S101", "ANN", "ARG"]
+# Pydantic schemas need typing imports at runtime
+"app/schemas/**/*.py" = ["TCH"]
 
 [tool.ruff.format]
 quote-style = "double"

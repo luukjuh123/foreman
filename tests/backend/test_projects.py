@@ -488,3 +488,90 @@ async def test_get_project_includes_phases_and_tasks(client: AsyncClient) -> Non
     data = resp.json()
     assert len(data["phases"]) == 1
     assert len(data["phases"][0]["tasks"]) == 1
+
+
+# ---------------------------------------------------------------------------
+# Status field validation (Literal constraints)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_create_project_invalid_status_returns_422(client: AsyncClient) -> None:
+    headers = await _auth_headers(client)
+    resp = await client.post("/api/v1/projects/", json={"name": "P", "status": "invalid"}, headers=headers)
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_update_project_invalid_status_returns_422(client: AsyncClient) -> None:
+    headers = await _auth_headers(client)
+    proj = (await client.post("/api/v1/projects/", json={"name": "P"}, headers=headers)).json()
+    resp = await client.put(f"/api/v1/projects/{proj['id']}", json={"status": "invalid"}, headers=headers)
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_create_phase_invalid_status_returns_422(client: AsyncClient) -> None:
+    headers = await _auth_headers(client)
+    proj = (await client.post("/api/v1/projects/", json={"name": "P"}, headers=headers)).json()
+    resp = await client.post(
+        f"/api/v1/projects/{proj['id']}/phases",
+        json={"name": "Ph", "status": "invalid"},
+        headers=headers,
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_update_phase_invalid_status_returns_422(client: AsyncClient) -> None:
+    headers = await _auth_headers(client)
+    proj = (await client.post("/api/v1/projects/", json={"name": "P"}, headers=headers)).json()
+    phase = (await client.post(
+        f"/api/v1/projects/{proj['id']}/phases",
+        json={"name": "Ph"},
+        headers=headers,
+    )).json()
+    resp = await client.put(
+        f"/api/v1/projects/{proj['id']}/phases/{phase['id']}",
+        json={"status": "invalid"},
+        headers=headers,
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_create_task_invalid_status_returns_422(client: AsyncClient) -> None:
+    headers = await _auth_headers(client)
+    proj = (await client.post("/api/v1/projects/", json={"name": "P"}, headers=headers)).json()
+    phase = (await client.post(
+        f"/api/v1/projects/{proj['id']}/phases",
+        json={"name": "Ph"},
+        headers=headers,
+    )).json()
+    resp = await client.post(
+        f"/api/v1/projects/{proj['id']}/phases/{phase['id']}/tasks",
+        json={"name": "T", "status": "invalid"},
+        headers=headers,
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_update_task_invalid_status_returns_422(client: AsyncClient) -> None:
+    headers = await _auth_headers(client)
+    proj = (await client.post("/api/v1/projects/", json={"name": "P"}, headers=headers)).json()
+    phase = (await client.post(
+        f"/api/v1/projects/{proj['id']}/phases",
+        json={"name": "Ph"},
+        headers=headers,
+    )).json()
+    task = (await client.post(
+        f"/api/v1/projects/{proj['id']}/phases/{phase['id']}/tasks",
+        json={"name": "T"},
+        headers=headers,
+    )).json()
+    resp = await client.put(
+        f"/api/v1/projects/{proj['id']}/phases/{phase['id']}/tasks/{task['id']}",
+        json={"status": "invalid"},
+        headers=headers,
+    )
+    assert resp.status_code == 422
