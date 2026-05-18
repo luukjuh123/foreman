@@ -358,3 +358,47 @@ async def income_statement(
         aggregates, start_date=start_date, end_date=end_date
     )
     return stmt.to_dict()
+
+
+# ---------------------------------------------------------------------------
+# Cash flow statement (kasstroomoverzicht) — indirect method
+# ---------------------------------------------------------------------------
+
+from datetime import timedelta  # noqa: E402
+
+from app.services.finance.reports import build_cash_flow_statement  # noqa: E402
+
+
+@router.get("/reports/cash-flow")
+async def cash_flow_statement(
+    start_date: _date = _Query(..., description="Period start (inclusive)"),
+    end_date: _date = _Query(..., description="Period end (inclusive)"),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Kasstroomoverzicht volgens de indirecte methode.
+
+    operating / investing / financing activities, met netto wijziging in
+    liquide middelen. Volgt de boekhoudkundige identiteit ΔActiva - ΔPassiva
+    - ΔEigenVermogen = Nettowinst, dus de drie totalen sluiten altijd op de
+    werkelijke verandering in kas.
+    """
+    if end_date < start_date:
+        raise HTTPException(
+            status_code=400, detail="end_date must be >= start_date"
+        )
+
+    opening_cutoff = start_date - timedelta(days=1)
+    opening = await aggregate_balances(db, user.id, end_date=opening_cutoff)
+    closing = await aggregate_balances(db, user.id, end_date=end_date)
+    period = await aggregate_balances(
+        db, user.id, start_date=start_date, end_date=end_date
+    )
+    stmt = build_cash_flow_statement(
+        opening_aggregates=opening,
+        closing_aggregates=closing,
+        period_aggregates=period,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    return stmt.to_dict()

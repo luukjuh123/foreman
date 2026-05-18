@@ -287,3 +287,185 @@ def build_income_statement(
         total_revenue_cents=total_rev,
         total_expenses_cents=total_exp,
     )
+
+
+# ---------------------------------------------------------------------------
+# Cash flow statement (kasstroomoverzicht) — indirect method
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class CashFlowLine:
+    account_id: uuid.UUID
+    code: str
+    name: str
+    change_cents: int  # signed cash impact (positive = inflow)
+
+    def to_dict(self) -> dict:
+        return {
+            "account_id": str(self.account_id),
+            "code": self.code,
+            "name": self.name,
+            "change_cents": self.change_cents,
+        }
+
+
+@dataclass
+class CashFlowStatement:
+    start_date: date
+    end_date: date
+    net_income_cents: int
+    operating: list[CashFlowLine]
+    investing: list[CashFlowLine]
+    financing: list[CashFlowLine]
+    operating_cash_flow_cents: int
+    investing_cash_flow_cents: int
+    financing_cash_flow_cents: int
+    opening_cash_cents: int
+    ending_cash_cents: int
+    net_change_in_cash_cents: int
+
+    @property
+    def reconciles(self) -> bool:
+        """Sum of OCF + ICF + FCF must equal change in cash."""
+        return (
+            self.operating_cash_flow_cents
+            + self.investing_cash_flow_cents
+            + self.financing_cash_flow_cents
+        ) == self.net_change_in_cash_cents
+
+    def to_dict(self) -> dict:
+        return {
+            "start_date": self.start_date.isoformat(),
+            "end_date": self.end_date.isoformat(),
+            "net_income_cents": self.net_income_cents,
+            "operating_activities": {
+                "lines": [line.to_dict() for line in self.operating],
+                "total_cents": self.operating_cash_flow_cents,
+            },
+            "investing_activities": {
+                "lines": [line.to_dict() for line in self.investing],
+                "total_cents": self.investing_cash_flow_cents,
+            },
+            "financing_activities": {
+                "lines": [line.to_dict() for line in self.financing],
+                "total_cents": self.financing_cash_flow_cents,
+            },
+            "opening_cash_cents": self.opening_cash_cents,
+            "ending_cash_cents": self.ending_cash_cents,
+            "net_change_in_cash_cents": self.net_change_in_cash_cents,
+            "reconciles": self.reconciles,
+        }
+
+
+def _period_change(
+    opening: list[AccountAggregate], closing: list[AccountAggregate]
+) -> dict[uuid.UUID, int]:
+    """For each account: closing balance - opening balance (signed)."""
+    opening_by_id = {a.account_id: a.balance_cents for a in opening}
+    return {
+        a.account_id: a.balance_cents - opening_by_id.get(a.account_id, 0)
+        for a in closing
+    }
+
+
+def build_cash_flow_statement(
+    *,
+    opening_aggregates: list[AccountAggregate],
+    closing_aggregates: list[AccountAggregate],
+    period_aggregates: list[AccountAggregate],
+    start_date: date,
+    end_date: date,
+) -> CashFlowStatement:
+    """Indirect-method cash flow statement.
+
+    OCF starts from net income, then adjusts for non-cash working-capital
+    changes (cashflow_category='operating'). ICF tracks 'investing' account
+    changes (fixed asset acquisitions/disposals). FCF tracks 'financing'
+    changes (equity contributions, long-term debt issuance/repayment).
+
+    The accounting identity ΔAssets - ΔLiab - ΔEquity = NetIncome guarantees
+    OCF + ICF + FCF == ΔCash for any set of balanced journal entries.
+    """
+    net_income = sum(
+        a.balance_cents
+        for a in period_aggregates
+        if a.account_type in ("revenue", "expense")
+        and a.account_type == "revenue"
+    ) - sum(
+        a.balance_cents
+        for a in period_aggregates
+        if a.account_type == "expense"
+    )
+
+    changes = _period_change(opening_aggregates, closing_aggregates)
+
+    # Identify cash accounts and compute opening/closing/net change in cash.
+    cash_ids = {
+        a.account_id
+        for a in closing_aggregates
+        if a.cashflow_category == "cash"
+    }
+    opening_cash = sum(
+        a.balance_cents for a in opening_aggregates if a.account_id in cash_ids
+    )
+    ending_cash = sum(
+        a.balance_cents for a in closing_aggregates if a.account_id in cash_ids
+    )
+    net_change_cash = ending_cash - opening_cash
+
+    operating: list[CashFlowLine] = []
+    investing: list[CashFlowLine] = []
+    financing: list[CashFlowLine] = []
+
+    by_id = {a.account_id: a for a in closing_aggregates}
+
+    for account_id, delta in changes.items():
+        a = by_id.get(account_id)
+        if a is None or a.account_id in cash_ids:
+            continue
+        # Revenue and expense flow through net_income — skip
+        if a.account_type in ("revenue", "expense"):
+            continue
+        if delta == 0:
+            continue
+        # Cash effect: asset increase → cash out (-); liability/equity increase → cash in (+)
+        if a.normal_balance == "debit":  # asset
+            cash_effect = -delta
+        else:  # credit-normal: liability / equity
+            cash_effect = delta
+        line = CashFlowLine(
+            account_id=a.account_id,
+            code=a.code,
+            name=a.name,
+            change_cents=cash_effect,
+        )
+        category = a.cashflow_category or "operating"
+        if category == "operating":
+            operating.append(line)
+        elif category == "investing":
+            investing.append(line)
+        elif category == "financing":
+            financing.append(line)
+
+    for bucket in (operating, investing, financing):
+        bucket.sort(key=lambda x: x.code)
+
+    operating_total = net_income + sum(line.change_cents for line in operating)
+    investing_total = sum(line.change_cents for line in investing)
+    financing_total = sum(line.change_cents for line in financing)
+
+    return CashFlowStatement(
+        start_date=start_date,
+        end_date=end_date,
+        net_income_cents=net_income,
+        operating=operating,
+        investing=investing,
+        financing=financing,
+        operating_cash_flow_cents=operating_total,
+        investing_cash_flow_cents=investing_total,
+        financing_cash_flow_cents=financing_total,
+        opening_cash_cents=opening_cash,
+        ending_cash_cents=ending_cash,
+        net_change_in_cash_cents=net_change_cash,
+    )
