@@ -106,11 +106,11 @@
 
 ## Priority: Medium (Phase 11 — Notifications)
 
-- [ ] Backend: Notification engine — in-app + email + push notification dispatch
-- [ ] Backend: Customer email notifications — project updates, invoice sent, report ready
-- [ ] Backend: Inbound detection — new customer inquiry via email/form triggers notification
-- [ ] Backend: AI-driven alerts — recognize anomalies (over budget, behind schedule, weather risk)
-- [ ] Backend: Notification preferences per user (email, push, in-app toggles)
+- [x] Backend: Notification engine — in-app + email + push notification dispatch — PR #57
+- [x] Backend: Customer email notifications — project updates, invoice sent, report ready — PR #58
+- [x] Backend: Inbound detection — new customer inquiry via email/form triggers notification — PR #59
+- [x] Backend: AI-driven alerts — recognize anomalies (over budget, behind schedule, weather risk) — PR #91
+- [x] Backend: Notification preferences per user (email, push, in-app toggles) — PR #92
 - [ ] Frontend: Notification center — bell icon, unread count, notification list
 - [ ] Frontend: Notification settings page — per-type toggle (email/push/in-app)
 
