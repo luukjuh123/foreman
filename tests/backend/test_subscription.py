@@ -58,6 +58,19 @@ async def _register(client: AsyncClient, email: str = "user@example.com") -> dic
     return resp.json()
 
 
+async def _expire_trial(session_factory) -> None:
+    """Force the user's trial subscription into the expired free-active state."""
+    from datetime import UTC, datetime, timedelta
+
+    async with session_factory() as session:
+        result = await session.execute(select(Subscription))
+        sub = result.scalar_one()
+        sub.status = SubscriptionStatus.ACTIVE.value
+        sub.project_limit = 1
+        sub.trial_ends_at = datetime.now(UTC) - timedelta(days=1)
+        await session.commit()
+
+
 @pytest.mark.asyncio
 async def test_register_creates_free_subscription(app_with_db, client):
     _, session_factory = app_with_db
@@ -66,8 +79,10 @@ async def test_register_creates_free_subscription(app_with_db, client):
         result = await session.execute(select(Subscription))
         sub = result.scalar_one()
         assert sub.tier == SubscriptionTier.FREE.value
-        assert sub.status == SubscriptionStatus.ACTIVE.value
-        assert sub.project_limit == 1
+        # New users start in a trial with unlimited projects.
+        assert sub.status == SubscriptionStatus.TRIALING.value
+        assert sub.project_limit is None
+        assert sub.trial_ends_at is not None
 
 
 @pytest.mark.asyncio
@@ -78,8 +93,9 @@ async def test_get_my_subscription(client):
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["tier"] == "free"
-    assert body["status"] == "active"
-    assert body["project_limit"] == 1
+    assert body["status"] == "trialing"
+    assert body["project_limit"] is None
+    assert body["trial_ends_at"] is not None
 
 
 @pytest.mark.asyncio
@@ -93,9 +109,12 @@ async def test_free_tier_allows_one_project(client):
 
 
 @pytest.mark.asyncio
-async def test_free_tier_rejects_second_project(client):
+async def test_free_tier_rejects_second_project(app_with_db, client):
+    _, session_factory = app_with_db
     data = await _register(client)
     headers = {"Authorization": f"Bearer {data['access_token']}"}
+    # Expire the trial so the free-tier limit kicks in.
+    await _expire_trial(session_factory)
     r1 = await client.post(
         "/api/v1/projects/", json={"name": "First"}, headers=headers
     )
@@ -108,9 +127,11 @@ async def test_free_tier_rejects_second_project(client):
 
 
 @pytest.mark.asyncio
-async def test_deleted_project_frees_a_slot(client):
+async def test_deleted_project_frees_a_slot(app_with_db, client):
+    _, session_factory = app_with_db
     data = await _register(client)
     headers = {"Authorization": f"Bearer {data['access_token']}"}
+    await _expire_trial(session_factory)
     r1 = await client.post(
         "/api/v1/projects/", json={"name": "First"}, headers=headers
     )
