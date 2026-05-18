@@ -116,3 +116,44 @@ export interface TaskCreate {
   start_date?: string;
   end_date?: string;
 }
+
+// ---------------------------------------------------------------------------
+// Time tracking types
+// ---------------------------------------------------------------------------
+
+export interface TimeEntryResponse {
+  id: string;
+  project_process_id: string;
+  started_at: string;
+  stopped_at: string | null;
+  duration_seconds: number | null;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface TimeEntryListResponse {
+  data: TimeEntryResponse[];
+  total_seconds: number;
+}
+
+export interface ProcessResponse {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  unit: string;
+  created_at: string;
+}
+
+export interface ProjectProcessResponse {
+  id: string;
+  project_id: string;
+  process_id: string;
+  notes: string | null;
+  created_at: string;
+  process: ProcessResponse;
+}
+
+export interface ProjectProcessListResponse {
+  data: ProjectProcessResponse[];
+}
