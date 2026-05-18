@@ -233,31 +233,173 @@ describe("DashboardPage", () => {
     vi.resetModules();
   });
 
+  afterEach(() => {
+    vi.resetModules();
+  });
+
   it("renders welcome message", async () => {
+    vi.doMock("@/lib/projects", () => ({
+      listProjects: vi.fn().mockResolvedValue({ data: [], total: 0, page: 1, per_page: 20 }),
+      formatBudget: (cents: number) =>
+        new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", minimumFractionDigits: 2 }).format(cents / 100),
+    }));
+
     const { default: DashboardPage } = await import("@/app/dashboard/page");
 
-    render(<DashboardPage />);
+    await act(async () => {
+      render(<DashboardPage />);
+    });
 
     expect(screen.getByText(/welkom bij foreman/i)).toBeInTheDocument();
   });
 
-  it("renders all four stat cards", async () => {
+  it("shows loading skeleton while fetching", async () => {
+    vi.doMock("@/lib/projects", () => ({
+      listProjects: vi.fn().mockReturnValue(new Promise(() => {})),
+      formatBudget: (cents: number) =>
+        new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", minimumFractionDigits: 2 }).format(cents / 100),
+    }));
+
     const { default: DashboardPage } = await import("@/app/dashboard/page");
 
     render(<DashboardPage />);
+
+    expect(screen.getByTestId("dashboard-loading")).toBeInTheDocument();
+  });
+
+  it("shows error message when fetch fails", async () => {
+    vi.doMock("@/lib/projects", () => ({
+      listProjects: vi.fn().mockRejectedValue(new Error("network error")),
+      formatBudget: (cents: number) =>
+        new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", minimumFractionDigits: 2 }).format(cents / 100),
+    }));
+
+    const { default: DashboardPage } = await import("@/app/dashboard/page");
+
+    await act(async () => {
+      render(<DashboardPage />);
+    });
+
+    expect(screen.getByTestId("dashboard-error")).toBeInTheDocument();
+  });
+
+  it("renders all four stat cards after loading", async () => {
+    vi.doMock("@/lib/projects", () => ({
+      listProjects: vi.fn().mockResolvedValue({ data: [], total: 0, page: 1, per_page: 20 }),
+      formatBudget: (cents: number) =>
+        new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", minimumFractionDigits: 2 }).format(cents / 100),
+    }));
+
+    const { default: DashboardPage } = await import("@/app/dashboard/page");
+
+    await act(async () => {
+      render(<DashboardPage />);
+    });
 
     expect(screen.getByText(/actieve projecten/i)).toBeInTheDocument();
     expect(screen.getByText(/taken vandaag/i)).toBeInTheDocument();
-    expect(screen.getByText(/openstaande facturen/i)).toBeInTheDocument();
+    expect(screen.getByText(/totaal budget/i)).toBeInTheDocument();
     expect(screen.getByText(/personeel actief/i)).toBeInTheDocument();
   });
 
-  it("shows placeholder monetary value in Dutch format", async () => {
+  it("displays active project count from API data", async () => {
+    const projects = [
+      { id: "1", name: "A", description: null, status: "active", start_date: null, end_date: null, budget_cents: 100000, phases: [] },
+      { id: "2", name: "B", description: null, status: "active", start_date: null, end_date: null, budget_cents: 200000, phases: [] },
+      { id: "3", name: "C", description: null, status: "completed", start_date: null, end_date: null, budget_cents: 50000, phases: [] },
+    ];
+
+    vi.doMock("@/lib/projects", () => ({
+      listProjects: vi.fn().mockResolvedValue({ data: projects, total: 3, page: 1, per_page: 20 }),
+      formatBudget: (cents: number) =>
+        new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", minimumFractionDigits: 2 }).format(cents / 100),
+    }));
+
     const { default: DashboardPage } = await import("@/app/dashboard/page");
 
-    render(<DashboardPage />);
+    await act(async () => {
+      render(<DashboardPage />);
+    });
 
-    expect(screen.getByText("€0,00")).toBeInTheDocument();
+    expect(screen.getByTestId("stat-actieve-projecten")).toHaveTextContent("2");
+  });
+
+  it("displays active task count (todo + in_progress) from project phases", async () => {
+    const projects = [
+      {
+        id: "1", name: "A", description: null, status: "active",
+        start_date: null, end_date: null, budget_cents: null,
+        phases: [
+          {
+            id: "p1", project_id: "1", name: "Phase 1",
+            description: null, order_index: 0, status: "active",
+            start_date: null, end_date: null,
+            tasks: [
+              { id: "t1", phase_id: "p1", name: "T1", status: "todo", priority: 0, estimated_hours: null },
+              { id: "t2", phase_id: "p1", name: "T2", status: "in_progress", priority: 0, estimated_hours: null },
+              { id: "t3", phase_id: "p1", name: "T3", status: "done", priority: 0, estimated_hours: null },
+            ],
+          },
+        ],
+      },
+    ];
+
+    vi.doMock("@/lib/projects", () => ({
+      listProjects: vi.fn().mockResolvedValue({ data: projects, total: 1, page: 1, per_page: 20 }),
+      formatBudget: (cents: number) =>
+        new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", minimumFractionDigits: 2 }).format(cents / 100),
+    }));
+
+    const { default: DashboardPage } = await import("@/app/dashboard/page");
+
+    await act(async () => {
+      render(<DashboardPage />);
+    });
+
+    expect(screen.getByTestId("stat-taken-vandaag")).toHaveTextContent("2");
+  });
+
+  it("displays total budget in Dutch locale format", async () => {
+    const projects = [
+      { id: "1", name: "A", description: null, status: "active", start_date: null, end_date: null, budget_cents: 123456, phases: [] },
+      { id: "2", name: "B", description: null, status: "active", start_date: null, end_date: null, budget_cents: 100000, phases: [] },
+    ];
+
+    vi.doMock("@/lib/projects", () => ({
+      listProjects: vi.fn().mockResolvedValue({ data: projects, total: 2, page: 1, per_page: 20 }),
+      formatBudget: (cents: number) =>
+        new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", minimumFractionDigits: 2 }).format(cents / 100),
+    }));
+
+    const { default: DashboardPage } = await import("@/app/dashboard/page");
+
+    await act(async () => {
+      render(<DashboardPage />);
+    });
+
+    // 123456 + 100000 = 223456 cents = €2.234,56
+    const budgetCard = screen.getByTestId("stat-totaal-budget");
+    expect(budgetCard).toHaveTextContent("€");
+    expect(budgetCard).toHaveTextContent("2.234");
+  });
+
+  it("shows zero budget when no projects have budget set", async () => {
+    vi.doMock("@/lib/projects", () => ({
+      listProjects: vi.fn().mockResolvedValue({
+        data: [{ id: "1", name: "P", description: null, status: "active", start_date: null, end_date: null, budget_cents: null, phases: [] }],
+        total: 1, page: 1, per_page: 20,
+      }),
+      formatBudget: (cents: number) =>
+        new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", minimumFractionDigits: 2 }).format(cents / 100),
+    }));
+
+    const { default: DashboardPage } = await import("@/app/dashboard/page");
+
+    await act(async () => {
+      render(<DashboardPage />);
+    });
+
+    expect(screen.getByTestId("stat-totaal-budget")).toHaveTextContent("0,00");
   });
 });
 

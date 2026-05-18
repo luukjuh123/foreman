@@ -14,6 +14,8 @@ from app.core.database import Base
 import app.models.user  # noqa: F401
 import app.models.project  # noqa: F401
 import app.models.material  # noqa: F401
+import app.models.subscription  # noqa: F401
+import app.models.usage  # noqa: F401
 
 config = context.config
 

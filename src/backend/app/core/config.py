@@ -22,13 +22,34 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
 
+    # Google Business Profile
+    google_business_access_token: str = ""
+
     # Store scraper
     scraper_rate_limit_delay_seconds: float = 1.0
     scraper_cache_ttl_seconds: int = 3600  # 1 hour
 
+    # Mollie (payment provider)
+    mollie_api_key: str = ""
+    mollie_webhook_secret: str = "change-me-in-production"
+
+    # Trial period (days granted on free-tier signup)
+    trial_period_days: int = 14
+
     # App
     debug: bool = False
     log_level: str = "INFO"
+
+    # Company / invoice issuer details (used for UBL & PDF invoice generation).
+    company_name: str = "Foreman Bouw B.V."
+    company_kvk: str = "00000000"
+    company_vat_number: str = "NL000000000B00"
+    company_address_line1: str = "Hoofdstraat 1"
+    company_postal_code: str = "1011AA"
+    company_city: str = "Amsterdam"
+    company_country_code: str = "NL"
+    company_email: str = "info@foreman.local"
+    company_iban: str = "NL00BANK0000000000"
 
 
 settings = Settings()

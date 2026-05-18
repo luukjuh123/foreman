@@ -22,6 +22,8 @@ from app.schemas.project import (
     TaskUpdate,
 )
 from app.services.planning.cpm import detect_cycle
+from app.services.billing.subscriptions import enforce_project_limit
+from app.services.billing.usage import increment_projects
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -95,6 +97,7 @@ async def create_project(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ProjectResponse:
+    await enforce_project_limit(current_user.id, db)
     project = Project(
         owner_id=current_user.id,
         name=body.name,
@@ -107,6 +110,8 @@ async def create_project(
     db.add(project)
     await db.commit()
     await db.refresh(project)
+    await increment_projects(current_user.id, db, +1)
+    await db.commit()
     # Load relationships for response
     result = await db.execute(
         select(Project)
@@ -119,10 +124,11 @@ async def create_project(
 @router.get("/{project_id}", response_model=ProjectResponse)
 async def get_project(
     project_id: uuid.UUID,
-    _current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ProjectResponse:
     project = await _get_project_or_404(project_id, db)
+    _assert_owner(project, current_user)
     return ProjectResponse.model_validate(project)
 
 
@@ -158,6 +164,7 @@ async def delete_project(
     project = await _get_project_or_404(project_id, db)
     _assert_owner(project, current_user)
     project.deleted_at = datetime.now(UTC)
+    await increment_projects(current_user.id, db, -1)
     await db.commit()
 
 
