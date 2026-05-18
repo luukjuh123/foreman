@@ -61,6 +61,42 @@ export interface ProjectListResponse {
   per_page: number;
 }
 
+// Agenda types
+
+export interface AgendaTask {
+  task_id: string;
+  project_id: string;
+  project_name: string;
+  phase_id: string;
+  phase_name: string;
+  name: string;
+  description: string | null;
+  status: string;
+  priority: number;
+  estimated_hours: number;
+  start_date: string | null;
+  end_date: string | null;
+  start_time: string | null;
+  end_time: string | null;
+  location: string | null;
+}
+
+export interface AgendaDay {
+  date: string; // YYYY-MM-DD
+  tasks: AgendaTask[];
+}
+
+export interface AgendaWeekResponse {
+  week_start: string;
+  week_end: string;
+  days: AgendaDay[];
+}
+
+export interface AgendaDayResponse {
+  date: string;
+  tasks: AgendaTask[];
+}
+
 // Request types (to backend)
 
 export interface ProjectCreate {
