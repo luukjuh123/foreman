@@ -6,10 +6,12 @@ from app.services.reports.tokens import (
     sign_report_token,
     verify_report_token,
 )
+from app.services.reports.weekly import generate_weekly_report
 
 __all__ = [
     "InvalidReportToken",
     "aggregate_project_data",
+    "generate_weekly_report",
     "sign_report_token",
     "verify_report_token",
 ]
