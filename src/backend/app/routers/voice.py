@@ -1,65 +1,51 @@
-"""Voice router — chat and (future) transcription endpoints."""
+"""Voice router — command parsing endpoint."""
 
 from __future__ import annotations
 
-import logging
-from typing import Literal
-
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
-from app.services.voice.conversation import (
-    ConversationalAIProvider,
-    ConversationMessage,
-    get_conversational_ai_provider,
+from app.services.voice.commands import (
+    CommandLLMFallback,
+    get_command_llm_fallback,
+    parse_command_async,
 )
 
 router = APIRouter()
-logger = logging.getLogger(__name__)
 
 
-class ChatMessageIn(BaseModel):
-    role: Literal["system", "user", "assistant"]
-    content: str = Field(min_length=1)
+class CommandRequest(BaseModel):
+    utterance: str = Field(min_length=1)
+
+    @field_validator("utterance")
+    @classmethod
+    def _not_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("utterance must not be blank")
+        return v
 
 
-class ChatRequest(BaseModel):
-    messages: list[ChatMessageIn] = Field(min_length=1)
-    system_prompt: str | None = None
-
-
-def _error(code: str, message: str, status_code: int) -> JSONResponse:
-    return JSONResponse(
-        status_code=status_code,
-        content={"data": None, "error": {"code": code, "message": message}},
-    )
-
-
-@router.post("/chat")
-async def chat(
-    body: ChatRequest,
-    provider: ConversationalAIProvider = Depends(get_conversational_ai_provider),
+@router.post("/command")
+async def parse_voice_command(
+    body: CommandRequest,
+    llm_fallback: CommandLLMFallback = Depends(get_command_llm_fallback),
 ) -> JSONResponse:
-    """Conversational AI reply (Personaplex behind the ConversationalAIProvider seam).
+    """Parse a spoken utterance into an actionable intent + slots.
 
-    Returns `{data: {reply, reasoning}, error: null}` on success or a
-    standard error envelope on provider failure.
+    Tries deterministic rules first; falls back to the configured LLM
+    classifier when rules cannot match.
     """
-    messages = [ConversationMessage(role=m.role, content=m.content) for m in body.messages]
-    try:
-        result = await provider.reply(messages=messages, system_prompt=body.system_prompt)
-    except Exception:  # noqa: BLE001
-        logger.exception("conversational AI provider failed")
-        return _error("CONVERSATION_FAILED", "conversational AI provider error", 502)
-
+    parsed = await parse_command_async(body.utterance, llm_fallback=llm_fallback)
     return JSONResponse(
         status_code=200,
         content={
             "data": {
-                "reply": result.text,
-                "reasoning": result.reasoning,
-                "metadata": result.metadata,
+                "intent": parsed.intent.value,
+                "slots": parsed.slots,
+                "confidence": parsed.confidence,
+                "source": parsed.source,
+                "reasoning": parsed.reasoning,
             },
             "error": None,
         },
