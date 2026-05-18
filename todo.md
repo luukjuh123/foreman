@@ -84,10 +84,10 @@
 
 ## Priority: Medium (Phase 9 — Staff Management)
 
-- [ ] Backend: Staff model — employees, hourly rates, roles, availability
-- [ ] Backend: Payroll basics — hours worked per project, gross salary calculation
-- [ ] Backend: Staff loans (voorschotten) — track advances, deductions from salary
-- [ ] Backend: Staff assignment to projects/tasks — who works where when
+- [x] Backend: Staff model — employees, hourly rates, roles, availability (PR feat/staff-model)
+- [x] Backend: Payroll basics — hours worked per project, gross salary calculation (PR feat/payroll-basics)
+- [x] Backend: Staff loans (voorschotten) — track advances, deductions from salary (PR feat/staff-loans)
+- [x] Backend: Staff assignment to projects/tasks — who works where when (PR feat/staff-assignment)
 - [ ] Frontend: Staff directory — list, add, edit employees with rates and roles
 - [ ] Frontend: Staff schedule — who is assigned to which project this week
 - [ ] Frontend: Loan tracking — issue advances, view outstanding balances per employee
