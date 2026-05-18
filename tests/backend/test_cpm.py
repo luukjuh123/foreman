@@ -56,3 +56,37 @@ def test_unknown_dependency_raises_value_error() -> None:
     tasks = [CpmTask(id="t1", name="A", duration_hours=1.0, dependencies=["nonexistent"])]
     with pytest.raises(ValueError, match="Unknown dependency"):
         compute_critical_path(tasks)
+
+
+def test_large_chain_correctness() -> None:
+    """100-task chain: verifies correctness at scale (each task depends on previous)."""
+    n = 100
+    tasks = [CpmTask(id=f"t{i}", name=f"Task {i}", duration_hours=2.0) for i in range(n)]
+    for i in range(1, n):
+        tasks[i].dependencies = [f"t{i - 1}"]
+    result = compute_critical_path(tasks)
+    task_map = {t.id: t for t in result}
+    # All tasks are on the single chain — all critical
+    assert all(t.is_critical for t in result)
+    # Last task finishes at n * 2.0 hours
+    assert task_map[f"t{n - 1}"].early_finish == pytest.approx(n * 2.0)
+
+
+def test_large_diamond_correctness() -> None:
+    """Diamond pattern with 100 parallel branches: only the longest branch is critical."""
+    n = 100
+    # source → n parallel tasks (durations 1..n) → sink
+    source = CpmTask(id="source", name="Source", duration_hours=0.0)
+    sink = CpmTask(id="sink", name="Sink", duration_hours=0.0, dependencies=[f"p{i}" for i in range(n)])
+    parallel = [
+        CpmTask(id=f"p{i}", name=f"Parallel {i}", duration_hours=float(i + 1), dependencies=["source"])
+        for i in range(n)
+    ]
+    tasks = [source, *parallel, sink]
+    result = compute_critical_path(tasks)
+    task_map = {t.id: t for t in result}
+    # Only p{n-1} (longest) is critical
+    assert task_map[f"p{n - 1}"].is_critical
+    # All shorter branches are not critical
+    for i in range(n - 1):
+        assert not task_map[f"p{i}"].is_critical
