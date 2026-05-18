@@ -49,11 +49,11 @@
 
 ## Priority: High (Phase 6 — Invoices — Dutch e-Invoicing)
 
-- [ ] Backend: Invoice model — line items, VAT (BTW 21%/9%), payment terms, invoice numbering
-- [ ] Backend: UBL 2.1 invoice XML generation (Dutch e-invoicing standard / Peppol)
-- [ ] Backend: PDF invoice generation — branded template with company details, KVK, BTW-nummer
-- [ ] Backend: Invoice status tracking — draft, sent, paid, overdue, with reminders
-- [ ] Backend: Link invoices to projects — auto-populate from project costs/materials
+- [x] Backend: Invoice model — line items, VAT (BTW 21%/9%), payment terms, invoice numbering (PR #TBD-invoice-model)
+- [x] Backend: UBL 2.1 invoice XML generation (Dutch e-invoicing standard / Peppol) (PR #TBD-invoice-ubl-export)
+- [x] Backend: PDF invoice generation — branded template with company details, KVK, BTW-nummer (PR #TBD-invoice-pdf-generation)
+- [x] Backend: Invoice status tracking — draft, sent, paid, overdue, with reminders (PR #TBD-invoice-status-tracking)
+- [x] Backend: Link invoices to projects — auto-populate from project costs/materials (PR #TBD-invoice-project-link)
 - [ ] Frontend: Invoice creation form — customer, line items, VAT, discounts, payment terms
 - [ ] Frontend: Invoice list with status filters (draft/sent/paid/overdue)
 - [ ] Frontend: Invoice PDF preview and send-via-email flow
