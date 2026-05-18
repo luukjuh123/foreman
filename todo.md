@@ -3,7 +3,7 @@
 ## Priority: High (Phase 1 — Foundation)
 
 - [ ] Backend: FastAPI app skeleton with /healthz, CORS, env config, structured logging
-- [ ] Backend: Database models (Project, Phase, Task, Material, User) with SQLAlchemy + UUID PKs + Alembic migrations
+- [x] Backend: Database models (Project, Phase, Task, Material, User) with SQLAlchemy + UUID PKs + Alembic migrations — PR #2
 - [ ] Backend: User authentication — JWT-based login/register endpoints (bcrypt passwords)
 - [ ] Frontend: Next.js 16 app skeleton with Tailwind CSS, shadcn/ui, dark theme config
 - [ ] Frontend: Auth pages (login/register) with API integration and token storage
@@ -13,36 +13,36 @@
 ## Priority: High (Phase 2 — Project Management + Planning)
 
 - [ ] Backend: CRUD endpoints for projects, phases, tasks (with pagination)
-- [ ] Backend: Task dependency graph model and cycle-detection validation
+- [x] Backend: Task dependency graph model and cycle-detection validation — PR #12
 - [ ] Frontend: Project creation wizard (multi-step form: name -> phases -> tasks)
 - [ ] Frontend: Project overview dashboard with phase cards and progress bars
 - [ ] Frontend: Task board (kanban-style) per project phase
 - [x] Frontend: Gantt chart / timeline view with drag-and-drop rescheduling — PR #17
-- [ ] Backend: AI auto-fill planning — generate Gantt schedule from todo list + historical process durations
+- [x] Backend: AI auto-fill planning — generate Gantt schedule from todo list + historical process durations — PR #16
 - [ ] Frontend: AI planning panel — trigger planning, stream agent reasoning, accept/reject suggestions
 
 ## Priority: High (Phase 3 — History + Process Tracking)
 
-- [ ] Backend: Process model — reusable process templates coupled to projects (e.g. "stucen", "tegelen", "schilderen")
-- [ ] Backend: Time tracking — start/stop per process per project, stored durations for historical averaging
-- [ ] Backend: Photo recognition service — upload site photos, AI identifies which process is being done + estimates completion %
-- [ ] Backend: Historical analytics — average duration per process type across all projects (feeds AI planning)
+- [x] Backend: Process model — reusable process templates coupled to projects (e.g. "stucen", "tegelen", "schilderen") — PR #75
+- [x] Backend: Time tracking — start/stop per process per project, stored durations for historical averaging — PR #76
+- [x] Backend: Photo recognition service — upload site photos, AI identifies which process is being done + estimates completion % — PR #78
+- [x] Backend: Historical analytics — average duration per process type across all projects (feeds AI planning) — PR #79
 - [ ] Frontend: Process timeline per project — visual history of what was done when, with photos
 - [ ] Frontend: Time tracking widget — start/stop timer, attach photos, notes
 - [ ] Frontend: Process library — browse all known processes with avg durations and costs
 
 ## Priority: High (Phase 4 — AI Planning Engine)
 
-- [ ] Backend: AI agent service — analyze project specs and generate optimal task ordering
-- [ ] Backend: Critical path calculation (CPM algorithm) and dependency resolution
-- [ ] Backend: AI schedule optimizer accounting for weather, resource, and dependency constraints
-- [ ] Backend: Agent decision engine — returns prioritized task list with human-readable reasoning per decision
-- [ ] Backend: AI learns from historical process data — uses past durations to predict future schedules
+- [x] Backend: AI agent service — analyze project specs and generate optimal task ordering — PR #23
+- [x] Backend: Critical path calculation (CPM algorithm) and dependency resolution — PR #27
+- [x] Backend: AI schedule optimizer accounting for weather, resource, and dependency constraints — PR #31
+- [x] Backend: Agent decision engine — returns prioritized task list with human-readable reasoning per decision — PR #34
+- [x] Backend: AI learns from historical process data — uses past durations to predict future schedules — PR #35
 
 ## Priority: High (Phase 5 — Agenda)
 
-- [ ] Backend: Agenda endpoints — weekly/daily view of scheduled tasks across all projects
-- [ ] Backend: Calendar sync — iCal export for external calendar integration
+- [x] Backend: Agenda endpoints — weekly/daily view of scheduled tasks across all projects — PR `feat/agenda-endpoints`
+- [x] Backend: Calendar sync — iCal export for external calendar integration — PR `feat/ical-export`
 - [ ] Frontend: Beautiful weekly agenda view — day columns with time blocks per project (color-coded)
 - [ ] Frontend: Daily view with task details, assigned staff, location
 - [ ] Frontend: Drag-and-drop rescheduling from agenda view (syncs with Gantt)
@@ -134,10 +134,10 @@
 
 ## Priority: Medium (Phase 14 — Voice Prompting)
 
-- [ ] Backend: Voice input endpoint — accept audio, transcribe (Whisper or Nvidia Riva)
-- [ ] Backend: Nvidia Personaplex integration — conversational AI for hands-free project management
-- [ ] Backend: Voice command parser — map spoken commands to actions (create task, log hours, check schedule)
-- [ ] Backend: Voice response generation — TTS for AI responses (status updates, schedule readouts)
+- [x] Backend: Voice input endpoint — accept audio, transcribe (Whisper or Nvidia Riva) — PR #24
+- [x] Backend: Nvidia Personaplex integration — conversational AI for hands-free project management — PR #25
+- [x] Backend: Voice command parser — map spoken commands to actions (create task, log hours, check schedule) — PR #28
+- [x] Backend: Voice response generation — TTS for AI responses (status updates, schedule readouts) — PR #32
 - [ ] Frontend: Voice input button — push-to-talk or continuous listening mode
 - [ ] Frontend: Voice conversation UI — transcript view with AI responses
 - [ ] Frontend: Hands-free mode — optimized for mobile use while commuting or on-site
