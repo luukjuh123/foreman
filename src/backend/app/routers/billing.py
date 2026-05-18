@@ -14,9 +14,10 @@ from app.models.subscription import (
 )
 from app.models.user import User
 from app.routers.auth import get_current_user
-from app.schemas.billing import SubscriptionResponse
+from app.schemas.billing import SubscriptionResponse, UsageResponse
 from app.services.billing.providers import PaymentProvider, get_payment_provider
 from app.services.billing.subscriptions import ensure_free_subscription
+from app.services.billing.usage import get_or_create_counter
 
 router = APIRouter()
 
@@ -45,6 +46,17 @@ async def get_my_subscription(
     await db.commit()
     await db.refresh(sub)
     return SubscriptionResponse.model_validate(sub)
+
+
+@router.get("/usage", response_model=UsageResponse)
+async def get_my_usage(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> UsageResponse:
+    counter = await get_or_create_counter(current_user.id, db)
+    await db.commit()
+    await db.refresh(counter)
+    return UsageResponse.model_validate(counter)
 
 
 @router.post("/checkout", response_model=CheckoutResponse)

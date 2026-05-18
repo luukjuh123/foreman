@@ -18,6 +18,7 @@ from app.core.security import (
 )
 from app.models.user import User
 from app.services.billing.subscriptions import ensure_free_subscription
+from app.services.billing.usage import get_or_create_counter
 from app.schemas.auth import (
     LoginRequest,
     RefreshRequest,
@@ -66,6 +67,7 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)) ->
     await db.commit()
     await db.refresh(user)
     await ensure_free_subscription(user.id, db)
+    await get_or_create_counter(user.id, db)
     await db.commit()
     return TokenResponse(
         access_token=create_access_token(str(user.id)),
