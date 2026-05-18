@@ -1,52 +1,51 @@
-"""Voice router — command parsing endpoint."""
+"""Voice router — TTS endpoint."""
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field, field_validator
 
-from app.services.voice.commands import (
-    CommandLLMFallback,
-    get_command_llm_fallback,
-    parse_command_async,
-)
+from app.services.voice.tts import TTSProvider, get_tts_provider
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
-class CommandRequest(BaseModel):
-    utterance: str = Field(min_length=1)
+class SpeakRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=5000)
+    voice: str | None = None
 
-    @field_validator("utterance")
+    @field_validator("text")
     @classmethod
     def _not_blank(cls, v: str) -> str:
         if not v.strip():
-            raise ValueError("utterance must not be blank")
+            raise ValueError("text must not be blank")
         return v
 
 
-@router.post("/command")
-async def parse_voice_command(
-    body: CommandRequest,
-    llm_fallback: CommandLLMFallback = Depends(get_command_llm_fallback),
-) -> JSONResponse:
-    """Parse a spoken utterance into an actionable intent + slots.
+@router.post("/speak")
+async def speak(
+    body: SpeakRequest,
+    provider: TTSProvider = Depends(get_tts_provider),
+) -> Response:
+    """Synthesize speech audio from `text` using the configured TTSProvider.
 
-    Tries deterministic rules first; falls back to the configured LLM
-    classifier when rules cannot match.
+    Returns raw audio bytes (Content-Type from the provider). On provider
+    failure, returns the standard JSON error envelope with status 502.
     """
-    parsed = await parse_command_async(body.utterance, llm_fallback=llm_fallback)
-    return JSONResponse(
-        status_code=200,
-        content={
-            "data": {
-                "intent": parsed.intent.value,
-                "slots": parsed.slots,
-                "confidence": parsed.confidence,
-                "source": parsed.source,
-                "reasoning": parsed.reasoning,
+    try:
+        result = await provider.synthesize(text=body.text, voice=body.voice)
+    except Exception:  # noqa: BLE001
+        logger.exception("tts provider failed")
+        return JSONResponse(
+            status_code=502,
+            content={
+                "data": None,
+                "error": {"code": "TTS_FAILED", "message": "tts provider error"},
             },
-            "error": None,
-        },
-    )
+        )
+
+    return Response(content=result.audio, media_type=result.content_type)
