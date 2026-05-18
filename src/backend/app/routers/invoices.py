@@ -21,11 +21,15 @@ from app.schemas.invoice import (
     InvoiceCreate,
     InvoiceListResponse,
     InvoiceResponse,
+    InvoiceStatusUpdate,
 )
 from app.services.invoices.numbering import allocate_invoice_number
 from app.services.invoices.pdf import render_invoice_pdf
+from app.services.invoices.status import apply_transition, sweep_overdue
 from app.services.invoices.totals import compute_line_totals
 from app.services.invoices.ubl import build_invoice_ubl_xml
+from datetime import date as _date
+from pydantic import BaseModel
 
 router = APIRouter()
 
@@ -314,3 +318,57 @@ async def get_invoice_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+# ---------------------------------------------------------------------------
+# Status transitions & overdue sweep
+# ---------------------------------------------------------------------------
+
+
+class _SweepRequest(BaseModel):
+    as_of: _date | None = None
+
+
+@router.post("/sweep-overdue")
+async def sweep_overdue_endpoint(
+    body: _SweepRequest | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Mark all of the caller's `sent` invoices past their due date as `overdue`.
+
+    Scoped to the caller's invoices so users can opt-in to a cleanup pass.
+    """
+    today = (body.as_of if body and body.as_of else _date.today())
+    result = await db.execute(
+        select(Invoice).where(
+            Invoice.owner_id == current_user.id,
+            Invoice.status == "sent",
+            Invoice.due_date < today,
+            Invoice.deleted_at.is_(None),
+        )
+    )
+    invoices = result.scalars().all()
+    for inv in invoices:
+        inv.status = "overdue"
+    await db.commit()
+    return {"updated": len(invoices)}
+
+
+@router.post("/{invoice_id}/transition", response_model=InvoiceResponse)
+async def transition_invoice(
+    invoice_id: uuid.UUID,
+    body: InvoiceStatusUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> InvoiceResponse:
+    invoice = await _load_invoice(db, current_user.id, invoice_id)
+    try:
+        apply_transition(invoice, body.status)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=str(exc)
+        ) from exc
+    await db.commit()
+    loaded = await _load_invoice(db, current_user.id, invoice_id)
+    return InvoiceResponse.model_validate(loaded)
