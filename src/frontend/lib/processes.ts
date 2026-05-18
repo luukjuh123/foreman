@@ -1,58 +1,43 @@
 import { apiFetch } from "./api";
+import { getAccessToken } from "./auth";
+import type {
+  ProcessCreate,
+  ProcessListResponse,
+  ProcessResponse,
+  ProcessStatsListResponse,
+} from "./types";
 
 // ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-export interface ProcessResponse {
-  id: string;
-  slug: string;
-  name: string;
-  description: string | null;
-  unit: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface ProcessListResponse {
-  data: ProcessResponse[];
-  total: number;
-}
-
-export interface ProcessStatsResponse {
-  process_id: string;
-  process_slug: string;
-  process_name: string;
-  entry_count: number;
-  project_count: number;
-  total_seconds: number;
-  avg_seconds: number | null;
-}
-
-export interface ProcessStatsListResponse {
-  data: ProcessStatsResponse[];
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
+// Pure helpers (exported for testing)
 // ---------------------------------------------------------------------------
 
 export function formatDuration(seconds: number | null): string {
-  if (seconds == null || seconds === 0) return "Geen data";
-  const h = Math.floor(seconds / 3600);
-  const m = Math.round((seconds % 3600) / 60);
-  if (h === 0) return `${m}min`;
-  return m > 0 ? `${h}u ${m}min` : `${h}u`;
+  if (seconds === null) return "—";
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  return `${hours} u ${minutes} min`;
 }
 
 // ---------------------------------------------------------------------------
-// API calls
+// API helpers
 // ---------------------------------------------------------------------------
 
+function token(): string | undefined {
+  return getAccessToken() ?? undefined;
+}
+
 export async function listProcesses(): Promise<ProcessListResponse> {
-  return apiFetch<ProcessListResponse>("/processes/");
+  return apiFetch<ProcessListResponse>("/processes/", { token: token() });
 }
 
 export async function listProcessStats(): Promise<ProcessStatsListResponse> {
-  return apiFetch<ProcessStatsListResponse>("/processes/stats");
+  return apiFetch<ProcessStatsListResponse>("/processes/stats", { token: token() });
+}
+
+export async function createProcess(data: ProcessCreate): Promise<ProcessResponse> {
+  return apiFetch<ProcessResponse>("/processes/", {
+    method: "POST",
+    body: JSON.stringify(data),
+    token: token(),
+  });
 }

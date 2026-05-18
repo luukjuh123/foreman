@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import React from "react";
 
 // ---------------------------------------------------------------------------
@@ -17,217 +17,294 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-vi.mock("@/lib/api", () => ({
-  apiFetch: vi.fn(),
+vi.mock("@/lib/auth", () => ({
+  getAccessToken: vi.fn(() => "test-token"),
 }));
 
+vi.mock("@/lib/processes", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/processes")>();
+  return {
+    ...actual,
+    listProcesses: vi.fn(),
+    listProcessStats: vi.fn(),
+    createProcess: vi.fn(),
+    formatDuration: actual.formatDuration,
+  };
+});
+
 // ---------------------------------------------------------------------------
-// Fixtures
+// Test fixtures
 // ---------------------------------------------------------------------------
 
-const mockProcesses = [
-  {
-    id: "proc-1",
-    slug: "stucen",
-    name: "Stucen",
-    description: "Stucwerk aanbrengen op wanden en plafonds",
-    unit: "m2",
-    created_at: "2024-01-01T00:00:00Z",
-    updated_at: "2024-01-01T00:00:00Z",
-  },
-  {
-    id: "proc-2",
-    slug: "tegelen",
-    name: "Tegelen",
-    description: "Tegels leggen op vloer of wand",
-    unit: "m2",
-    created_at: "2024-01-01T00:00:00Z",
-    updated_at: "2024-01-01T00:00:00Z",
-  },
-];
+const mockProcess = (overrides: Partial<{
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  unit: string;
+}> = {}) => ({
+  id: overrides.id ?? "proc-1",
+  slug: overrides.slug ?? "fundering",
+  name: overrides.name ?? "Fundering",
+  description: overrides.description ?? "Funderingswerkzaamheden",
+  unit: overrides.unit ?? "m2",
+  created_at: "2024-01-01T00:00:00Z",
+  updated_at: "2024-01-01T00:00:00Z",
+});
 
-const mockStats = [
-  {
-    process_id: "proc-1",
-    process_slug: "stucen",
-    process_name: "Stucen",
-    entry_count: 5,
-    project_count: 3,
-    total_seconds: 18000,
-    avg_seconds: 3600,
-  },
-  {
-    process_id: "proc-2",
-    process_slug: "tegelen",
-    process_name: "Tegelen",
-    entry_count: 2,
-    project_count: 1,
-    total_seconds: 7200,
-    avg_seconds: 3600,
-  },
-];
+const mockStat = (processId = "proc-1", slug = "fundering", name = "Fundering") => ({
+  process_id: processId,
+  process_slug: slug,
+  process_name: name,
+  entry_count: 5,
+  project_count: 3,
+  total_seconds: 18000,
+  avg_seconds: 3600,
+});
+
+const mockListResponse = {
+  data: [
+    mockProcess({ id: "proc-1", slug: "fundering", name: "Fundering" }),
+    mockProcess({ id: "proc-2", slug: "metselwerk", name: "Metselwerk", unit: "m3" }),
+  ],
+  total: 2,
+};
+
+const mockStatsResponse = {
+  data: [
+    mockStat("proc-1", "fundering", "Fundering"),
+    mockStat("proc-2", "metselwerk", "Metselwerk"),
+  ],
+};
 
 // ---------------------------------------------------------------------------
 // Unit: formatDuration helper
 // ---------------------------------------------------------------------------
 
 describe("formatDuration", () => {
-  it("returns 'Geen data' for null", async () => {
+  it("formats null as —", async () => {
     const { formatDuration } = await import("@/lib/processes");
-    expect(formatDuration(null)).toBe("Geen data");
+    expect(formatDuration(null)).toBe("—");
   });
 
-  it("returns 'Geen data' for 0", async () => {
+  it("formats 0 seconds as 0 u 0 min", async () => {
     const { formatDuration } = await import("@/lib/processes");
-    expect(formatDuration(0)).toBe("Geen data");
+    expect(formatDuration(0)).toBe("0 u 0 min");
   });
 
-  it("formats seconds under one hour as minutes", async () => {
+  it("formats 3600 seconds as 1 u 0 min", async () => {
     const { formatDuration } = await import("@/lib/processes");
-    expect(formatDuration(1800)).toBe("30min");
+    expect(formatDuration(3600)).toBe("1 u 0 min");
   });
 
-  it("formats exactly one hour", async () => {
+  it("formats 5400 seconds as 1 u 30 min", async () => {
     const { formatDuration } = await import("@/lib/processes");
-    expect(formatDuration(3600)).toBe("1u");
+    expect(formatDuration(5400)).toBe("1 u 30 min");
   });
 
-  it("formats hours and minutes", async () => {
+  it("formats 90 seconds as 0 u 1 min", async () => {
     const { formatDuration } = await import("@/lib/processes");
-    expect(formatDuration(5400)).toBe("1u 30min");
-  });
-
-  it("formats multiple hours without minutes", async () => {
-    const { formatDuration } = await import("@/lib/processes");
-    expect(formatDuration(7200)).toBe("2u");
-  });
-
-  it("formats multiple hours with minutes", async () => {
-    const { formatDuration } = await import("@/lib/processes");
-    expect(formatDuration(9000)).toBe("2u 30min");
+    expect(formatDuration(90)).toBe("0 u 1 min");
   });
 });
 
 // ---------------------------------------------------------------------------
-// ProcessLibraryPage
+// ProcessesPage — renders loading state initially
 // ---------------------------------------------------------------------------
 
-describe("ProcessLibraryPage", () => {
+describe("ProcessesPage loading state", () => {
   beforeEach(async () => {
-    const { apiFetch } = await import("@/lib/api");
-    vi.mocked(apiFetch).mockImplementation(async (path: string) => {
-      if ((path as string).includes("/processes/stats")) {
-        return { data: mockStats };
-      }
-      if ((path as string).includes("/processes")) {
-        return { data: mockProcesses, total: 2 };
-      }
-      throw new Error(`Unexpected path: ${path}`);
-    });
+    const { listProcesses, listProcessStats } = await import("@/lib/processes");
+    // Never resolves — keeps page in loading state
+    vi.mocked(listProcesses).mockReturnValue(new Promise(() => {}));
+    vi.mocked(listProcessStats).mockReturnValue(new Promise(() => {}));
   });
 
-  it("renders Procesbibliotheek heading", async () => {
-    const { default: ProcessLibraryPage } = await import(
-      "@/app/dashboard/processes/page"
-    );
-    render(<ProcessLibraryPage />);
-    expect(screen.getByText("Procesbibliotheek")).toBeInTheDocument();
+  it("renders Processen heading", async () => {
+    const { default: ProcessesPage } = await import("@/app/dashboard/processes/page");
+    render(<ProcessesPage />);
+    expect(screen.getByText("Processen")).toBeInTheDocument();
   });
 
-  it("shows loading state initially", async () => {
-    const { apiFetch } = await import("@/lib/api");
-    vi.mocked(apiFetch).mockImplementation(() => new Promise(() => {})); // never resolves
-    const { default: ProcessLibraryPage } = await import(
-      "@/app/dashboard/processes/page"
-    );
-    render(<ProcessLibraryPage />);
-    expect(screen.getByText("Laden…")).toBeInTheDocument();
+  it("renders Nieuw proces button", async () => {
+    const { default: ProcessesPage } = await import("@/app/dashboard/processes/page");
+    render(<ProcessesPage />);
+    expect(screen.getByRole("button", { name: /nieuw proces/i })).toBeInTheDocument();
+  });
+
+  it("shows loading skeleton while fetching", async () => {
+    const { default: ProcessesPage } = await import("@/app/dashboard/processes/page");
+    render(<ProcessesPage />);
+    expect(screen.getByTestId("processes-loading")).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ProcessesPage — renders process list after loading
+// ---------------------------------------------------------------------------
+
+describe("ProcessesPage process list", () => {
+  beforeEach(async () => {
+    const { listProcesses, listProcessStats } = await import("@/lib/processes");
+    vi.mocked(listProcesses).mockResolvedValue(mockListResponse);
+    vi.mocked(listProcessStats).mockResolvedValue(mockStatsResponse);
   });
 
   it("renders process names after loading", async () => {
-    const { default: ProcessLibraryPage } = await import(
-      "@/app/dashboard/processes/page"
-    );
-    render(<ProcessLibraryPage />);
+    const { default: ProcessesPage } = await import("@/app/dashboard/processes/page");
+    render(<ProcessesPage />);
+
     await waitFor(() => {
-      expect(screen.getByText("Stucen")).toBeInTheDocument();
-      expect(screen.getByText("Tegelen")).toBeInTheDocument();
+      expect(screen.getByText("Fundering")).toBeInTheDocument();
+      expect(screen.getByText("Metselwerk")).toBeInTheDocument();
     });
   });
 
-  it("renders process slugs", async () => {
-    const { default: ProcessLibraryPage } = await import(
-      "@/app/dashboard/processes/page"
-    );
-    render(<ProcessLibraryPage />);
+  it("renders process unit labels", async () => {
+    const { default: ProcessesPage } = await import("@/app/dashboard/processes/page");
+    render(<ProcessesPage />);
+
     await waitFor(() => {
-      expect(screen.getByText("stucen")).toBeInTheDocument();
-      expect(screen.getByText("tegelen")).toBeInTheDocument();
+      expect(screen.getAllByText("m2").length).toBeGreaterThan(0);
     });
   });
 
   it("renders process descriptions", async () => {
-    const { default: ProcessLibraryPage } = await import(
-      "@/app/dashboard/processes/page"
-    );
-    render(<ProcessLibraryPage />);
+    const { default: ProcessesPage } = await import("@/app/dashboard/processes/page");
+    render(<ProcessesPage />);
+
     await waitFor(() => {
-      expect(
-        screen.getByText("Stucwerk aanbrengen op wanden en plafonds")
-      ).toBeInTheDocument();
+      expect(screen.getAllByText("Funderingswerkzaamheden").length).toBeGreaterThan(0);
     });
   });
 
-  it("renders avg duration from stats", async () => {
-    const { default: ProcessLibraryPage } = await import(
-      "@/app/dashboard/processes/page"
-    );
-    render(<ProcessLibraryPage />);
+  it("shows total process count", async () => {
+    const { default: ProcessesPage } = await import("@/app/dashboard/processes/page");
+    render(<ProcessesPage />);
+
     await waitFor(() => {
-      // avg_seconds = 3600 → "1u"
-      const durations = screen.getAllByText("1u");
-      expect(durations.length).toBeGreaterThan(0);
+      expect(screen.getByText(/2 processen/i)).toBeInTheDocument();
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ProcessesPage — shows stats per process
+// ---------------------------------------------------------------------------
+
+describe("ProcessesPage stats", () => {
+  beforeEach(async () => {
+    const { listProcesses, listProcessStats } = await import("@/lib/processes");
+    vi.mocked(listProcesses).mockResolvedValue(mockListResponse);
+    vi.mocked(listProcessStats).mockResolvedValue(mockStatsResponse);
+  });
+
+  it("shows formatted avg duration for a process", async () => {
+    const { default: ProcessesPage } = await import("@/app/dashboard/processes/page");
+    render(<ProcessesPage />);
+
+    await waitFor(() => {
+      // avg_seconds = 3600 → "1 u 0 min"
+      expect(screen.getAllByText("1 u 0 min").length).toBeGreaterThan(0);
     });
   });
 
-  it("renders project count from stats", async () => {
-    const { default: ProcessLibraryPage } = await import(
-      "@/app/dashboard/processes/page"
-    );
-    render(<ProcessLibraryPage />);
+  it("shows project count for a process", async () => {
+    const { default: ProcessesPage } = await import("@/app/dashboard/processes/page");
+    render(<ProcessesPage />);
+
     await waitFor(() => {
-      // proc-1 has project_count: 3
-      expect(screen.getByText("3")).toBeInTheDocument();
+      // project_count = 3
+      expect(screen.getAllByText("3").length).toBeGreaterThan(0);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ProcessesPage — create process form
+// ---------------------------------------------------------------------------
+
+describe("ProcessesPage create form", () => {
+  beforeEach(async () => {
+    const { listProcesses, listProcessStats, createProcess } = await import("@/lib/processes");
+    vi.mocked(listProcesses).mockResolvedValue(mockListResponse);
+    vi.mocked(listProcessStats).mockResolvedValue(mockStatsResponse);
+    vi.mocked(createProcess).mockResolvedValue(
+      mockProcess({ id: "proc-3", slug: "nieuw-proces", name: "Nieuw Proces" })
+    );
+  });
+
+  it("opens create form when Nieuw proces button is clicked", async () => {
+    const { default: ProcessesPage } = await import("@/app/dashboard/processes/page");
+    render(<ProcessesPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: /nieuw proces/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("create-process-form")).toBeInTheDocument();
     });
   });
 
-  it("shows Geen data for processes without stats", async () => {
-    const { apiFetch } = await import("@/lib/api");
-    vi.mocked(apiFetch).mockImplementation(async (path: string) => {
-      if ((path as string).includes("/processes/stats")) {
-        return { data: [] }; // no stats
-      }
-      return { data: mockProcesses, total: 2 };
-    });
-    const { default: ProcessLibraryPage } = await import(
-      "@/app/dashboard/processes/page"
-    );
-    render(<ProcessLibraryPage />);
+  it("submits create form with correct data", async () => {
+    const { default: ProcessesPage } = await import("@/app/dashboard/processes/page");
+    const { createProcess } = await import("@/lib/processes");
+
+    render(<ProcessesPage />);
+    fireEvent.click(screen.getByRole("button", { name: /nieuw proces/i }));
+
+    await waitFor(() => screen.getByTestId("create-process-form"));
+
+    fireEvent.change(screen.getByLabelText(/naam/i), { target: { value: "Nieuw Proces" } });
+    fireEvent.change(screen.getByLabelText(/slug/i), { target: { value: "nieuw-proces" } });
+    fireEvent.change(screen.getByLabelText(/eenheid/i), { target: { value: "m2" } });
+
+    fireEvent.click(screen.getByRole("button", { name: /opslaan/i }));
+
     await waitFor(() => {
-      const noData = screen.getAllByText("Geen data");
-      expect(noData.length).toBeGreaterThan(0);
+      expect(vi.mocked(createProcess)).toHaveBeenCalledWith({
+        name: "Nieuw Proces",
+        slug: "nieuw-proces",
+        unit: "m2",
+        description: "",
+      });
     });
   });
 
-  it("shows error state when API fails", async () => {
-    const { apiFetch } = await import("@/lib/api");
-    vi.mocked(apiFetch).mockRejectedValue(new Error("Netwerk fout"));
-    const { default: ProcessLibraryPage } = await import(
-      "@/app/dashboard/processes/page"
-    );
-    render(<ProcessLibraryPage />);
+  it("closes form after successful creation", async () => {
+    const { default: ProcessesPage } = await import("@/app/dashboard/processes/page");
+    render(<ProcessesPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: /nieuw proces/i }));
+    await waitFor(() => screen.getByTestId("create-process-form"));
+
+    fireEvent.change(screen.getByLabelText(/naam/i), { target: { value: "Test" } });
+    fireEvent.change(screen.getByLabelText(/slug/i), { target: { value: "test" } });
+    fireEvent.change(screen.getByLabelText(/eenheid/i), { target: { value: "m2" } });
+    fireEvent.click(screen.getByRole("button", { name: /opslaan/i }));
+
     await waitFor(() => {
-      expect(screen.getByText(/fout/i)).toBeInTheDocument();
+      expect(screen.queryByTestId("create-process-form")).not.toBeInTheDocument();
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ProcessesPage — error state
+// ---------------------------------------------------------------------------
+
+describe("ProcessesPage error state", () => {
+  beforeEach(async () => {
+    const { listProcesses, listProcessStats } = await import("@/lib/processes");
+    vi.mocked(listProcesses).mockRejectedValue(new Error("API onbereikbaar"));
+    vi.mocked(listProcessStats).mockRejectedValue(new Error("API onbereikbaar"));
+  });
+
+  it("shows error message on API failure", async () => {
+    const { default: ProcessesPage } = await import("@/app/dashboard/processes/page");
+    render(<ProcessesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("processes-error")).toBeInTheDocument();
     });
   });
 });

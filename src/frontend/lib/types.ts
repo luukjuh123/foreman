@@ -91,3 +91,41 @@ export interface TaskCreate {
   start_date?: string;
   end_date?: string;
 }
+
+// Process types
+
+export interface ProcessResponse {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  unit: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProcessListResponse {
+  data: ProcessResponse[];
+  total: number;
+}
+
+export interface ProcessCreate {
+  slug: string;
+  name: string;
+  description?: string;
+  unit: string;
+}
+
+export interface ProcessStatsResponse {
+  process_id: string;
+  process_slug: string;
+  process_name: string;
+  entry_count: number;
+  project_count: number;
+  total_seconds: number;
+  avg_seconds: number | null;
+}
+
+export interface ProcessStatsListResponse {
+  data: ProcessStatsResponse[];
+}
