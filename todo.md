@@ -41,8 +41,8 @@
 
 ## Priority: High (Phase 5 — Agenda)
 
-- [ ] Backend: Agenda endpoints — weekly/daily view of scheduled tasks across all projects
-- [ ] Backend: Calendar sync — iCal export for external calendar integration
+- [x] Backend: Agenda endpoints — weekly/daily view of scheduled tasks across all projects — PR `feat/agenda-endpoints`
+- [x] Backend: Calendar sync — iCal export for external calendar integration — PR `feat/ical-export`
 - [ ] Frontend: Beautiful weekly agenda view — day columns with time blocks per project (color-coded)
 - [ ] Frontend: Daily view with task details, assigned staff, location
 - [ ] Frontend: Drag-and-drop rescheduling from agenda view (syncs with Gantt)
