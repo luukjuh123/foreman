@@ -160,3 +160,35 @@ async def get_rating_trend(
             for p in points
         ]
     )
+
+
+from app.schemas.reviews import DraftReplyResponse
+from app.services.reviews.ai_drafter import ReplyDrafter, get_reply_drafter
+
+
+@router.post("/{review_id}/draft-reply", response_model=Envelope)
+async def draft_reply_for_review(
+    review_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    drafter: ReplyDrafter = Depends(get_reply_drafter),
+) -> Envelope:
+    """Ask the drafter for a proposed reply. Does NOT post to Google."""
+    result = await db.execute(select(Review).where(Review.id == review_id))
+    review = result.scalar_one_or_none()
+    if review is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Review not found"
+        )
+    draft = await drafter.draft_reply(
+        author_name=review.author_name,
+        rating=review.rating,
+        comment=review.comment,
+    )
+    return Envelope(
+        data=DraftReplyResponse(
+            review_id=review.id,
+            reply_text=draft.reply_text,
+            reasoning=draft.reasoning,
+        ).model_dump(mode="json")
+    )
