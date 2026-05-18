@@ -23,10 +23,10 @@
 
 ## Priority: High (Phase 3 — History + Process Tracking)
 
-- [ ] Backend: Process model — reusable process templates coupled to projects (e.g. "stucen", "tegelen", "schilderen")
-- [ ] Backend: Time tracking — start/stop per process per project, stored durations for historical averaging
-- [ ] Backend: Photo recognition service — upload site photos, AI identifies which process is being done + estimates completion %
-- [ ] Backend: Historical analytics — average duration per process type across all projects (feeds AI planning)
+- [x] Backend: Process model — reusable process templates coupled to projects (e.g. "stucen", "tegelen", "schilderen") — branch `feat/process-model`
+- [x] Backend: Time tracking — start/stop per process per project, stored durations for historical averaging — branch `feat/process-time-tracking`
+- [x] Backend: Photo recognition service — upload site photos, AI identifies which process is being done + estimates completion % — branch `feat/photo-recognition-service`
+- [x] Backend: Historical analytics — average duration per process type across all projects (feeds AI planning) — branch `feat/process-historical-analytics`
 - [ ] Frontend: Process timeline per project — visual history of what was done when, with photos
 - [ ] Frontend: Time tracking widget — start/stop timer, attach photos, notes
 - [ ] Frontend: Process library — browse all known processes with avg durations and costs
