@@ -1,6 +1,7 @@
 """Critical Path Method (CPM) algorithm for construction task scheduling."""
 
 import uuid
+from collections import deque
 from dataclasses import dataclass, field
 
 from sqlalchemy import select
