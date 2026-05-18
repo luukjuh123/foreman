@@ -95,11 +95,11 @@
 
 ## Priority: Medium (Phase 10 — Rapports / Reports)
 
-- [ ] Backend: Report generation engine — aggregate project data into structured reports
-- [ ] Backend: Weekly report — work done per project, hours, costs, photos, next week plan
-- [ ] Backend: Project completion report — full summary: timeline, costs vs budget, photos, lessons
-- [ ] Backend: PDF report generation with branded template
-- [ ] Backend: Auto-send reports via email to customers/stakeholders
+- [x] Backend: Report generation engine — aggregate project data into structured reports — PR #26
+- [x] Backend: Weekly report — work done per project, hours, costs, photos, next week plan — PR #29
+- [x] Backend: Project completion report — full summary: timeline, costs vs budget, photos, lessons — PR #30
+- [x] Backend: PDF report generation with branded template — PR #37
+- [x] Backend: Auto-send reports via email to customers/stakeholders — PR #45
 - [ ] Frontend: Report builder — select project/period, preview, generate
 - [ ] Frontend: Report history — browse past reports per project
 - [ ] Frontend: Customer-facing report view (shareable link, no login required)
