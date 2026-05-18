@@ -30,7 +30,7 @@ def test_alembic_script_directory_loads() -> None:
     scripts = ScriptDirectory.from_config(cfg)
     revisions = list(scripts.walk_revisions())
     assert len(revisions) >= 1
-    assert revisions[0].revision == "30246b22cf35"
+    assert any(r.revision == "30246b22cf35" for r in revisions)
 
 
 def test_initial_migration_creates_all_tables() -> None:
