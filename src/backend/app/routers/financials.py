@@ -21,10 +21,12 @@ from app.schemas.budget import (
     BudgetUpsert,
 )
 from app.schemas.cost import (
+    CostBreakdownResponse,
     LaborCostResponse,
     MaterialCostResponse,
     MaterialLineResponse,
     TaskLaborResponse,
+    TotalCostResponse,
 )
 from app.services.financials.labor_cost import (
     DEFAULT_HOURLY_RATE_CENTS,
@@ -35,7 +37,7 @@ from app.services.financials.material_cost import (
     MaterialCostAggregator,
     StorePriceProvider,
 )
-from app.services.finance.seed import DUTCH_RGS_LIGHT
+from app.services.financials.total_cost import TotalCostCalculator
 
 router = APIRouter()
 
@@ -569,4 +571,46 @@ async def get_labor_cost(
             )
             for t in report.tasks
         ],
+    )
+
+
+# ---------------------------------------------------------------------------
+# Total cost composition
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/projects/{project_id}/total-cost",
+    response_model=TotalCostResponse,
+)
+async def get_total_cost(
+    project_id: uuid.UUID,
+    hourly_rate_cents: int = Query(default=DEFAULT_HOURLY_RATE_CENTS, ge=0),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    provider: StorePriceProvider = Depends(get_price_provider),
+) -> TotalCostResponse:
+    """Total project cost = materials + labor + equipment + overhead + other.
+
+    Materials and labor totals come from live aggregation (current task hours
+    and material prices). Equipment, overhead, and other costs are summed
+    from the project's BudgetItems. Materials- and labor-category budget
+    items are intentionally ignored here to avoid double-counting.
+    """
+    await _project_for_user_or_404(project_id, current_user, db)
+    calc = TotalCostCalculator(
+        price_provider=provider, hourly_rate_cents=hourly_rate_cents
+    )
+    report = await calc.calculate(project_id, db)
+    return TotalCostResponse(
+        total_cents=report.total_cents,
+        hourly_rate_cents=report.hourly_rate_cents,
+        breakdown=CostBreakdownResponse(
+            materials_cents=report.breakdown.materials_cents,
+            labor_cents=report.breakdown.labor_cents,
+            equipment_cents=report.breakdown.equipment_cents,
+            overhead_cents=report.breakdown.overhead_cents,
+            other_cents=report.breakdown.other_cents,
+        ),
+        materials_missing_count=report.materials_missing_count,
     )
