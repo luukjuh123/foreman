@@ -1,4 +1,4 @@
-"""Billing schemas — subscription responses."""
+"""Billing schemas — subscription and usage responses."""
 
 import uuid
 from datetime import datetime
@@ -13,5 +13,13 @@ class SubscriptionResponse(BaseModel):
     project_limit: int | None
     current_period_end: datetime | None = None
     trial_ends_at: datetime | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class UsageResponse(BaseModel):
+    project_count: int
+    user_count: int
+    storage_bytes: int
 
     model_config = {"from_attributes": True}

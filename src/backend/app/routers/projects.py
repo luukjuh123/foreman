@@ -23,6 +23,7 @@ from app.schemas.project import (
 )
 from app.services.planning.cpm import detect_cycle
 from app.services.billing.subscriptions import enforce_project_limit
+from app.services.billing.usage import increment_projects
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -109,6 +110,8 @@ async def create_project(
     db.add(project)
     await db.commit()
     await db.refresh(project)
+    await increment_projects(current_user.id, db, +1)
+    await db.commit()
     # Load relationships for response
     result = await db.execute(
         select(Project)
@@ -160,6 +163,7 @@ async def delete_project(
     project = await _get_project_or_404(project_id, db)
     _assert_owner(project, current_user)
     project.deleted_at = datetime.now(UTC)
+    await increment_projects(current_user.id, db, -1)
     await db.commit()
 
 
