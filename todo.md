@@ -71,12 +71,12 @@
 
 ## Priority: Medium (Phase 8 — Full Financials)
 
-- [ ] Backend: Chart of accounts model — standard Dutch boekhoudschema (rekeningschema)
-- [ ] Backend: Journal entries and double-entry bookkeeping engine
-- [ ] Backend: Balance sheet (balans) generation endpoint — assets, liabilities, equity
-- [ ] Backend: Income statement (winst- en verliesrekening) generation endpoint
-- [ ] Backend: Cash flow statement generation — operating, investing, financing activities
-- [ ] Backend: Period closing — lock periods, generate year-end reports
+- [x] Backend: Chart of accounts model — standard Dutch boekhoudschema (rekeningschema) (PR: `feat/chart-of-accounts`)
+- [x] Backend: Journal entries and double-entry bookkeeping engine (PR: `feat/journal-entries`)
+- [x] Backend: Balance sheet (balans) generation endpoint — assets, liabilities, equity (PR: `feat/balance-sheet`)
+- [x] Backend: Income statement (winst- en verliesrekening) generation endpoint (PR: `feat/income-statement`)
+- [x] Backend: Cash flow statement generation — operating, investing, financing activities (PR: `feat/cashflow-statement`)
+- [x] Backend: Period closing — lock periods, generate year-end reports (PR: `feat/period-closing`)
 - [ ] Frontend: Balance sheet view — expandable account tree with totals
 - [ ] Frontend: Income statement view — revenue vs expenses per period
 - [ ] Frontend: Cash flow overview with charts (monthly/quarterly/yearly)
