@@ -35,10 +35,10 @@ async def get_current_user(
 ) -> User:
     """Extract and validate user from JWT bearer token."""
     try:
-        payload = decode_token(credentials.credentials)
+        payload = decode_token(credentials.credentials, expected_type="access")
     except JWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-    if payload.get("type") != "access":
+    except ValueError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token type")
     user_id = payload.get("sub")
     if not user_id:
@@ -87,10 +87,10 @@ async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)) -> Token
 async def refresh(body: RefreshRequest, db: AsyncSession = Depends(get_db)) -> TokenResponse:
     """Exchange a refresh token for a new access token."""
     try:
-        payload = decode_token(body.refresh_token)
+        payload = decode_token(body.refresh_token, expected_type="refresh")
     except JWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
-    if payload.get("type") != "refresh":
+    except ValueError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not a refresh token")
     user_id = payload.get("sub")
     result = await db.execute(select(User).where(User.id == uuid.UUID(user_id)))
