@@ -4,10 +4,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
+from app.core.logging import RequestLoggingMiddleware, configure_logging
 from app.routers import auth, projects, ai_planning, materials, financials
 
 
 def create_app() -> FastAPI:
+    configure_logging(settings.log_level)
+
     app = FastAPI(
         title="foreman API",
         version="0.1.0",
@@ -17,6 +20,7 @@ def create_app() -> FastAPI:
         openapi_url="/api/openapi.json",
     )
 
+    app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
