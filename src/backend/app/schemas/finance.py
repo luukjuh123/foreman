@@ -125,3 +125,31 @@ class AccountBalance(BaseModel):
     debit_total_cents: int
     credit_total_cents: int
     balance_cents: int  # signed by normal balance: positive = increase
+
+
+# ---------------------------------------------------------------------------
+# Accounting periods
+# ---------------------------------------------------------------------------
+
+
+class PeriodCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=64)
+    start_date: date
+    end_date: date
+
+    @model_validator(mode="after")
+    def end_after_start(self) -> "PeriodCreate":
+        if self.end_date < self.start_date:
+            raise ValueError("end_date must be >= start_date")
+        return self
+
+
+class PeriodResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    name: str
+    start_date: date
+    end_date: date
+    is_locked: bool
+    locked_at: datetime | None
+    created_at: datetime

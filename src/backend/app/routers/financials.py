@@ -402,3 +402,128 @@ async def cash_flow_statement(
         end_date=end_date,
     )
     return stmt.to_dict()
+
+
+# ---------------------------------------------------------------------------
+# Accounting periods — create, list, lock, year-end report
+# ---------------------------------------------------------------------------
+
+from datetime import datetime as _datetime, timezone as _tz  # noqa: E402
+
+from app.schemas.finance import PeriodCreate, PeriodResponse  # noqa: E402
+
+
+@router.post(
+    "/periods", response_model=PeriodResponse, status_code=status.HTTP_201_CREATED
+)
+async def create_period(
+    payload: PeriodCreate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Period:
+    period = Period(
+        owner_id=user.id,
+        name=payload.name,
+        start_date=payload.start_date,
+        end_date=payload.end_date,
+    )
+    db.add(period)
+    await db.commit()
+    await db.refresh(period)
+    return period
+
+
+@router.get("/periods", response_model=list[PeriodResponse])
+async def list_periods(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[Period]:
+    result = await db.execute(
+        select(Period)
+        .where(Period.owner_id == user.id)
+        .order_by(Period.start_date.desc())
+    )
+    return list(result.scalars().all())
+
+
+@router.post("/periods/{period_id}/lock", response_model=PeriodResponse)
+async def lock_period(
+    period_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Period:
+    period = await db.get(Period, period_id)
+    if period is None or period.owner_id != user.id:
+        raise HTTPException(status_code=404, detail="Period not found")
+    if period.is_locked:
+        raise HTTPException(status_code=409, detail="Period already locked")
+    period.is_locked = True
+    period.locked_at = _datetime.now(_tz.utc)
+    await db.commit()
+    await db.refresh(period)
+    return period
+
+
+@router.post("/periods/{period_id}/unlock", response_model=PeriodResponse)
+async def unlock_period(
+    period_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Period:
+    """Unlock an accounting period (admin / correction)."""
+    period = await db.get(Period, period_id)
+    if period is None or period.owner_id != user.id:
+        raise HTTPException(status_code=404, detail="Period not found")
+    period.is_locked = False
+    period.locked_at = None
+    await db.commit()
+    await db.refresh(period)
+    return period
+
+
+@router.get("/periods/{period_id}/year-end-report")
+async def year_end_report(
+    period_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Bundle: balans op end_date + V&W over period + kasstroom over period."""
+    period = await db.get(Period, period_id)
+    if period is None or period.owner_id != user.id:
+        raise HTTPException(status_code=404, detail="Period not found")
+
+    period_aggregates = await aggregate_balances(
+        db, user.id, start_date=period.start_date, end_date=period.end_date
+    )
+    closing = await aggregate_balances(db, user.id, end_date=period.end_date)
+    opening = await aggregate_balances(
+        db, user.id, end_date=period.start_date - timedelta(days=1)
+    )
+    net_income = compute_net_income_cents(closing)
+
+    sheet = build_balance_sheet(
+        closing, as_of=period.end_date, net_income_to_date_cents=net_income
+    )
+    income = build_income_statement(
+        period_aggregates, start_date=period.start_date, end_date=period.end_date
+    )
+    cash = build_cash_flow_statement(
+        opening_aggregates=opening,
+        closing_aggregates=closing,
+        period_aggregates=period_aggregates,
+        start_date=period.start_date,
+        end_date=period.end_date,
+    )
+    return {
+        "period": {
+            "id": str(period.id),
+            "name": period.name,
+            "start_date": period.start_date.isoformat(),
+            "end_date": period.end_date.isoformat(),
+            "is_locked": period.is_locked,
+            "locked_at": period.locked_at.isoformat() if period.locked_at else None,
+        },
+        "balance_sheet": sheet.to_dict(),
+        "income_statement": income.to_dict(),
+        "cash_flow_statement": cash.to_dict(),
+    }
