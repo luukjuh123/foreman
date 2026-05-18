@@ -113,3 +113,50 @@ async def reply_to_review(
     return Envelope(
         data=ReviewResponse.model_validate(review).model_dump(mode="json")
     )
+
+
+from datetime import date as _date
+
+from app.schemas.rating_snapshot import SnapshotData, SnapshotRequest, TrendPoint
+from app.services.reviews.aggregation import get_trend, take_snapshot
+
+
+@router.post("/snapshot", response_model=Envelope)
+async def take_rating_snapshot(
+    body: SnapshotRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Envelope:
+    """Compute and persist today's rating snapshot for a location."""
+    snap = await take_snapshot(db, body.location_id)
+    return Envelope(
+        data=SnapshotData(
+            location_id=snap.location_id,
+            snapshot_date=snap.snapshot_date,
+            average_rating=snap.average_rating,
+            review_count=snap.review_count,
+        ).model_dump(mode="json")
+    )
+
+
+@router.get("/trend", response_model=Envelope)
+async def get_rating_trend(
+    location_id: str,
+    days: int = 30,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Envelope:
+    """Return rating snapshots for the last `days` days, oldest first."""
+    if days <= 0 or days > 3650:
+        raise HTTPException(status_code=400, detail="days must be in 1..3650")
+    points = await get_trend(db, location_id, days=days)
+    return Envelope(
+        data=[
+            TrendPoint(
+                snapshot_date=p.snapshot_date,
+                average_rating=p.average_rating,
+                review_count=p.review_count,
+            ).model_dump(mode="json")
+            for p in points
+        ]
+    )
