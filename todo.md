@@ -3,7 +3,7 @@
 ## Priority: High (Phase 1 — Foundation)
 
 - [ ] Backend: FastAPI app skeleton with /healthz, CORS, env config, structured logging
-- [ ] Backend: Database models (Project, Phase, Task, Material, User) with SQLAlchemy + UUID PKs + Alembic migrations
+- [x] Backend: Database models (Project, Phase, Task, Material, User) with SQLAlchemy + UUID PKs + Alembic migrations — PR #2
 - [ ] Backend: User authentication — JWT-based login/register endpoints (bcrypt passwords)
 - [ ] Frontend: Next.js 16 app skeleton with Tailwind CSS, shadcn/ui, dark theme config
 - [ ] Frontend: Auth pages (login/register) with API integration and token storage
@@ -13,36 +13,36 @@
 ## Priority: High (Phase 2 — Project Management + Planning)
 
 - [ ] Backend: CRUD endpoints for projects, phases, tasks (with pagination)
-- [ ] Backend: Task dependency graph model and cycle-detection validation
+- [x] Backend: Task dependency graph model and cycle-detection validation — PR #12
 - [ ] Frontend: Project creation wizard (multi-step form: name -> phases -> tasks)
 - [ ] Frontend: Project overview dashboard with phase cards and progress bars
 - [ ] Frontend: Task board (kanban-style) per project phase
 - [x] Frontend: Gantt chart / timeline view with drag-and-drop rescheduling — PR #17
-- [ ] Backend: AI auto-fill planning — generate Gantt schedule from todo list + historical process durations
+- [x] Backend: AI auto-fill planning — generate Gantt schedule from todo list + historical process durations — PR #16
 - [ ] Frontend: AI planning panel — trigger planning, stream agent reasoning, accept/reject suggestions
 
 ## Priority: High (Phase 3 — History + Process Tracking)
 
-- [ ] Backend: Process model — reusable process templates coupled to projects (e.g. "stucen", "tegelen", "schilderen")
-- [ ] Backend: Time tracking — start/stop per process per project, stored durations for historical averaging
-- [ ] Backend: Photo recognition service — upload site photos, AI identifies which process is being done + estimates completion %
-- [ ] Backend: Historical analytics — average duration per process type across all projects (feeds AI planning)
+- [x] Backend: Process model — reusable process templates coupled to projects (e.g. "stucen", "tegelen", "schilderen") — PR #75
+- [x] Backend: Time tracking — start/stop per process per project, stored durations for historical averaging — PR #76
+- [x] Backend: Photo recognition service — upload site photos, AI identifies which process is being done + estimates completion % — PR #78
+- [x] Backend: Historical analytics — average duration per process type across all projects (feeds AI planning) — PR #79
 - [ ] Frontend: Process timeline per project — visual history of what was done when, with photos
 - [ ] Frontend: Time tracking widget — start/stop timer, attach photos, notes
 - [ ] Frontend: Process library — browse all known processes with avg durations and costs
 
 ## Priority: High (Phase 4 — AI Planning Engine)
 
-- [ ] Backend: AI agent service — analyze project specs and generate optimal task ordering
-- [ ] Backend: Critical path calculation (CPM algorithm) and dependency resolution
-- [ ] Backend: AI schedule optimizer accounting for weather, resource, and dependency constraints
-- [ ] Backend: Agent decision engine — returns prioritized task list with human-readable reasoning per decision
-- [ ] Backend: AI learns from historical process data — uses past durations to predict future schedules
+- [x] Backend: AI agent service — analyze project specs and generate optimal task ordering — PR #23
+- [x] Backend: Critical path calculation (CPM algorithm) and dependency resolution — PR #27
+- [x] Backend: AI schedule optimizer accounting for weather, resource, and dependency constraints — PR #31
+- [x] Backend: Agent decision engine — returns prioritized task list with human-readable reasoning per decision — PR #34
+- [x] Backend: AI learns from historical process data — uses past durations to predict future schedules — PR #35
 
 ## Priority: High (Phase 5 — Agenda)
 
-- [ ] Backend: Agenda endpoints — weekly/daily view of scheduled tasks across all projects
-- [ ] Backend: Calendar sync — iCal export for external calendar integration
+- [x] Backend: Agenda endpoints — weekly/daily view of scheduled tasks across all projects — PR `feat/agenda-endpoints`
+- [x] Backend: Calendar sync — iCal export for external calendar integration — PR `feat/ical-export`
 - [ ] Frontend: Beautiful weekly agenda view — day columns with time blocks per project (color-coded)
 - [ ] Frontend: Daily view with task details, assigned staff, location
 - [ ] Frontend: Drag-and-drop rescheduling from agenda view (syncs with Gantt)
@@ -71,12 +71,12 @@
 
 ## Priority: Medium (Phase 8 — Full Financials)
 
-- [ ] Backend: Chart of accounts model — standard Dutch boekhoudschema (rekeningschema)
-- [ ] Backend: Journal entries and double-entry bookkeeping engine
-- [ ] Backend: Balance sheet (balans) generation endpoint — assets, liabilities, equity
-- [ ] Backend: Income statement (winst- en verliesrekening) generation endpoint
-- [ ] Backend: Cash flow statement generation — operating, investing, financing activities
-- [ ] Backend: Period closing — lock periods, generate year-end reports
+- [x] Backend: Chart of accounts model — standard Dutch boekhoudschema (rekeningschema) (PR: `feat/chart-of-accounts`)
+- [x] Backend: Journal entries and double-entry bookkeeping engine (PR: `feat/journal-entries`)
+- [x] Backend: Balance sheet (balans) generation endpoint — assets, liabilities, equity (PR: `feat/balance-sheet`)
+- [x] Backend: Income statement (winst- en verliesrekening) generation endpoint (PR: `feat/income-statement`)
+- [x] Backend: Cash flow statement generation — operating, investing, financing activities (PR: `feat/cashflow-statement`)
+- [x] Backend: Period closing — lock periods, generate year-end reports (PR: `feat/period-closing`)
 - [ ] Frontend: Balance sheet view — expandable account tree with totals
 - [ ] Frontend: Income statement view — revenue vs expenses per period
 - [ ] Frontend: Cash flow overview with charts (monthly/quarterly/yearly)
@@ -95,11 +95,11 @@
 
 ## Priority: Medium (Phase 10 — Rapports / Reports)
 
-- [ ] Backend: Report generation engine — aggregate project data into structured reports
-- [ ] Backend: Weekly report — work done per project, hours, costs, photos, next week plan
-- [ ] Backend: Project completion report — full summary: timeline, costs vs budget, photos, lessons
-- [ ] Backend: PDF report generation with branded template
-- [ ] Backend: Auto-send reports via email to customers/stakeholders
+- [x] Backend: Report generation engine — aggregate project data into structured reports — PR #26
+- [x] Backend: Weekly report — work done per project, hours, costs, photos, next week plan — PR #29
+- [x] Backend: Project completion report — full summary: timeline, costs vs budget, photos, lessons — PR #30
+- [x] Backend: PDF report generation with branded template — PR #37
+- [x] Backend: Auto-send reports via email to customers/stakeholders — PR #45
 - [ ] Frontend: Report builder — select project/period, preview, generate
 - [ ] Frontend: Report history — browse past reports per project
 - [ ] Frontend: Customer-facing report view (shareable link, no login required)
@@ -116,37 +116,37 @@
 
 ## Priority: Medium (Phase 12 — Hardware Store Integrations)
 
-- [ ] Backend: Scraping service base — async, rate-limited, cached (Redis or in-memory TTL)
-- [ ] Backend: Hornbach integration — product search, pricing (euro cents), stock availability
-- [ ] Backend: Gamma integration — product search, pricing (euro cents), stock availability
-- [ ] Backend: Praxis integration — product search, pricing (euro cents), stock availability
-- [ ] Backend: Bouwmaat integration — product search, pricing (euro cents), stock availability
-- [ ] Backend: Price comparison engine — cross-store ranking by price + availability
+- [x] Backend: Scraping service base — async, rate-limited, cached (Redis or in-memory TTL) — PR feat/scraper-base
+- [x] Backend: Hornbach integration — product search, pricing (euro cents), stock availability — PR feat/hornbach-integration
+- [x] Backend: Gamma integration — product search, pricing (euro cents), stock availability — PR feat/gamma-integration
+- [x] Backend: Praxis integration — product search, pricing (euro cents), stock availability — PR feat/praxis-integration
+- [x] Backend: Bouwmaat integration — product search, pricing (euro cents), stock availability — PR feat/bouwmaat-integration
+- [x] Backend: Price comparison engine — cross-store ranking by price + availability — PR feat/price-comparison-engine
 - [ ] Frontend: Material search with cross-store price comparison table
 - [ ] Frontend: Store availability map — per-store stock status badges
 
 ## Priority: Medium (Phase 13 — Material Calculator)
 
-- [ ] Backend: Material estimation algorithms — paint (m2/liter), tiles (m2 + 10% waste), concrete (m3), lumber (linear meters)
-- [ ] Backend: Room/area dimension API — inputs dimensions -> material quantities
+- [x] Backend: Material estimation algorithms — paint (m2/liter), tiles (m2 + 10% waste), concrete (m3), lumber (linear meters) — branch `feat/material-estimation-algorithms`
+- [x] Backend: Room/area dimension API — inputs dimensions -> material quantities — branch `feat/room-dimension-api`
 - [ ] Frontend: Material calculator wizard — input dimensions -> quantities + costs -> shopping list
 - [ ] Frontend: Shopping list generator with store deep-links
 
 ## Priority: Medium (Phase 14 — Voice Prompting)
 
-- [ ] Backend: Voice input endpoint — accept audio, transcribe (Whisper or Nvidia Riva)
-- [ ] Backend: Nvidia Personaplex integration — conversational AI for hands-free project management
-- [ ] Backend: Voice command parser — map spoken commands to actions (create task, log hours, check schedule)
-- [ ] Backend: Voice response generation — TTS for AI responses (status updates, schedule readouts)
+- [x] Backend: Voice input endpoint — accept audio, transcribe (Whisper or Nvidia Riva) — PR #24
+- [x] Backend: Nvidia Personaplex integration — conversational AI for hands-free project management — PR #25
+- [x] Backend: Voice command parser — map spoken commands to actions (create task, log hours, check schedule) — PR #28
+- [x] Backend: Voice response generation — TTS for AI responses (status updates, schedule readouts) — PR #32
 - [ ] Frontend: Voice input button — push-to-talk or continuous listening mode
 - [ ] Frontend: Voice conversation UI — transcript view with AI responses
 - [ ] Frontend: Hands-free mode — optimized for mobile use while commuting or on-site
 
 ## Priority: Medium (Phase 15 — Google Reviews)
 
-- [ ] Backend: Google Business Profile API integration — fetch reviews, ratings, reply
-- [ ] Backend: Review aggregation — track rating trends over time
-- [ ] Backend: AI-assisted review responses — draft professional replies to customer reviews
+- [x] Backend: Google Business Profile API integration — fetch reviews, ratings, reply — PR #38
+- [x] Backend: Review aggregation — track rating trends over time — PR #60
+- [x] Backend: AI-assisted review responses — draft professional replies to customer reviews — PR #61
 - [ ] Frontend: Reviews dashboard — latest reviews, avg rating, trend chart
 - [ ] Frontend: Review response composer — AI draft + manual edit + post
 
