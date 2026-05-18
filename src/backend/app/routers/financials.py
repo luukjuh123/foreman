@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,11 +13,27 @@ from app.core.database import get_db
 from app.models.finance import Account
 from app.models.user import User
 from app.routers.auth import get_current_user
-from app.schemas.finance import (
-    AccountCreate,
-    AccountResponse,
-    AccountTreeNode,
-    AccountUpdate,
+from app.schemas.budget import (
+    BudgetItemCreate,
+    BudgetItemResponse,
+    BudgetItemUpdate,
+    BudgetResponse,
+    BudgetUpsert,
+)
+from app.schemas.cost import (
+    LaborCostResponse,
+    MaterialCostResponse,
+    MaterialLineResponse,
+    TaskLaborResponse,
+)
+from app.services.financials.labor_cost import (
+    DEFAULT_HOURLY_RATE_CENTS,
+    LaborCostEstimator,
+)
+from app.services.financials.material_cost import (
+    DefaultStorePriceProvider,
+    MaterialCostAggregator,
+    StorePriceProvider,
 )
 from app.services.finance.seed import DUTCH_RGS_LIGHT
 
@@ -514,16 +530,43 @@ async def year_end_report(
         start_date=period.start_date,
         end_date=period.end_date,
     )
-    return {
-        "period": {
-            "id": str(period.id),
-            "name": period.name,
-            "start_date": period.start_date.isoformat(),
-            "end_date": period.end_date.isoformat(),
-            "is_locked": period.is_locked,
-            "locked_at": period.locked_at.isoformat() if period.locked_at else None,
-        },
-        "balance_sheet": sheet.to_dict(),
-        "income_statement": income.to_dict(),
-        "cash_flow_statement": cash.to_dict(),
-    }
+
+
+# ---------------------------------------------------------------------------
+# Labor cost estimation
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/projects/{project_id}/labor-cost",
+    response_model=LaborCostResponse,
+)
+async def get_labor_cost(
+    project_id: uuid.UUID,
+    hourly_rate_cents: int = Query(default=DEFAULT_HOURLY_RATE_CENTS, ge=0),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> LaborCostResponse:
+    """Estimate labor cost = sum(task.estimated_hours) × hourly_rate_cents.
+
+    The rate defaults to ``DEFAULT_HOURLY_RATE_CENTS`` (5000 ¢ = €50/hr) and
+    can be overridden via query param to support what-if modelling on the
+    financial dashboard without mutating per-task ``labor_cost_cents``.
+    """
+    await _project_for_user_or_404(project_id, current_user, db)
+    estimator = LaborCostEstimator(hourly_rate_cents=hourly_rate_cents)
+    report = await estimator.estimate(project_id, db)
+    return LaborCostResponse(
+        hourly_rate_cents=report.hourly_rate_cents,
+        total_hours=report.total_hours,
+        total_cents=report.total_cents,
+        tasks=[
+            TaskLaborResponse(
+                task_id=t.task_id,
+                name=t.name,
+                estimated_hours=t.estimated_hours,
+                cost_cents=t.cost_cents,
+            )
+            for t in report.tasks
+        ],
+    )
