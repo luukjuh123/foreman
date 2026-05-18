@@ -299,3 +299,33 @@ async def get_journal_entry(
     if entry is None or entry.owner_id != user.id:
         raise HTTPException(status_code=404, detail="Journal entry not found")
     return entry
+
+
+# ---------------------------------------------------------------------------
+# Balance sheet (balans)
+# ---------------------------------------------------------------------------
+
+from datetime import date as _date  # noqa: E402
+
+from fastapi import Query as _Query  # noqa: E402
+
+from app.services.finance.reports import (  # noqa: E402
+    aggregate_balances,
+    build_balance_sheet,
+    compute_net_income_cents,
+)
+
+
+@router.get("/reports/balance-sheet")
+async def balance_sheet(
+    as_of: _date = _Query(..., description="Reporting date (inclusive)"),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Balans op een datum: activa = passiva + eigen vermogen + ingehouden winst."""
+    aggregates = await aggregate_balances(db, user.id, end_date=as_of)
+    net_income = compute_net_income_cents(aggregates)
+    sheet = build_balance_sheet(
+        aggregates, as_of=as_of, net_income_to_date_cents=net_income
+    )
+    return sheet.to_dict()
