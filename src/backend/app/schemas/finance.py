@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 AccountType = Literal["asset", "liability", "equity", "revenue", "expense"]
 NormalBalance = Literal["debit", "credit"]
@@ -56,3 +56,72 @@ class AccountTreeNode(BaseModel):
 
 
 AccountTreeNode.model_rebuild()
+
+
+# ---------------------------------------------------------------------------
+# Journal entries
+# ---------------------------------------------------------------------------
+
+
+class JournalLineInput(BaseModel):
+    account_id: uuid.UUID
+    debit_cents: int = Field(ge=0, default=0)
+    credit_cents: int = Field(ge=0, default=0)
+    description: str | None = None
+
+    @model_validator(mode="after")
+    def one_side_only(self) -> "JournalLineInput":
+        if self.debit_cents > 0 and self.credit_cents > 0:
+            raise ValueError("Line must be either debit or credit, not both")
+        if self.debit_cents == 0 and self.credit_cents == 0:
+            raise ValueError("Line must have a non-zero debit or credit amount")
+        return self
+
+
+class JournalEntryCreate(BaseModel):
+    entry_date: date
+    description: str = Field(min_length=1, max_length=500)
+    reference: str | None = None
+    lines: list[JournalLineInput] = Field(min_length=2)
+
+    @model_validator(mode="after")
+    def debits_equal_credits(self) -> "JournalEntryCreate":
+        total_debit = sum(line.debit_cents for line in self.lines)
+        total_credit = sum(line.credit_cents for line in self.lines)
+        if total_debit != total_credit:
+            raise ValueError(
+                f"Debits must equal credits: debit={total_debit} credit={total_credit}"
+            )
+        if total_debit == 0:
+            raise ValueError("Entry must have non-zero amounts")
+        return self
+
+
+class JournalLineResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    account_id: uuid.UUID
+    debit_cents: int
+    credit_cents: int
+    description: str | None
+
+
+class JournalEntryResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    entry_date: date
+    description: str
+    reference: str | None
+    is_posted: bool
+    created_at: datetime
+    lines: list[JournalLineResponse]
+
+
+class AccountBalance(BaseModel):
+    account_id: uuid.UUID
+    code: str
+    name: str
+    account_type: str
+    debit_total_cents: int
+    credit_total_cents: int
+    balance_cents: int  # signed by normal balance: positive = increase

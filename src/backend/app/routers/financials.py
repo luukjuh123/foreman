@@ -173,3 +173,129 @@ async def seed_dutch_rgs(
         select(Account).where(Account.owner_id == user.id).order_by(Account.code)
     )
     return list(result.scalars().all())
+
+
+# ---------------------------------------------------------------------------
+# Journal entries — double-entry bookkeeping
+# ---------------------------------------------------------------------------
+
+from datetime import datetime as _dt  # noqa: E402
+
+from app.models.finance import (  # noqa: E402
+    JournalEntry,
+    JournalLine,
+    Period,
+)
+from app.schemas.finance import (  # noqa: E402
+    JournalEntryCreate,
+    JournalEntryResponse,
+)
+from sqlalchemy.orm import selectinload  # noqa: E402
+
+
+async def _entry_date_in_locked_period(
+    db: AsyncSession, owner_id: uuid.UUID, entry_date
+) -> bool:
+    result = await db.execute(
+        select(Period).where(
+            Period.owner_id == owner_id,
+            Period.is_locked.is_(True),
+            Period.start_date <= entry_date,
+            Period.end_date >= entry_date,
+        )
+    )
+    return result.first() is not None
+
+
+@router.post(
+    "/journal-entries",
+    response_model=JournalEntryResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_journal_entry(
+    payload: JournalEntryCreate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> JournalEntry:
+    """Create a balanced double-entry journal entry.
+
+    Pydantic validates debits == credits and one-side-per-line. Here we
+    enforce account ownership and locked-period rejection.
+    """
+    # Verify every account belongs to this user
+    account_ids = {line.account_id for line in payload.lines}
+    acc_result = await db.execute(
+        select(Account).where(
+            Account.id.in_(account_ids), Account.owner_id == user.id
+        )
+    )
+    found = {a.id for a in acc_result.scalars().all()}
+    missing = account_ids - found
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown or unauthorized account(s): {sorted(str(m) for m in missing)}",
+        )
+
+    if await _entry_date_in_locked_period(db, user.id, payload.entry_date):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot create entry: date falls in a locked period",
+        )
+
+    entry = JournalEntry(
+        owner_id=user.id,
+        entry_date=payload.entry_date,
+        description=payload.description,
+        reference=payload.reference,
+        is_posted=True,
+    )
+    for line in payload.lines:
+        entry.lines.append(
+            JournalLine(
+                account_id=line.account_id,
+                debit_cents=line.debit_cents,
+                credit_cents=line.credit_cents,
+                description=line.description,
+            )
+        )
+    db.add(entry)
+    await db.commit()
+    # Re-fetch with eager lines
+    result = await db.execute(
+        select(JournalEntry)
+        .where(JournalEntry.id == entry.id)
+        .options(selectinload(JournalEntry.lines))
+    )
+    return result.scalar_one()
+
+
+@router.get("/journal-entries", response_model=list[JournalEntryResponse])
+async def list_journal_entries(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[JournalEntry]:
+    result = await db.execute(
+        select(JournalEntry)
+        .where(JournalEntry.owner_id == user.id)
+        .options(selectinload(JournalEntry.lines))
+        .order_by(JournalEntry.entry_date.desc(), JournalEntry.created_at.desc())
+    )
+    return list(result.scalars().all())
+
+
+@router.get("/journal-entries/{entry_id}", response_model=JournalEntryResponse)
+async def get_journal_entry(
+    entry_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> JournalEntry:
+    result = await db.execute(
+        select(JournalEntry)
+        .where(JournalEntry.id == entry_id)
+        .options(selectinload(JournalEntry.lines))
+    )
+    entry = result.scalar_one_or_none()
+    if entry is None or entry.owner_id != user.id:
+        raise HTTPException(status_code=404, detail="Journal entry not found")
+    return entry
