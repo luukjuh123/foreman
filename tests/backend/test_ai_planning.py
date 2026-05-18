@@ -333,3 +333,41 @@ async def test_apply_partial_task_ids(client: AsyncClient) -> None:
     )
     assert apply_resp.status_code == 200
     assert apply_resp.json()["updated_count"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Ownership guard — User B cannot use autofill/apply on User A's project
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_autofill_forbidden_for_non_owner(client: AsyncClient) -> None:
+    """User B gets 403 when calling autofill on User A's project."""
+    headers_a = await _auth_headers(client, "owner-a@example.com")
+    project_id, _phase_id, _task_ids = await _create_project_with_tasks(client, headers_a)
+
+    headers_b = await _auth_headers(client, "other-b@example.com")
+    resp = await client.post(
+        "/api/v1/planning/autofill",
+        json={"project_id": project_id, "start_date": "2026-01-05"},
+        headers=headers_b,
+    )
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_apply_forbidden_for_non_owner(client: AsyncClient) -> None:
+    """User B gets 403 when calling apply on User A's project."""
+    headers_a = await _auth_headers(client, "owner-apply-a@example.com")
+    project_id, _phase_id, task_ids = await _create_project_with_tasks(client, headers_a)
+
+    headers_b = await _auth_headers(client, "other-apply-b@example.com")
+    resp = await client.post(
+        "/api/v1/planning/apply",
+        json={
+            "project_id": project_id,
+            "task_ids": task_ids,
+            "start_date": "2026-01-05",
+        },
+        headers=headers_b,
+    )
+    assert resp.status_code == 403
