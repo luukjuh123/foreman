@@ -22,8 +22,19 @@ from app.schemas.budget import (
     BudgetResponse,
     BudgetUpsert,
 )
+from app.schemas.cost import MaterialCostResponse, MaterialLineResponse
+from app.services.financials.material_cost import (
+    DefaultStorePriceProvider,
+    MaterialCostAggregator,
+    StorePriceProvider,
+)
 
 router = APIRouter()
+
+
+def get_price_provider() -> StorePriceProvider:
+    """Dependency hook so tests / Phase 12 can override the price source."""
+    return DefaultStorePriceProvider()
 
 
 async def _project_for_user_or_404(
@@ -164,3 +175,45 @@ async def delete_budget_item(
     item = await _get_item_in_project_or_404(project_id, item_id, db)
     await db.delete(item)
     await db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Material cost aggregation
+# ---------------------------------------------------------------------------
+
+
+def _line_to_response(line) -> MaterialLineResponse:
+    return MaterialLineResponse(
+        material_id=line.material_id,
+        name=line.name,
+        quantity=line.quantity,
+        unit=line.unit,
+        unit_price_cents=line.unit_price_cents,
+        total_cents=line.total_cents,
+    )
+
+
+@router.get(
+    "/projects/{project_id}/material-cost",
+    response_model=MaterialCostResponse,
+)
+async def get_material_cost(
+    project_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    provider: StorePriceProvider = Depends(get_price_provider),
+) -> MaterialCostResponse:
+    """Aggregate the material cost for a project (sum of unit_price × quantity).
+
+    Materials without a known price are returned under ``missing`` and are
+    excluded from ``total_cents``. Source of prices is pluggable via
+    ``StorePriceProvider``; Phase 12 will swap in live store integrations.
+    """
+    await _project_for_user_or_404(project_id, current_user, db)
+    aggregator = MaterialCostAggregator(provider)
+    report = await aggregator.aggregate(project_id, db)
+    return MaterialCostResponse(
+        total_cents=report.total_cents,
+        items=[_line_to_response(item) for item in report.items],
+        missing=[_line_to_response(item) for item in report.missing],
+    )
