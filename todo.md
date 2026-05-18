@@ -162,10 +162,10 @@
 
 ## Priority: Low (Phase 17 — Billing / Subscription)
 
-- [ ] Backend: Subscription model — free tier (1 project), paid tiers (unlimited projects)
-- [ ] Backend: Stripe/Mollie integration — subscription creation, invoicing, webhooks
-- [ ] Backend: Usage metering — track projects, users, storage per account
-- [ ] Backend: Trial period logic — first-time users get full access free, then paywall
+- [x] Backend: Subscription model — free tier (1 project), paid tiers (unlimited projects) (branch `feat/subscription-model-v2`)
+- [x] Backend: Stripe/Mollie integration — subscription creation, invoicing, webhooks (branch `feat/mollie-integration`)
+- [x] Backend: Usage metering — track projects, users, storage per account (branch `feat/usage-metering`)
+- [x] Backend: Trial period logic — first-time users get full access free, then paywall (branch `feat/trial-period-logic`)
 - [ ] Frontend: Pricing page — tier comparison, feature matrix
 - [ ] Frontend: Settings > Subscription — current plan, upgrade, payment method, invoices
 - [ ] Frontend: Paywall gate — soft limit on free tier, prompt to upgrade
