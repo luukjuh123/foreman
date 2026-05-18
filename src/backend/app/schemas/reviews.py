@@ -41,3 +41,9 @@ class Envelope(BaseModel):
 
     data: Any | None = None
     error: Any | None = None
+
+
+class DraftReplyResponse(BaseModel):
+    review_id: uuid.UUID
+    reply_text: str
+    reasoning: str
