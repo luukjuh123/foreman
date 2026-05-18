@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     mollie_api_key: str = ""
     mollie_webhook_secret: str = "change-me-in-production"
 
+    # Trial period (days granted on free-tier signup)
+    trial_period_days: int = 14
+
     # App
     debug: bool = False
     log_level: str = "INFO"

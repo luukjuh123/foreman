@@ -42,8 +42,8 @@ class Subscription(Base):
     status: Mapped[str] = mapped_column(
         String(50), default=SubscriptionStatus.ACTIVE.value
     )
-    # NULL = unlimited.
-    project_limit: Mapped[int | None] = mapped_column(Integer, nullable=True, default=1)
+    # NULL = unlimited. Limit is set explicitly by service helpers per-tier.
+    project_limit: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # External payment-provider references (used by the Mollie integration).
     provider: Mapped[str | None] = mapped_column(String(50), nullable=True)
     provider_subscription_id: Mapped[str | None] = mapped_column(
