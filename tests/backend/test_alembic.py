@@ -30,8 +30,8 @@ def test_alembic_script_directory_loads() -> None:
     scripts = ScriptDirectory.from_config(cfg)
     revisions = list(scripts.walk_revisions())
     assert len(revisions) >= 1
-    # Walk yields newest-first; the initial migration is the last (base) entry.
-    assert any(r.revision == "30246b22cf35" for r in revisions)
+    revs = {r.revision for r in revisions}
+    assert "30246b22cf35" in revs
 
 
 def test_initial_migration_creates_all_tables() -> None:

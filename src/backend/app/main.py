@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.logging import RequestLoggingMiddleware, configure_logging
-from app.routers import agenda, ai_planning, auth, financials, materials, projects
+from app.routers import auth, projects, ai_planning, materials, financials, notifications
 
 
 def create_app() -> FastAPI:
@@ -34,7 +34,9 @@ def create_app() -> FastAPI:
     app.include_router(ai_planning.router, prefix="/api/v1/planning", tags=["planning"])
     app.include_router(materials.router, prefix="/api/v1/materials", tags=["materials"])
     app.include_router(financials.router, prefix="/api/v1/financials", tags=["financials"])
-    app.include_router(agenda.router, prefix="/api/agenda", tags=["agenda"])
+    app.include_router(
+        notifications.router, prefix="/api/v1/notifications", tags=["notifications"]
+    )
 
     @app.get("/healthz", tags=["health"])
     async def health_check() -> dict:
