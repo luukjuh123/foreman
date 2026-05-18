@@ -61,6 +61,46 @@ export interface ProjectListResponse {
   per_page: number;
 }
 
+// Invoice types
+
+export interface InvoiceLineResponse {
+  id: string;
+  invoice_id: string;
+  description: string;
+  quantity: number;
+  unit: string;
+  unit_price_cents: number;
+  vat_rate_bp: number;
+  line_total_cents: number;
+  vat_amount_cents: number;
+}
+
+export interface InvoiceResponse {
+  id: string;
+  customer_id: string;
+  project_id: string | null;
+  invoice_number: string;
+  issue_date: string;
+  due_date: string;
+  payment_terms_days: number;
+  currency: string;
+  status: "draft" | "sent" | "paid" | "overdue";
+  notes: string | null;
+  subtotal_cents: number;
+  vat_total_cents: number;
+  total_cents: number;
+  sent_at: string | null;
+  paid_at: string | null;
+  lines: InvoiceLineResponse[];
+}
+
+export interface InvoiceListResponse {
+  data: InvoiceResponse[];
+  total: number;
+  page: number;
+  per_page: number;
+}
+
 // Agenda types
 
 export interface AgendaTask {
@@ -115,4 +155,42 @@ export interface TaskCreate {
   labor_cost_cents?: number;
   start_date?: string;
   end_date?: string;
+}
+
+export interface CustomerResponse {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+  kvk_number: string | null;
+  btw_number: string | null;
+}
+
+export interface CustomerCreate {
+  name: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  kvk_number?: string;
+  btw_number?: string;
+}
+
+export interface InvoiceLineCreate {
+  description: string;
+  quantity: number;
+  unit: string;
+  unit_price_cents: number;
+  vat_rate_bp: number;
+}
+
+export interface InvoiceCreate {
+  customer_id: string;
+  project_id?: string;
+  issue_date: string;
+  due_date: string;
+  payment_terms_days: number;
+  currency: string;
+  notes?: string;
+  lines: InvoiceLineCreate[];
 }
