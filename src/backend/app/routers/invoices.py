@@ -5,11 +5,12 @@ from __future__ import annotations
 import uuid
 from datetime import timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.models.invoice import Customer, Invoice, InvoiceLine
 from app.models.user import User
@@ -23,6 +24,7 @@ from app.schemas.invoice import (
 )
 from app.services.invoices.numbering import allocate_invoice_number
 from app.services.invoices.totals import compute_line_totals
+from app.services.invoices.ubl import build_invoice_ubl_xml
 
 router = APIRouter()
 
@@ -204,3 +206,81 @@ async def get_invoice(
 ) -> InvoiceResponse:
     invoice = await _load_invoice(db, current_user.id, invoice_id)
     return InvoiceResponse.model_validate(invoice)
+
+
+def _invoice_to_dict(invoice: Invoice) -> dict:
+    return {
+        "invoice_number": invoice.invoice_number,
+        "issue_date": invoice.issue_date,
+        "due_date": invoice.due_date,
+        "currency": invoice.currency,
+        "notes": invoice.notes,
+        "subtotal_cents": invoice.subtotal_cents,
+        "vat_total_cents": invoice.vat_total_cents,
+        "total_cents": invoice.total_cents,
+        "lines": [
+            {
+                "position": ln.position,
+                "description": ln.description,
+                "quantity": ln.quantity,
+                "unit": ln.unit,
+                "unit_price_cents": ln.unit_price_cents,
+                "vat_rate_bp": ln.vat_rate_bp,
+                "line_net_cents": ln.line_net_cents,
+                "line_vat_cents": ln.line_vat_cents,
+            }
+            for ln in invoice.lines
+        ],
+    }
+
+
+def _customer_to_dict(customer: Customer) -> dict:
+    return {
+        "name": customer.name,
+        "email": customer.email,
+        "vat_number": customer.vat_number,
+        "kvk_number": customer.kvk_number,
+        "address_line1": customer.address_line1,
+        "postal_code": customer.postal_code,
+        "city": customer.city,
+        "country_code": customer.country_code,
+    }
+
+
+def _supplier_from_settings() -> dict:
+    return {
+        "name": settings.company_name,
+        "vat_number": settings.company_vat_number,
+        "kvk_number": settings.company_kvk,
+        "address_line1": settings.company_address_line1,
+        "postal_code": settings.company_postal_code,
+        "city": settings.company_city,
+        "country_code": settings.company_country_code,
+        "email": settings.company_email,
+        "iban": settings.company_iban,
+    }
+
+
+@router.get(
+    "/{invoice_id}/ubl",
+    response_class=Response,
+    responses={200: {"content": {"application/xml": {}}}},
+)
+async def get_invoice_ubl(
+    invoice_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    invoice = await _load_invoice(db, current_user.id, invoice_id)
+    customer = await _load_customer(db, current_user.id, invoice.customer_id)
+    xml_bytes = build_invoice_ubl_xml(
+        _invoice_to_dict(invoice),
+        customer=_customer_to_dict(customer),
+        supplier=_supplier_from_settings(),
+    )
+    filename = f"invoice-{invoice.invoice_number}.xml"
+    return Response(
+        content=xml_bytes,
+        media_type="application/xml",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
