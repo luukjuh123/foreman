@@ -67,6 +67,7 @@ python-version = "3.12"
 
 [tool.pytest.ini_options]
 testpaths = ["../../tests/backend"]
+pythonpath = ["."]
 addopts = "-v --tb=short"
 asyncio_mode = "strict"
 
