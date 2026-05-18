@@ -60,10 +60,10 @@
 
 ## Priority: Medium (Phase 7 — Costs + Financial Dashboard)
 
-- [ ] Backend: Budget model and cost tracking endpoints (all values in euro cents)
-- [ ] Backend: Material cost aggregation from store integration prices
-- [ ] Backend: Labor cost estimation service (hourly rates x estimated hours per task)
-- [ ] Backend: Per-project total cost calculation — materials + labor + equipment + overhead
+- [x] Backend: Budget model and cost tracking endpoints (all values in euro cents) — PR feat/budget-model
+- [x] Backend: Material cost aggregation from store integration prices — PR feat/material-cost-aggregation
+- [x] Backend: Labor cost estimation service (hourly rates x estimated hours per task) — PR feat/labor-cost-estimation
+- [x] Backend: Per-project total cost calculation — materials + labor + equipment + overhead — PR feat/project-total-cost
 - [ ] Frontend: Financial overview dashboard — total budget, spent, remaining, variance
 - [ ] Frontend: Cost breakdown charts per phase and category (materials, labor, equipment)
 - [ ] Frontend: Material cost tracker with live price update badges
