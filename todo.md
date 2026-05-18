@@ -17,7 +17,7 @@
 - [ ] Frontend: Project creation wizard (multi-step form: name -> phases -> tasks)
 - [ ] Frontend: Project overview dashboard with phase cards and progress bars
 - [ ] Frontend: Task board (kanban-style) per project phase
-- [ ] Frontend: Gantt chart / timeline view with drag-and-drop rescheduling
+- [x] Frontend: Gantt chart / timeline view with drag-and-drop rescheduling — PR #17
 - [ ] Backend: AI auto-fill planning — generate Gantt schedule from todo list + historical process durations
 - [ ] Frontend: AI planning panel — trigger planning, stream agent reasoning, accept/reject suggestions
 
