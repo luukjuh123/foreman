@@ -21,6 +21,26 @@ export interface IncomeStatementResponse {
   is_profit: boolean;
 }
 
+export interface CashFlowLine {
+  account_id: string;
+  code: string;
+  name: string;
+  change_cents: number;
+}
+
+export interface CashFlowResponse {
+  start_date: string;
+  end_date: string;
+  net_income_cents: number;
+  operating_activities: { lines: CashFlowLine[]; total_cents: number };
+  investing_activities: { lines: CashFlowLine[]; total_cents: number };
+  financing_activities: { lines: CashFlowLine[]; total_cents: number };
+  opening_cash_cents: number;
+  net_change_in_cash_cents: number;
+  ending_cash_cents: number;
+  reconciles: boolean;
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -43,5 +63,14 @@ export async function fetchIncomeStatement(
 ): Promise<IncomeStatementResponse> {
   return apiFetch<IncomeStatementResponse>(
     `/financials/reports/income-statement?start_date=${startDate}&end_date=${endDate}`
+  );
+}
+
+export async function fetchCashFlow(
+  startDate: string,
+  endDate: string
+): Promise<CashFlowResponse> {
+  return apiFetch<CashFlowResponse>(
+    `/financials/reports/cash-flow?start_date=${startDate}&end_date=${endDate}`
   );
 }
