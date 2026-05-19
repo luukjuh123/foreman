@@ -116,3 +116,73 @@ export interface TaskCreate {
   start_date?: string;
   end_date?: string;
 }
+
+// Invoice types
+
+export interface InvoiceLineResponse {
+  id: string;
+  position: number;
+  description: string;
+  quantity: number;
+  unit: string;
+  unit_price_cents: number;
+  vat_rate_bp: number;
+  line_net_cents: number;
+  line_vat_cents: number;
+}
+
+export interface InvoiceResponse {
+  id: string;
+  customer_id: string;
+  project_id: string | null;
+  invoice_number: string;
+  issue_date: string;
+  due_date: string;
+  payment_terms_days: number;
+  currency: string;
+  status: "draft" | "sent" | "paid" | "overdue";
+  notes: string | null;
+  subtotal_cents: number;
+  vat_total_cents: number;
+  total_cents: number;
+  sent_at: string | null;
+  paid_at: string | null;
+  lines: InvoiceLineResponse[];
+}
+
+export interface InvoiceListResponse {
+  data: InvoiceResponse[];
+  total: number;
+  page: number;
+  per_page: number;
+}
+
+export interface CustomerResponse {
+  id: string;
+  name: string;
+  email: string | null;
+  kvk_number: string | null;
+  vat_number: string | null;
+  address_line1: string | null;
+  address_line2: string | null;
+  postal_code: string | null;
+  city: string | null;
+  country_code: string;
+}
+
+export interface InvoiceLineCreate {
+  description: string;
+  quantity: number;
+  unit: string;
+  unit_price_cents: number;
+  vat_rate_bp: number;
+}
+
+export interface InvoiceCreate {
+  customer_id: string;
+  project_id?: string | null;
+  issue_date: string;
+  payment_terms_days: number;
+  notes?: string | null;
+  lines: InvoiceLineCreate[];
+}
