@@ -249,3 +249,37 @@ export interface InvoiceCreate {
   notes?: string;
   lines: InvoiceLineCreate[];
 }
+
+// Report types
+
+export interface ReportResponse {
+  id: string;
+  project_id: string;
+  type: "weekly" | "completion";
+  title: string;
+  period_start: string | null;
+  period_end: string | null;
+  data: Record<string, any>;
+  is_shared: boolean;
+  share_token: string | null;
+  created_at: string;
+}
+
+export interface ReportListResponse {
+  data: ReportResponse[];
+  total: number;
+  page: number;
+  per_page: number;
+}
+
+export interface ReportGenerateRequest {
+  project_id: string;
+  type: "weekly" | "completion";
+  period_start?: string;
+  period_end?: string;
+}
+
+export interface ReportShareResponse {
+  share_token: string | null;
+  share_url: string;
+}
