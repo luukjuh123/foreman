@@ -116,3 +116,72 @@ export interface TaskCreate {
   start_date?: string;
   end_date?: string;
 }
+
+// Staff types
+
+export interface StaffResponse {
+  id: string;
+  owner_id?: string;
+  full_name: string;
+  role: string;
+  email?: string | null;
+  phone?: string | null;
+  hourly_rate_cents: number;
+  weekly_hours_target?: number;
+  active: boolean;
+  created_at?: string;
+  updated_at?: string;
+  availability?: unknown[];
+}
+
+export interface StaffListResponse {
+  data: StaffResponse[];
+  total: number;
+  page: number;
+  per_page: number;
+}
+
+// Loan types
+
+export interface LoanDeductionResponse {
+  id: string;
+  loan_id: string;
+  amount_cents: number;
+  deduction_date: string;
+  notes?: string | null;
+  created_at: string;
+}
+
+export interface StaffLoanResponse {
+  id: string;
+  staff_id: string;
+  principal_cents: number;
+  issued_date: string;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+  deductions: LoanDeductionResponse[];
+  deducted_cents: number;
+  outstanding_cents: number;
+}
+
+export interface StaffOutstandingBalance {
+  staff_id: string;
+  total_principal_cents: number;
+  total_deducted_cents: number;
+  outstanding_cents: number;
+  loans: StaffLoanResponse[];
+}
+
+export interface StaffLoanCreate {
+  staff_id: string;
+  principal_cents: number;
+  issued_date: string;
+  notes?: string;
+}
+
+export interface LoanDeductionCreate {
+  amount_cents: number;
+  deduction_date: string;
+  notes?: string;
+}
