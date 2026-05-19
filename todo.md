@@ -123,7 +123,7 @@
 - [x] Backend: Bouwmaat integration — product search, pricing (euro cents), stock availability — PR feat/bouwmaat-integration
 - [x] Backend: Price comparison engine — cross-store ranking by price + availability — PR feat/price-comparison-engine
 - [ ] Frontend: Material search with cross-store price comparison table
-- [ ] Frontend: Store availability map — per-store stock status badges
+- [x] Frontend: Store availability map — per-store stock status badges — PR #151
 
 ## Priority: Medium (Phase 13 — Material Calculator)
 
