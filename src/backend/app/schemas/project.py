@@ -2,6 +2,7 @@
 
 import uuid
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -12,7 +13,7 @@ from pydantic import BaseModel
 class TaskCreate(BaseModel):
     name: str
     description: str | None = None
-    status: str = "todo"
+    status: Literal["todo", "in_progress", "done", "blocked"] = "todo"
     priority: int = 0
     estimated_hours: float = 0.0
     labor_cost_cents: int = 0
@@ -23,7 +24,7 @@ class TaskCreate(BaseModel):
 class TaskUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
-    status: str | None = None
+    status: Literal["todo", "in_progress", "done", "blocked"] | None = None
     priority: int | None = None
     estimated_hours: float | None = None
     labor_cost_cents: int | None = None
@@ -56,7 +57,7 @@ class PhaseCreate(BaseModel):
     name: str
     description: str | None = None
     order_index: int = 0
-    status: str = "pending"
+    status: Literal["pending", "active", "completed"] = "pending"
     start_date: date | None = None
     end_date: date | None = None
 
@@ -65,7 +66,7 @@ class PhaseUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
     order_index: int | None = None
-    status: str | None = None
+    status: Literal["pending", "active", "completed"] | None = None
     start_date: date | None = None
     end_date: date | None = None
 
@@ -93,7 +94,7 @@ class PhaseResponse(BaseModel):
 class ProjectCreate(BaseModel):
     name: str
     description: str | None = None
-    status: str = "draft"
+    status: Literal["draft", "active", "completed", "archived"] = "draft"
     start_date: date | None = None
     end_date: date | None = None
     budget_cents: int = 0
@@ -102,7 +103,7 @@ class ProjectCreate(BaseModel):
 class ProjectUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
-    status: str | None = None
+    status: Literal["draft", "active", "completed", "archived"] | None = None
     start_date: date | None = None
     end_date: date | None = None
     budget_cents: int | None = None

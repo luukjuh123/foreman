@@ -297,4 +297,121 @@ describe("KanbanBoardPage", () => {
       expect(screen.getByText(/16 uur/i)).toBeInTheDocument();
     });
   });
+
+  it("reverts task to original column when API move fails", async () => {
+    const { updateTask } = await import("@/lib/projects");
+    vi.mocked(updateTask).mockRejectedValueOnce(new Error("Server error"));
+
+    const { default: KanbanBoardPage } = await import(
+      "@/app/dashboard/projects/[id]/board/page"
+    );
+
+    render(<KanbanBoardPage />);
+
+    // Wait for board to load — task-1 starts in "todo" column
+    await waitFor(() => {
+      expect(screen.getByText("Grondwerk uitvoeren")).toBeInTheDocument();
+    });
+
+    // "todo" column badge starts at 1
+    const badgesBefore = screen.getAllByTestId("column-count");
+    expect(badgesBefore[0].textContent).toBe("1");
+
+    // Click the forward button on task-1 (todo → in_progress optimistically)
+    const moveButtons = screen.getAllByRole("button", { name: /vooruit|→/i });
+    fireEvent.click(moveButtons[0]);
+
+    // After API failure, task must revert back to "todo" (badge back to 1)
+    await waitFor(() => {
+      const badges = screen.getAllByTestId("column-count");
+      expect(badges[0].textContent).toBe("1");
+    });
+
+    // Task is still visible (did not disappear)
+    expect(screen.getByText("Grondwerk uitvoeren")).toBeInTheDocument();
+  });
+
+  it("shows an error message when API move fails", async () => {
+    const { updateTask } = await import("@/lib/projects");
+    vi.mocked(updateTask).mockRejectedValueOnce(new Error("Server error"));
+
+    const { default: KanbanBoardPage } = await import(
+      "@/app/dashboard/projects/[id]/board/page"
+    );
+
+    render(<KanbanBoardPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Grondwerk uitvoeren")).toBeInTheDocument();
+    });
+
+    const moveButtons = screen.getAllByRole("button", { name: /vooruit|→/i });
+    fireEvent.click(moveButtons[0]);
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+    });
+  });
+
+  it("dismisses error banner when close button is clicked", async () => {
+    const { updateTask } = await import("@/lib/projects");
+    vi.mocked(updateTask).mockRejectedValueOnce(new Error("Server error"));
+
+    const { default: KanbanBoardPage } = await import(
+      "@/app/dashboard/projects/[id]/board/page"
+    );
+
+    render(<KanbanBoardPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Grondwerk uitvoeren")).toBeInTheDocument();
+    });
+
+    const moveButtons = screen.getAllByRole("button", { name: /vooruit|→/i });
+    fireEvent.click(moveButtons[0]);
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /sluiten/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+  });
+
+  it("successful move updates task to new column and shows no error", async () => {
+    const { updateTask } = await import("@/lib/projects");
+    // updateTask resolves successfully (default mock)
+
+    const { default: KanbanBoardPage } = await import(
+      "@/app/dashboard/projects/[id]/board/page"
+    );
+
+    render(<KanbanBoardPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Grondwerk uitvoeren")).toBeInTheDocument();
+    });
+
+    const moveButtons = screen.getAllByRole("button", { name: /vooruit|→/i });
+    fireEvent.click(moveButtons[0]);
+
+    await waitFor(() => {
+      expect(updateTask).toHaveBeenCalledWith(
+        "project-1",
+        "phase-1",
+        "task-1",
+        { status: "in_progress" }
+      );
+    });
+
+    // No error banner
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    // "in_progress" column now has 2 tasks (badge = "2")
+    const badges = screen.getAllByTestId("column-count");
+    expect(badges[1].textContent).toBe("2");
+  });
 });

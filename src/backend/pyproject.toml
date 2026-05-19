@@ -17,6 +17,7 @@ dependencies = [
     "openai>=1.57",
     "python-multipart>=0.0.20",
     "email-validator>=2.1",
+    "icalendar>=5.0",
 ]
 
 [project.scripts]
@@ -51,6 +52,8 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["S101", "ANN", "ARG"]
+# Pydantic schemas need typing imports at runtime
+"app/schemas/**/*.py" = ["TCH"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -68,8 +71,11 @@ python-version = "3.12"
 [tool.pytest.ini_options]
 testpaths = ["../../tests/backend"]
 pythonpath = ["."]
-addopts = "-v --tb=short"
+addopts = "-v --tb=short -m 'not live'"
 asyncio_mode = "strict"
+markers = [
+    "live: hits real external services; skipped by default",
+]
 
 [tool.coverage.run]
 source = ["app"]

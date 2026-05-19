@@ -64,10 +64,12 @@ interface TaskCardProps {
   task: TaskResponse;
   projectId: string;
   phaseId: string;
-  onMoved: (taskId: string, newStatus: Status) => void;
+  onMoveStart: (taskId: string, newStatus: Status, oldStatus: Status) => void;
+  onMoveSuccess: () => void;
+  onMoveError: (taskId: string, oldStatus: Status) => void;
 }
 
-function TaskCard({ task, projectId, phaseId, onMoved }: TaskCardProps) {
+function TaskCard({ task, projectId, phaseId, onMoveStart, onMoveSuccess, onMoveError }: TaskCardProps) {
   const [moving, setMoving] = useState(false);
 
   const currentIndex = STATUSES.indexOf(task.status as Status);
@@ -77,10 +79,14 @@ function TaskCard({ task, projectId, phaseId, onMoved }: TaskCardProps) {
   async function move(direction: "left" | "right") {
     const newIndex = direction === "left" ? currentIndex - 1 : currentIndex + 1;
     const newStatus = STATUSES[newIndex];
+    const oldStatus = task.status as Status;
     setMoving(true);
+    onMoveStart(task.id, newStatus, oldStatus);
     try {
       await updateTask(projectId, phaseId, task.id, { status: newStatus });
-      onMoved(task.id, newStatus);
+      onMoveSuccess();
+    } catch {
+      onMoveError(task.id, oldStatus);
     } finally {
       setMoving(false);
     }
@@ -141,10 +147,12 @@ interface KanbanColumnProps {
   tasks: TaskResponse[];
   projectId: string;
   phaseId: string;
-  onMoved: (taskId: string, newStatus: Status) => void;
+  onMoveStart: (taskId: string, newStatus: Status, oldStatus: Status) => void;
+  onMoveSuccess: () => void;
+  onMoveError: (taskId: string, oldStatus: Status) => void;
 }
 
-function KanbanColumn({ status, tasks, projectId, phaseId, onMoved }: KanbanColumnProps) {
+function KanbanColumn({ status, tasks, projectId, phaseId, onMoveStart, onMoveSuccess, onMoveError }: KanbanColumnProps) {
   return (
     <div className="flex flex-col flex-1 min-w-[220px]">
       <div className={cn("rounded-t-lg px-3 py-2", COLUMN_COLORS[status])}>
@@ -175,7 +183,9 @@ function KanbanColumn({ status, tasks, projectId, phaseId, onMoved }: KanbanColu
               task={task}
               projectId={projectId}
               phaseId={phaseId}
-              onMoved={onMoved}
+              onMoveStart={onMoveStart}
+              onMoveSuccess={onMoveSuccess}
+              onMoveError={onMoveError}
             />
           ))
         )}
@@ -195,6 +205,7 @@ export default function KanbanBoardPage() {
   const [project, setProject] = useState<ProjectResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedPhaseId, setSelectedPhaseId] = useState<string | null>(null);
+  const [moveError, setMoveError] = useState<string | null>(null);
 
   useEffect(() => {
     getProject(projectId)
@@ -207,7 +218,7 @@ export default function KanbanBoardPage() {
       .finally(() => setLoading(false));
   }, [projectId]);
 
-  function handleMoved(taskId: string, newStatus: Status) {
+  function applyTaskStatus(taskId: string, status: Status) {
     setProject((prev) => {
       if (!prev) return prev;
       return {
@@ -215,11 +226,24 @@ export default function KanbanBoardPage() {
         phases: prev.phases.map((phase) => ({
           ...phase,
           tasks: phase.tasks.map((t) =>
-            t.id === taskId ? { ...t, status: newStatus } : t
+            t.id === taskId ? { ...t, status } : t
           ),
         })),
       };
     });
+  }
+
+  function handleMoveStart(taskId: string, newStatus: Status, _oldStatus: Status) {
+    applyTaskStatus(taskId, newStatus);
+  }
+
+  function handleMoveSuccess() {
+    // optimistic update already applied; nothing to do
+  }
+
+  function handleMoveError(taskId: string, oldStatus: Status) {
+    applyTaskStatus(taskId, oldStatus);
+    setMoveError("Taak verplaatsen mislukt. Probeer het opnieuw.");
   }
 
   if (loading) {
@@ -263,6 +287,23 @@ export default function KanbanBoardPage() {
 
   return (
     <div className="p-6 space-y-4">
+      {/* Error banner */}
+      {moveError && (
+        <div
+          role="alert"
+          className="flex items-center justify-between gap-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+        >
+          <span>{moveError}</span>
+          <button
+            aria-label="sluiten"
+            onClick={() => setMoveError(null)}
+            className="ml-2 text-red-600 hover:text-red-900 font-bold"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center gap-3">
         <Link
@@ -309,7 +350,9 @@ export default function KanbanBoardPage() {
               tasks={columns[status]}
               projectId={projectId}
               phaseId={selectedPhase.id}
-              onMoved={handleMoved}
+              onMoveStart={handleMoveStart}
+              onMoveSuccess={handleMoveSuccess}
+              onMoveError={handleMoveError}
             />
           ))}
         </div>
