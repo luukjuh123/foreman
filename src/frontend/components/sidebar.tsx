@@ -11,6 +11,7 @@ import {
   Package,
   Users,
   BarChart3,
+  BookOpen,
   Settings,
   Menu,
   X,
@@ -25,6 +26,7 @@ const NAV_ITEMS = [
   { label: "Materialen", href: "/dashboard/materials", icon: Package },
   { label: "Personeel", href: "/dashboard/staff", icon: Users },
   { label: "Rapporten", href: "/dashboard/reports", icon: BarChart3 },
+  { label: "Boekhouding", href: "/dashboard/financials", icon: BookOpen },
   { label: "Instellingen", href: "/dashboard/settings", icon: Settings },
 ];
 
