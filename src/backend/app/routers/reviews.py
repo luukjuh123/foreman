@@ -1,8 +1,9 @@
-"""Reviews router — sync, list and reply to Google Business reviews."""
+"""Reviews router — sync, list, stats, draft reply, and post reply to Google Business reviews."""
 
 from __future__ import annotations
 
 import uuid
+from collections import defaultdict
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -14,12 +15,16 @@ from app.models.review import Review
 from app.models.user import User
 from app.routers.auth import get_current_user
 from app.schemas.reviews import (
+    DraftReplyResponse,
     Envelope,
+    MonthlyTrend,
     ReplyRequest,
     ReviewResponse,
+    ReviewStats,
     SyncReviewsData,
     SyncReviewsRequest,
 )
+from app.services.reviews.ai_responder import draft_reply as ai_draft_reply
 from app.services.reviews.google_client import (
     GoogleBusinessClient,
     get_google_business_client,
@@ -87,6 +92,84 @@ async def list_reviews(
     rows = result.scalars().all()
     items = [ReviewResponse.model_validate(r).model_dump(mode="json") for r in rows]
     return Envelope(data=items)
+
+
+@router.get("/stats", response_model=Envelope)
+async def get_review_stats(
+    location_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Envelope:
+    """Aggregate rating stats for a location."""
+    result = await db.execute(
+        select(Review).where(Review.location_id == location_id)
+    )
+    rows = result.scalars().all()
+
+    total_count = len(rows)
+    if total_count == 0:
+        stats = ReviewStats(
+            average_rating=0.0,
+            total_count=0,
+            rating_distribution={"1": 0, "2": 0, "3": 0, "4": 0, "5": 0},
+            monthly_trend=[],
+        )
+        return Envelope(data=stats.model_dump())
+
+    average_rating = sum(r.rating for r in rows) / total_count
+
+    dist: dict[str, int] = {"1": 0, "2": 0, "3": 0, "4": 0, "5": 0}
+    for r in rows:
+        key = str(r.rating)
+        if key in dist:
+            dist[key] += 1
+
+    monthly: dict[str, list[int]] = defaultdict(list)
+    for r in rows:
+        if r.created_at_external and len(r.created_at_external) >= 7:
+            month = r.created_at_external[:7]
+        else:
+            month = "unknown"
+        monthly[month].append(r.rating)
+
+    monthly_trend = [
+        MonthlyTrend(
+            month=month,
+            average_rating=round(sum(ratings) / len(ratings), 2),
+            count=len(ratings),
+        )
+        for month, ratings in sorted(monthly.items())
+        if month != "unknown"
+    ]
+
+    stats = ReviewStats(
+        average_rating=round(average_rating, 2),
+        total_count=total_count,
+        rating_distribution=dist,
+        monthly_trend=monthly_trend,
+    )
+    return Envelope(data=stats.model_dump())
+
+
+@router.post("/{review_id}/draft-reply", response_model=Envelope)
+async def draft_reply_for_review(
+    review_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Envelope:
+    """Generate a professional Dutch reply draft for a review."""
+    result = await db.execute(select(Review).where(Review.id == review_id))
+    review = result.scalar_one_or_none()
+    if review is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Review not found"
+        )
+    draft_text = await ai_draft_reply(
+        author_name=review.author_name,
+        rating=review.rating,
+        comment=review.comment,
+    )
+    return Envelope(data=DraftReplyResponse(draft_text=draft_text).model_dump())
 
 
 @router.post("/{review_id}/reply", response_model=Envelope)
