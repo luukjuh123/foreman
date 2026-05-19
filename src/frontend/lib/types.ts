@@ -212,40 +212,40 @@ export interface TaskCreate {
   end_date?: string;
 }
 
-export interface CustomerResponse {
+// Process types
+
+export interface ProcessResponse {
   id: string;
+  slug: string;
   name: string;
-  email: string | null;
-  phone: string | null;
-  address: string | null;
-  kvk_number: string | null;
-  btw_number: string | null;
-}
-
-export interface CustomerCreate {
-  name: string;
-  email?: string;
-  phone?: string;
-  address?: string;
-  kvk_number?: string;
-  btw_number?: string;
-}
-
-export interface InvoiceLineCreate {
-  description: string;
-  quantity: number;
+  description: string | null;
   unit: string;
-  unit_price_cents: number;
-  vat_rate_bp: number;
+  created_at: string;
+  updated_at: string;
 }
 
-export interface InvoiceCreate {
-  customer_id: string;
-  project_id?: string;
-  issue_date: string;
-  due_date: string;
-  payment_terms_days: number;
-  currency: string;
-  notes?: string;
-  lines: InvoiceLineCreate[];
+export interface ProcessListResponse {
+  data: ProcessResponse[];
+  total: number;
+}
+
+export interface ProcessCreate {
+  slug: string;
+  name: string;
+  description?: string;
+  unit: string;
+}
+
+export interface ProcessStatsResponse {
+  process_id: string;
+  process_slug: string;
+  process_name: string;
+  entry_count: number;
+  project_count: number;
+  total_seconds: number;
+  avg_seconds: number | null;
+}
+
+export interface ProcessStatsListResponse {
+  data: ProcessStatsResponse[];
 }
