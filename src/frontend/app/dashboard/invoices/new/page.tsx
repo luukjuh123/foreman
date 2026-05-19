@@ -162,11 +162,18 @@ export default function InvoiceCreatePage() {
         vat_rate_bp: l.vat_rate_bp,
       }));
 
+      // Compute due_date from issue_date + payment_terms_days
+      const issueDateObj = new Date(issueDate);
+      issueDateObj.setDate(issueDateObj.getDate() + paymentTermsDays);
+      const dueDate = issueDateObj.toISOString().split("T")[0];
+
       const payload: InvoiceCreate = {
         customer_id: customerId,
         issue_date: issueDate,
+        due_date: dueDate,
         payment_terms_days: paymentTermsDays,
-        notes: notes || null,
+        currency: "EUR",
+        notes: notes || undefined,
         lines: invoiceLines,
       };
 
@@ -256,34 +263,18 @@ export default function InvoiceCreatePage() {
                 />
                 <Input
                   placeholder="BTW-nummer"
-                  value={newCustomer.vat_number ?? ""}
+                  value={newCustomer.btw_number ?? ""}
                   onChange={(e) =>
-                    setNewCustomer((p) => ({ ...p, vat_number: e.target.value }))
+                    setNewCustomer((p) => ({ ...p, btw_number: e.target.value }))
                   }
                 />
                 <Input
                   placeholder="Adres"
-                  value={newCustomer.address_line1 ?? ""}
+                  value={newCustomer.address ?? ""}
                   onChange={(e) =>
-                    setNewCustomer((p) => ({ ...p, address_line1: e.target.value }))
+                    setNewCustomer((p) => ({ ...p, address: e.target.value }))
                   }
                 />
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Postcode"
-                    value={newCustomer.postal_code ?? ""}
-                    onChange={(e) =>
-                      setNewCustomer((p) => ({ ...p, postal_code: e.target.value }))
-                    }
-                  />
-                  <Input
-                    placeholder="Stad"
-                    value={newCustomer.city ?? ""}
-                    onChange={(e) =>
-                      setNewCustomer((p) => ({ ...p, city: e.target.value }))
-                    }
-                  />
-                </div>
                 <button
                   type="button"
                   className="text-sm text-muted-foreground underline hover:no-underline"
