@@ -18,14 +18,49 @@ from app.services.material_estimation import (
     estimate_paint,
     estimate_tiles,
 )
+from app.services.stores.bouwmaat import BouwmaatClient
+from app.services.stores.comparison import compare_prices
+from app.services.stores.gamma import GammaClient
+from app.services.stores.hornbach import HornbachClient
+from app.services.stores.praxis import PraxisClient
 
 router = APIRouter()
 
 
 @router.get("/search")
 async def search_materials(query: str = "") -> dict:
-    """Stub — implement in todo item: Backend: Scraping service base."""
-    return {"data": [], "error": None, "query": query}
+    """Search hardware stores for a material query.
+
+    Fans out to Hornbach, Gamma, Praxis, and Bouwmaat concurrently via the
+    comparison engine. Individual store failures are swallowed — other stores
+    still contribute results. Returns results ranked: in-stock first, then
+    cheapest, then store name.
+    """
+    clients = [
+        HornbachClient(),
+        GammaClient(),
+        PraxisClient(),
+        BouwmaatClient(),
+    ]
+    try:
+        results = await compare_prices(query, clients)
+    finally:
+        for c in clients:
+            await c.aclose()
+
+    data = [
+        {
+            "store": r.store,
+            "product_id": r.product_id,
+            "name": r.name,
+            "url": r.url,
+            "price_cents": r.price_cents,
+            "in_stock": r.in_stock,
+            "unit": r.unit,
+        }
+        for r in results
+    ]
+    return {"data": data, "error": None, "query": query}
 
 
 def _surface_area_m2(length_m: float, width_m: float, height_m: float, surface: str) -> float:
