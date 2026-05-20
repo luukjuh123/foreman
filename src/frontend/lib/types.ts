@@ -126,6 +126,12 @@ export interface AgendaDayResponse {
   tasks: AgendaTask[];
 }
 
+export interface AgendaWeekResponse {
+  week_start: string;
+  week_end: string;
+  days: AgendaDayResponse[];
+}
+
 // Process timeline types
 
 export interface ProcessResponse {
@@ -212,42 +218,151 @@ export interface TaskCreate {
   end_date?: string;
 }
 
-// Process types
+// Staff types
 
-export interface ProcessResponse {
+export interface StaffResponse {
   id: string;
-  slug: string;
-  name: string;
-  description: string | null;
-  unit: string;
+  owner_id?: string;
+  full_name: string;
+  role: string;
+  email?: string | null;
+  phone?: string | null;
+  hourly_rate_cents: number;
+  weekly_hours_target?: number;
+  active: boolean;
+  created_at?: string;
+  updated_at?: string;
+  availability?: unknown[];
+}
+
+export interface StaffListResponse {
+  data: StaffResponse[];
+  total: number;
+  page: number;
+  per_page: number;
+}
+
+// Loan types
+
+export interface LoanDeductionResponse {
+  id: string;
+  loan_id: string;
+  amount_cents: number;
+  deduction_date: string;
+  notes?: string | null;
+  created_at: string;
+}
+
+export interface StaffLoanResponse {
+  id: string;
+  staff_id: string;
+  principal_cents: number;
+  issued_date: string;
+  notes?: string | null;
   created_at: string;
   updated_at: string;
+  deductions: LoanDeductionResponse[];
+  deducted_cents: number;
+  outstanding_cents: number;
 }
 
-export interface ProcessListResponse {
-  data: ProcessResponse[];
+export interface StaffOutstandingBalance {
+  staff_id: string;
+  total_principal_cents: number;
+  total_deducted_cents: number;
+  outstanding_cents: number;
+  loans: StaffLoanResponse[];
+}
+
+export interface StaffLoanCreate {
+  staff_id: string;
+  principal_cents: number;
+  issued_date: string;
+  notes?: string;
+}
+
+export interface LoanDeductionCreate {
+  amount_cents: number;
+  deduction_date: string;
+  notes?: string;
+}
+
+// Staff types
+
+export interface StaffResponse {
+  id: string;
+  owner_id: string;
+  full_name: string;
+  role: string;
+  email: string | null;
+  phone: string | null;
+  hourly_rate_cents: number;
+  weekly_hours_target: number | null;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+  availability: unknown[];
+}
+
+export interface StaffListResponse {
+  data: StaffResponse[];
   total: number;
+  page: number;
+  per_page: number;
 }
 
-export interface ProcessCreate {
-  slug: string;
-  name: string;
-  description?: string;
-  unit: string;
+export interface StaffCreate {
+  full_name: string;
+  role: string;
+  hourly_rate_cents: number;
+  email?: string;
+  phone?: string;
+  weekly_hours_target?: number;
+  active?: boolean;
 }
 
-export interface ProcessStatsResponse {
-  process_id: string;
-  process_slug: string;
-  process_name: string;
-  entry_count: number;
-  project_count: number;
-  total_seconds: number;
-  avg_seconds: number | null;
+export interface StaffUpdate {
+  full_name?: string;
+  role?: string;
+  hourly_rate_cents?: number;
+  email?: string;
+  phone?: string;
+  weekly_hours_target?: number;
+  active?: boolean;
 }
 
-export interface ProcessStatsListResponse {
-  data: ProcessStatsResponse[];
+// Report types
+
+export interface ReportResponse {
+  id: string;
+  project_id: string;
+  type: "weekly" | "completion";
+  title: string;
+  period_start: string | null;
+  period_end: string | null;
+  data: Record<string, any>;
+  is_shared: boolean;
+  share_token: string | null;
+  created_at: string;
+}
+
+export interface ReportListResponse {
+  data: ReportResponse[];
+  total: number;
+  page: number;
+  per_page: number;
+}
+
+export interface ReportGenerateRequest {
+  project_id: string;
+  type: "weekly" | "completion";
+  period_start?: string;
+  period_end?: string;
+}
+
+export interface ReportShareResponse {
+  share_token: string | null;
+  share_url: string;
 }
 
 // Staff types

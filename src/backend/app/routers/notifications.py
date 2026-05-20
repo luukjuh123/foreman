@@ -29,6 +29,8 @@ from app.schemas.notification import (
     NotificationPreferencesUpdate,
     NotificationResponse,
 )
+from app.services.notifications.dispatcher_dep import get_default_dispatcher
+from app.services.notifications.engine import NotificationDispatcher
 from app.services.notifications.preferences import get_or_create_preferences
 
 router = APIRouter()

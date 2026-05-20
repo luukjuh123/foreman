@@ -1,35 +1,35 @@
 # foreman — Todo
 
-## Priority: High (Phase 1 — Foundation)
+## Priority: High (Phase 1 — Foundation) ✅
 
-- [ ] Backend: FastAPI app skeleton with /healthz, CORS, env config, structured logging
+- [x] Backend: FastAPI app skeleton with /healthz, CORS, env config, structured logging — (shipped in initial scaffold)
 - [x] Backend: Database models (Project, Phase, Task, Material, User) with SQLAlchemy + UUID PKs + Alembic migrations — PR #2
-- [ ] Backend: User authentication — JWT-based login/register endpoints (bcrypt passwords)
-- [ ] Frontend: Next.js 16 app skeleton with Tailwind CSS, shadcn/ui, dark theme config
-- [ ] Frontend: Auth pages (login/register) with API integration and token storage
-- [ ] Frontend: Main dashboard layout with sidebar navigation and route structure
-- [ ] Verify CI passes on first PR
+- [x] Backend: User authentication — JWT-based login/register endpoints (bcrypt passwords) — (shipped in initial scaffold)
+- [x] Frontend: Next.js 16 app skeleton with Tailwind CSS, shadcn/ui, dark theme config — (shipped in initial scaffold)
+- [x] Frontend: Auth pages (login/register) with API integration and token storage — (shipped in initial scaffold)
+- [x] Frontend: Main dashboard layout with sidebar navigation and route structure — (shipped in initial scaffold)
+- [x] Verify CI passes on first PR
 
-## Priority: High (Phase 2 — Project Management + Planning)
+## Priority: High (Phase 2 — Project Management + Planning) ✅
 
-- [ ] Backend: CRUD endpoints for projects, phases, tasks (with pagination)
+- [x] Backend: CRUD endpoints for projects, phases, tasks (with pagination) — (shipped in initial scaffold)
 - [x] Backend: Task dependency graph model and cycle-detection validation — PR #12
-- [ ] Frontend: Project creation wizard (multi-step form: name -> phases -> tasks)
-- [ ] Frontend: Project overview dashboard with phase cards and progress bars
-- [ ] Frontend: Task board (kanban-style) per project phase
+- [x] Frontend: Project creation wizard (multi-step form: name -> phases -> tasks) — (shipped in initial scaffold)
+- [x] Frontend: Project overview dashboard with phase cards and progress bars — PR #101
+- [x] Frontend: Task board (kanban-style) per project phase — PR #103
 - [x] Frontend: Gantt chart / timeline view with drag-and-drop rescheduling — PR #17
 - [x] Backend: AI auto-fill planning — generate Gantt schedule from todo list + historical process durations — PR #16
-- [ ] Frontend: AI planning panel — trigger planning, stream agent reasoning, accept/reject suggestions
+- [x] Frontend: AI planning panel — trigger planning, stream agent reasoning, accept/reject suggestions — (shipped in initial scaffold)
 
-## Priority: High (Phase 3 — History + Process Tracking)
+## Priority: High (Phase 3 — History + Process Tracking) ✅
 
 - [x] Backend: Process model — reusable process templates coupled to projects (e.g. "stucen", "tegelen", "schilderen") — PR #75
 - [x] Backend: Time tracking — start/stop per process per project, stored durations for historical averaging — PR #76
 - [x] Backend: Photo recognition service — upload site photos, AI identifies which process is being done + estimates completion % — PR #78
 - [x] Backend: Historical analytics — average duration per process type across all projects (feeds AI planning) — PR #79
-- [ ] Frontend: Process timeline per project — visual history of what was done when, with photos
-- [ ] Frontend: Time tracking widget — start/stop timer, attach photos, notes
-- [ ] Frontend: Process library — browse all known processes with avg durations and costs
+- [x] Frontend: Process timeline per project — visual history of what was done when, with photos — PR #109
+- [x] Frontend: Time tracking widget — start/stop timer, attach photos, notes — PR #108
+- [x] Frontend: Process library — browse all known processes with avg durations and costs — PR #110
 
 ## Priority: High (Phase 4 — AI Planning Engine)
 
@@ -39,35 +39,35 @@
 - [x] Backend: Agent decision engine — returns prioritized task list with human-readable reasoning per decision — PR #34
 - [x] Backend: AI learns from historical process data — uses past durations to predict future schedules — PR #35
 
-## Priority: High (Phase 5 — Agenda)
+## Priority: High (Phase 5 — Agenda) ✅
 
 - [x] Backend: Agenda endpoints — weekly/daily view of scheduled tasks across all projects — PR `feat/agenda-endpoints`
 - [x] Backend: Calendar sync — iCal export for external calendar integration — PR `feat/ical-export`
-- [ ] Frontend: Beautiful weekly agenda view — day columns with time blocks per project (color-coded)
-- [ ] Frontend: Daily view with task details, assigned staff, location
-- [ ] Frontend: Drag-and-drop rescheduling from agenda view (syncs with Gantt)
+- [x] Frontend: Beautiful weekly agenda view — day columns with time blocks per project (color-coded) — PR #100
+- [x] Frontend: Daily view with task details, assigned staff, location — PR #105
+- [x] Frontend: Drag-and-drop rescheduling from agenda view (syncs with Gantt) — PR #99
 
-## Priority: High (Phase 6 — Invoices — Dutch e-Invoicing)
+## Priority: High (Phase 6 — Invoices — Dutch e-Invoicing) ✅
 
 - [x] Backend: Invoice model — line items, VAT (BTW 21%/9%), payment terms, invoice numbering (PR #TBD-invoice-model)
 - [x] Backend: UBL 2.1 invoice XML generation (Dutch e-invoicing standard / Peppol) (PR #TBD-invoice-ubl-export)
 - [x] Backend: PDF invoice generation — branded template with company details, KVK, BTW-nummer (PR #TBD-invoice-pdf-generation)
 - [x] Backend: Invoice status tracking — draft, sent, paid, overdue, with reminders (PR #TBD-invoice-status-tracking)
 - [x] Backend: Link invoices to projects — auto-populate from project costs/materials (PR #TBD-invoice-project-link)
-- [ ] Frontend: Invoice creation form — customer, line items, VAT, discounts, payment terms
-- [ ] Frontend: Invoice list with status filters (draft/sent/paid/overdue)
-- [ ] Frontend: Invoice PDF preview and send-via-email flow
+- [x] Frontend: Invoice creation form — customer, line items, VAT, discounts, payment terms — PR #106
+- [x] Frontend: Invoice list with status filters (draft/sent/paid/overdue) — PR #107
+- [x] Frontend: Invoice PDF preview and send-via-email flow — PR #130
 
-## Priority: Medium (Phase 7 — Costs + Financial Dashboard)
+## Priority: Medium (Phase 7 — Costs + Financial Dashboard) ✅
 
 - [x] Backend: Budget model and cost tracking endpoints (all values in euro cents) — PR feat/budget-model
 - [x] Backend: Material cost aggregation from store integration prices — PR feat/material-cost-aggregation
 - [x] Backend: Labor cost estimation service (hourly rates x estimated hours per task) — PR feat/labor-cost-estimation
 - [x] Backend: Per-project total cost calculation — materials + labor + equipment + overhead — PR feat/project-total-cost
-- [ ] Frontend: Financial overview dashboard — total budget, spent, remaining, variance
-- [ ] Frontend: Cost breakdown charts per phase and category (materials, labor, equipment)
-- [ ] Frontend: Material cost tracker with live price update badges
-- [ ] Frontend: Profit margin calculator for professional planners
+- [x] Frontend: Financial overview dashboard — total budget, spent, remaining, variance — PR #114
+- [x] Frontend: Cost breakdown charts per phase and category (materials, labor, equipment) — PR #113
+- [x] Frontend: Material cost tracker with live price update badges — PR #112
+- [x] Frontend: Profit margin calculator for professional planners — PR #115
 
 ## Priority: Medium (Phase 8 — Full Financials)
 
@@ -111,7 +111,7 @@
 - [x] Backend: Inbound detection — new customer inquiry via email/form triggers notification — PR #59
 - [x] Backend: AI-driven alerts — recognize anomalies (over budget, behind schedule, weather risk) — PR #91
 - [x] Backend: Notification preferences per user (email, push, in-app toggles) — PR #92
-- [ ] Frontend: Notification center — bell icon, unread count, notification list
+- [ ] Frontend: Notification center — bell icon, unread count, notification list — PR #127 (open)
 - [ ] Frontend: Notification settings page — per-type toggle (email/push/in-app)
 
 ## Priority: Medium (Phase 12 — Hardware Store Integrations)
@@ -123,14 +123,14 @@
 - [x] Backend: Bouwmaat integration — product search, pricing (euro cents), stock availability — PR feat/bouwmaat-integration
 - [x] Backend: Price comparison engine — cross-store ranking by price + availability — PR feat/price-comparison-engine
 - [ ] Frontend: Material search with cross-store price comparison table
-- [ ] Frontend: Store availability map — per-store stock status badges
+- [x] Frontend: Store availability map — per-store stock status badges — PR #151
 
 ## Priority: Medium (Phase 13 — Material Calculator)
 
 - [x] Backend: Material estimation algorithms — paint (m2/liter), tiles (m2 + 10% waste), concrete (m3), lumber (linear meters) — branch `feat/material-estimation-algorithms`
 - [x] Backend: Room/area dimension API — inputs dimensions -> material quantities — branch `feat/room-dimension-api`
-- [ ] Frontend: Material calculator wizard — input dimensions -> quantities + costs -> shopping list
-- [ ] Frontend: Shopping list generator with store deep-links
+- [ ] Frontend: Material calculator wizard — input dimensions -> quantities + costs -> shopping list — PR #126 (open)
+- [ ] Frontend: Shopping list generator with store deep-links — PR #125 (open)
 
 ## Priority: Medium (Phase 14 — Voice Prompting)
 
