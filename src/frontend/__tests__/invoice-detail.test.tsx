@@ -9,6 +9,7 @@ import React from "react";
 vi.mock("next/navigation", () => ({
   useRouter: vi.fn(() => ({ push: vi.fn() })),
   usePathname: vi.fn(() => "/dashboard/invoices"),
+  useParams: vi.fn(() => ({ id: "inv-1" })),
 }));
 
 vi.mock("next/link", () => ({

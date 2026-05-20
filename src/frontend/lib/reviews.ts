@@ -1,5 +1,11 @@
 import { apiFetch } from "@/lib/api";
 
+export function formatReviewDate(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return d.toLocaleDateString("nl-NL", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
 export interface ReviewResponse {
   id: string;
   location_id: string;

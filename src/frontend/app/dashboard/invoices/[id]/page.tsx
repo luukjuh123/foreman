@@ -5,10 +5,11 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, FileText, Download, Send } from "lucide-react";
+import { ArrowLeft, FileText, Download, Send, CheckCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiFetch } from "@/lib/api";
 import type { InvoiceResponse } from "@/lib/types";
+import { InvoiceSendDialog } from "@/components/invoice-send-dialog";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -32,7 +33,7 @@ const STATUS_BADGE_CLASS: Record<string, string> = {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function formatMoney(cents: number): string {
+export function formatMoney(cents: number): string {
   return new Intl.NumberFormat("nl-NL", {
     style: "currency",
     currency: "EUR",
@@ -40,7 +41,8 @@ function formatMoney(cents: number): string {
   }).format(cents / 100);
 }
 
-function formatDate(iso: string): string {
+export function formatInvoiceDate(iso: string | null): string {
+  if (!iso) return "";
   const [y, m, d] = iso.split("T")[0].split("-");
   return `${d}-${m}-${y}`;
 }
@@ -53,21 +55,43 @@ function formatVatRate(bp: number): string {
 // Page
 // ---------------------------------------------------------------------------
 
-export default function InvoicePreviewPage() {
-  const params = useParams();
-  const id = params?.id as string;
+interface Props {
+  params?: Promise<{ id: string }>;
+}
+
+export default function InvoicePreviewPage({ params: paramsProp }: Props = {}) {
+  const routeParams = useParams();
+  const [id, setId] = useState<string>(routeParams?.id as string ?? "");
 
   const [invoice, setInvoice] = useState<InvoiceResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [sendDialogOpen, setSendDialogOpen] = useState(false);
+  const [markingPaid, setMarkingPaid] = useState(false);
+  const [customerEmail, setCustomerEmail] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (paramsProp) {
+      paramsProp.then(({ id: resolvedId }) => setId(resolvedId));
+    } else if (routeParams?.id) {
+      setId(routeParams.id as string);
+    }
+  }, [paramsProp, routeParams]);
 
   useEffect(() => {
     if (!id) return;
     setLoading(true);
     setError(null);
     apiFetch<InvoiceResponse>(`/invoices/${id}`)
-      .then(setInvoice)
+      .then((inv) => {
+        setInvoice(inv);
+        if (inv.customer_id) {
+          apiFetch<{ email?: string | null }>(`/customers/${inv.customer_id}`)
+            .then((c) => setCustomerEmail(c.email ?? null))
+            .catch(() => {});
+        }
+      })
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false));
   }, [id]);
@@ -88,6 +112,22 @@ export default function InvoicePreviewPage() {
     }
   }
 
+  async function handleMarkPaid() {
+    if (!id || !invoice) return;
+    setMarkingPaid(true);
+    try {
+      const updated = await apiFetch<InvoiceResponse>(`/invoices/${id}/transition`, {
+        method: "POST",
+        body: JSON.stringify({ status: "paid" }),
+      });
+      setInvoice(updated);
+    } catch (e: unknown) {
+      setError((e as Error).message);
+    } finally {
+      setMarkingPaid(false);
+    }
+  }
+
   function handlePdf() {
     const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
     window.open(`${apiBase}/invoices/${id}/pdf`, "_blank");
@@ -98,16 +138,72 @@ export default function InvoicePreviewPage() {
     window.open(`${apiBase}/invoices/${id}/ubl`, "_blank");
   }
 
+  function handleDownloadPdf() {
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+    const token = typeof window !== "undefined" ? localStorage.getItem("foreman_access_token") : null;
+    fetch(`${apiBase}/invoices/${id}/pdf`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+      .then((res) => res.blob())
+      .then((blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `factuur-${id}.pdf`;
+        a.style.display = "none";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      });
+  }
+
+  function handleDownloadUbl() {
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+    const token = typeof window !== "undefined" ? localStorage.getItem("foreman_access_token") : null;
+    fetch(`${apiBase}/invoices/${id}/ubl`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+      .then((res) => res.blob())
+      .then((blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `factuur-${id}.xml`;
+        a.style.display = "none";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      });
+  }
+
   // ------------------------------------------------------------------
   // Render
   // ------------------------------------------------------------------
 
   if (loading) {
-    return <p className="text-sm text-muted-foreground">Laden…</p>;
+    return (
+      <div className="space-y-6">
+        <Link href="/dashboard/invoices" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="h-4 w-4" />
+          Facturen
+        </Link>
+        <p className="text-sm text-muted-foreground">Laden…</p>
+      </div>
+    );
   }
 
   if (error) {
-    return <p className="text-sm text-destructive">{error}</p>;
+    return (
+      <div className="space-y-6">
+        <Link href="/dashboard/invoices" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="h-4 w-4" />
+          Facturen
+        </Link>
+        <p className="text-sm text-destructive">{error}</p>
+      </div>
+    );
   }
 
   if (!invoice) {
@@ -145,14 +241,33 @@ export default function InvoicePreviewPage() {
             <FileText className="mr-1.5 h-4 w-4" />
             PDF Bekijken
           </Button>
+          <Button variant="outline" size="sm" onClick={handleDownloadPdf}>
+            <Download className="mr-1.5 h-4 w-4" />
+            Download PDF
+          </Button>
           <Button variant="outline" size="sm" onClick={handleUbl}>
             <Download className="mr-1.5 h-4 w-4" />
             UBL Downloaden
           </Button>
+          <Button variant="outline" size="sm" onClick={handleDownloadUbl}>
+            <Download className="mr-1.5 h-4 w-4" />
+            Download UBL
+          </Button>
           {invoice.status === "draft" && (
-            <Button size="sm" onClick={handleSend} disabled={sending}>
-              <Send className="mr-1.5 h-4 w-4" />
-              {sending ? "Versturen…" : "Versturen"}
+            <>
+              <Button size="sm" onClick={handleSend} disabled={sending}>
+                <Send className="mr-1.5 h-4 w-4" />
+                {sending ? "Versturen…" : "Versturen"}
+              </Button>
+              <Button size="sm" onClick={() => setSendDialogOpen(true)}>
+                <Send className="mr-1.5 h-4 w-4" />
+                Verstuur per e-mail
+              </Button>
+            </>
+          )}
+          {invoice.status === "sent" && (
+            <Button size="sm" onClick={handleMarkPaid} disabled={markingPaid}>
+              {markingPaid ? "Verwerken…" : "Markeer als betaald"}
             </Button>
           )}
         </div>
@@ -167,7 +282,7 @@ export default function InvoicePreviewPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm font-medium">{formatDate(invoice.issue_date)}</p>
+            <p className="text-sm font-medium">{formatInvoiceDate(invoice.issue_date)}</p>
           </CardContent>
         </Card>
         <Card>
@@ -177,7 +292,7 @@ export default function InvoicePreviewPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm font-medium">{formatDate(invoice.due_date)}</p>
+            <p className="text-sm font-medium">{formatInvoiceDate(invoice.due_date)}</p>
           </CardContent>
         </Card>
       </div>
@@ -268,6 +383,25 @@ export default function InvoicePreviewPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* PDF Preview */}
+      <iframe
+        src={`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1"}/invoices/${id}/pdf`}
+        className="w-full h-96 border rounded"
+        title="Factuur PDF"
+      />
+
+      {/* Send email dialog */}
+      <InvoiceSendDialog
+        invoice={invoice}
+        open={sendDialogOpen}
+        onOpenChange={setSendDialogOpen}
+        onSent={(updated) => {
+          setInvoice(updated);
+          setSendDialogOpen(false);
+        }}
+        customerEmail={customerEmail}
+      />
     </div>
   );
 }

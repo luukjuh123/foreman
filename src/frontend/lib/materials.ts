@@ -51,3 +51,33 @@ export async function searchMaterials(
 export async function fetchStores(): Promise<StoresResponse> {
   return apiFetch<StoresResponse>("/materials/stores");
 }
+
+// ---------------------------------------------------------------------------
+// Estimation
+// ---------------------------------------------------------------------------
+
+export interface EstimateRequest {
+  length_m: number;
+  width_m: number;
+  height_m: number;
+  materials: Array<Record<string, unknown>>;
+}
+
+export interface Estimate {
+  material: string;
+  quantity: number;
+  unit: string;
+  notes: string;
+}
+
+export interface EstimateResponse {
+  data: { estimates: Estimate[] } | null;
+  error: { message: string } | null;
+}
+
+export async function estimateMaterials(req: EstimateRequest): Promise<EstimateResponse> {
+  return apiFetch<EstimateResponse>("/materials/estimate", {
+    method: "POST",
+    body: JSON.stringify(req),
+  });
+}

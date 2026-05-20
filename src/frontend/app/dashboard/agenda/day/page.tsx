@@ -197,8 +197,10 @@ export default function AgendaDayPage() {
     return Array.from(map.values());
   }, [data]);
 
-  const dayName = getDutchDayName(currentDay);
-  const formattedDate = formatDate(currentDay);
+  // Use the date from the API response when available (may differ from currentDay due to server logic)
+  const displayDay = data?.date ?? currentDay;
+  const dayName = getDutchDayName(displayDay);
+  const formattedDate = formatDate(displayDay);
 
   return (
     <div className="space-y-4">
