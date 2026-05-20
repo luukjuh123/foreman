@@ -1,19 +1,61 @@
 import { apiFetch } from "./api";
 import { getAccessToken } from "./auth";
-import type {
-  StaffCreate,
-  StaffListResponse,
-  StaffResponse,
-  StaffUpdate,
-  StaffAssignmentResponse,
-  StaffOutstandingBalance,
-} from "./types";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export interface StaffResponse {
+  id: string;
+  owner_id: string;
+  full_name: string;
+  role: string;
+  email: string | null;
+  phone: string | null;
+  hourly_rate_cents: number;
+  weekly_hours_target: number | null;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+  availability: unknown[];
+}
+
+export interface StaffListResponse {
+  data: StaffResponse[];
+  total: number;
+  page: number;
+  per_page: number;
+}
+
+export interface StaffCreate {
+  full_name: string;
+  role: string;
+  hourly_rate_cents: number;
+  email?: string;
+  phone?: string;
+  weekly_hours_target?: number;
+  active?: boolean;
+}
+
+export interface StaffUpdate {
+  full_name?: string;
+  role?: string;
+  hourly_rate_cents?: number;
+  email?: string;
+  phone?: string;
+  weekly_hours_target?: number;
+  active?: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 function token(): string | undefined {
   return getAccessToken() ?? undefined;
 }
 
-export function formatRate(cents: number): string {
+export function formatHourlyRate(cents: number): string {
   return new Intl.NumberFormat("nl-NL", {
     style: "currency",
     currency: "EUR",
@@ -21,13 +63,19 @@ export function formatRate(cents: number): string {
   }).format(cents / 100);
 }
 
-export const formatCents = formatRate;
+// ---------------------------------------------------------------------------
+// API functions
+// ---------------------------------------------------------------------------
 
 export async function listStaff(page = 1, perPage = 20): Promise<StaffListResponse> {
   return apiFetch<StaffListResponse>(
     `/staff/?page=${page}&per_page=${perPage}`,
     { token: token() }
   );
+}
+
+export async function getStaff(id: string): Promise<StaffResponse> {
+  return apiFetch<StaffResponse>(`/staff/${id}`, { token: token() });
 }
 
 export async function createStaff(data: StaffCreate): Promise<StaffResponse> {
@@ -49,26 +97,6 @@ export async function updateStaff(id: string, data: StaffUpdate): Promise<StaffR
 export async function deleteStaff(id: string): Promise<void> {
   return apiFetch<void>(`/staff/${id}`, {
     method: "DELETE",
-    token: token(),
-  });
-}
-
-export async function listAssignments({
-  staffId,
-  projectId,
-}: {
-  staffId?: string;
-  projectId?: string;
-} = {}): Promise<StaffAssignmentResponse[]> {
-  const params = new URLSearchParams();
-  if (staffId) params.set("staff_id", staffId);
-  if (projectId) params.set("project_id", projectId);
-  const qs = params.toString() ? `?${params.toString()}` : "";
-  return apiFetch<StaffAssignmentResponse[]>(`/assignments/${qs}`);
-}
-
-export async function getStaffLoanBalance(staffId: string): Promise<StaffOutstandingBalance> {
-  return apiFetch<StaffOutstandingBalance>(`/loans/staff/${staffId}/balance`, {
     token: token(),
   });
 }

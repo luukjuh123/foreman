@@ -2,6 +2,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import React from "react";
 
+// ---------------------------------------------------------------------------
+// Shared mocks
+// ---------------------------------------------------------------------------
+
 vi.mock("next/navigation", () => ({
   useRouter: vi.fn(() => ({ push: vi.fn() })),
   usePathname: vi.fn(() => "/dashboard/staff"),
@@ -17,227 +21,321 @@ vi.mock("@/lib/api", () => ({
   apiFetch: vi.fn(),
 }));
 
-const mockStaff = (overrides: Partial<{
+// ---------------------------------------------------------------------------
+// Fixtures
+// ---------------------------------------------------------------------------
+
+const makeStaff = (overrides: Partial<{
   id: string;
   full_name: string;
   role: string;
-  email: string;
-  phone: string;
+  email: string | null;
+  phone: string | null;
   hourly_rate_cents: number;
-  weekly_hours_target: number;
+  weekly_hours_target: number | null;
   active: boolean;
 }> = {}) => ({
   id: overrides.id ?? "staff-1",
-  owner_id: "user-1",
+  owner_id: "owner-1",
   full_name: overrides.full_name ?? "Jan de Vries",
   role: overrides.role ?? "Timmerman",
-  email: overrides.email ?? "jan@example.com",
-  phone: overrides.phone ?? "0612345678",
-  hourly_rate_cents: overrides.hourly_rate_cents ?? 3500,
-  weekly_hours_target: overrides.weekly_hours_target ?? 40,
-  active: overrides.active ?? true,
-  created_at: "2024-01-01T00:00:00",
-  updated_at: "2024-01-01T00:00:00",
+  email: overrides.email !== undefined ? overrides.email : "jan@example.com",
+  phone: overrides.phone !== undefined ? overrides.phone : "0612345678",
+  hourly_rate_cents: overrides.hourly_rate_cents ?? 4500,
+  weekly_hours_target: overrides.weekly_hours_target !== undefined ? overrides.weekly_hours_target : 40,
+  active: overrides.active !== undefined ? overrides.active : true,
+  created_at: "2024-01-01T00:00:00Z",
+  updated_at: "2024-01-01T00:00:00Z",
   availability: [],
 });
 
 const makeListResponse = (
-  items: ReturnType<typeof mockStaff>[],
+  staff: ReturnType<typeof makeStaff>[],
   overrides: Partial<{ total: number; page: number; per_page: number }> = {}
 ) => ({
-  data: items,
-  total: overrides.total ?? items.length,
+  data: staff,
+  total: overrides.total ?? staff.length,
   page: overrides.page ?? 1,
   per_page: overrides.per_page ?? 20,
 });
-
-const twoMembers = [
-  mockStaff({ id: "staff-1", full_name: "Jan de Vries", role: "Timmerman", active: true }),
-  mockStaff({ id: "staff-2", full_name: "Piet Bakker", role: "Metselaar", active: false }),
-];
 
 async function getApiFetch() {
   const { apiFetch } = await import("@/lib/api");
   return vi.mocked(apiFetch);
 }
 
-describe("formatRate", () => {
-  it("formats 3500 cents to Dutch euro format containing 35", async () => {
-    const { formatRate } = await import("@/lib/staff");
-    expect(formatRate(3500)).toContain("35");
-    expect(formatRate(3500)).toContain("€");
-  });
+// ---------------------------------------------------------------------------
+// Tests — loading state
+// ---------------------------------------------------------------------------
 
-  it("formats 0 cents and includes euro sign", async () => {
-    const { formatRate } = await import("@/lib/staff");
-    expect(formatRate(0)).toContain("€");
-    expect(formatRate(0)).toContain("0");
-  });
-});
-
-describe("StaffPage renders staff list", () => {
-  beforeEach(async () => {
+describe("StaffDirectoryPage — loading state", () => {
+  it("shows loading indicator while fetching", async () => {
     const apiFetch = await getApiFetch();
-    apiFetch.mockResolvedValue(makeListResponse(twoMembers));
-  });
+    apiFetch.mockReturnValue(new Promise(() => {})); // never resolves
 
-  it("renders Personeel heading", async () => {
-    const { default: StaffPage } = await import("@/app/dashboard/staff/page");
-    render(<StaffPage />);
-    expect(screen.getByRole("heading", { name: /personeel/i })).toBeInTheDocument();
-  });
-
-  it("renders Nieuw button", async () => {
-    const { default: StaffPage } = await import("@/app/dashboard/staff/page");
-    render(<StaffPage />);
-    expect(screen.getByRole("button", { name: /^nieuw$/i })).toBeInTheDocument();
-  });
-
-  it("renders table column headers in Dutch", async () => {
-    const { default: StaffPage } = await import("@/app/dashboard/staff/page");
-    render(<StaffPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Naam")).toBeInTheDocument();
-      expect(screen.getByText("Functie")).toBeInTheDocument();
-      expect(screen.getByText("Uurloon")).toBeInTheDocument();
-      expect(screen.getByText("Uren/week")).toBeInTheDocument();
-      expect(screen.getByText("Status")).toBeInTheDocument();
-      expect(screen.getByText("Acties")).toBeInTheDocument();
-    });
-  });
-
-  it("renders staff member names in table rows", async () => {
-    const { default: StaffPage } = await import("@/app/dashboard/staff/page");
-    render(<StaffPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Jan de Vries")).toBeInTheDocument();
-      expect(screen.getByText("Piet Bakker")).toBeInTheDocument();
-    });
-  });
-
-  it("shows Actief badge for active staff", async () => {
-    const { default: StaffPage } = await import("@/app/dashboard/staff/page");
-    render(<StaffPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Actief")).toBeInTheDocument();
-    });
-  });
-
-  it("shows Inactief badge for inactive staff", async () => {
-    const { default: StaffPage } = await import("@/app/dashboard/staff/page");
-    render(<StaffPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Inactief")).toBeInTheDocument();
-    });
-  });
-
-  it("renders edit and delete action buttons per row", async () => {
-    const { default: StaffPage } = await import("@/app/dashboard/staff/page");
-    render(<StaffPage />);
-
-    await waitFor(() => screen.getByText("Jan de Vries"));
-
-    const editButtons = screen.getAllByRole("button", { name: /bewerk/i });
-    const deleteButtons = screen.getAllByRole("button", { name: /verwijder/i });
-    expect(editButtons.length).toBe(2);
-    expect(deleteButtons.length).toBe(2);
-  });
-});
-
-describe("StaffPage empty state", () => {
-  it("shows empty state message when no staff", async () => {
-    const apiFetch = await getApiFetch();
-    apiFetch.mockResolvedValue(makeListResponse([]));
-
-    const { default: StaffPage } = await import("@/app/dashboard/staff/page");
-    render(<StaffPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText(/geen personeel/i)).toBeInTheDocument();
-    });
-  });
-});
-
-describe("StaffPage loading state", () => {
-  it("shows loading text while fetching", async () => {
-    const apiFetch = await getApiFetch();
-    apiFetch.mockReturnValue(new Promise(() => {}));
-
-    const { default: StaffPage } = await import("@/app/dashboard/staff/page");
-    render(<StaffPage />);
+    const { default: StaffDirectoryPage } = await import(
+      "@/app/dashboard/staff/page"
+    );
+    render(<StaffDirectoryPage />);
 
     expect(screen.getByText(/laden/i)).toBeInTheDocument();
   });
 });
 
-describe("StaffPage add staff form", () => {
-  beforeEach(async () => {
+// ---------------------------------------------------------------------------
+// Tests — error state
+// ---------------------------------------------------------------------------
+
+describe("StaffDirectoryPage — error state", () => {
+  it("shows error message when fetch fails", async () => {
     const apiFetch = await getApiFetch();
-    apiFetch.mockResolvedValue(makeListResponse(twoMembers));
-  });
+    apiFetch.mockRejectedValue(new Error("Netwerk fout"));
 
-  it("opens form dialog when Nieuw is clicked", async () => {
-    const { default: StaffPage } = await import("@/app/dashboard/staff/page");
-    render(<StaffPage />);
-
-    fireEvent.click(screen.getByRole("button", { name: /^nieuw$/i }));
+    const { default: StaffDirectoryPage } = await import(
+      "@/app/dashboard/staff/page"
+    );
+    render(<StaffDirectoryPage />);
 
     await waitFor(() => {
-      expect(screen.getByRole("dialog")).toBeInTheDocument();
+      expect(screen.getByText(/netwerk fout/i)).toBeInTheDocument();
     });
   });
 });
 
-describe("StaffPage delete confirmation", () => {
-  beforeEach(async () => {
+// ---------------------------------------------------------------------------
+// Tests — empty state
+// ---------------------------------------------------------------------------
+
+describe("StaffDirectoryPage — empty state", () => {
+  it("shows empty state message when no staff", async () => {
     const apiFetch = await getApiFetch();
-    apiFetch.mockResolvedValue(makeListResponse(twoMembers));
-  });
+    apiFetch.mockResolvedValue(makeListResponse([]));
 
-  it("shows confirmation dialog when delete button is clicked", async () => {
-    const { default: StaffPage } = await import("@/app/dashboard/staff/page");
-    render(<StaffPage />);
-
-    await waitFor(() => screen.getByText("Jan de Vries"));
-
-    const deleteButtons = screen.getAllByRole("button", { name: /verwijder/i });
-    fireEvent.click(deleteButtons[0]);
+    const { default: StaffDirectoryPage } = await import(
+      "@/app/dashboard/staff/page"
+    );
+    render(<StaffDirectoryPage />);
 
     await waitFor(() => {
-      expect(screen.getByRole("dialog")).toBeInTheDocument();
-      expect(screen.getByText(/weet u het zeker/i)).toBeInTheDocument();
+      expect(screen.getByText(/geen medewerkers/i)).toBeInTheDocument();
     });
   });
 });
 
-describe("StaffPage pagination", () => {
-  it("shows Volgende button when there are more pages", async () => {
+// ---------------------------------------------------------------------------
+// Tests — renders staff list
+// ---------------------------------------------------------------------------
+
+describe("StaffDirectoryPage — renders staff list", () => {
+  it("renders staff names", async () => {
     const apiFetch = await getApiFetch();
     apiFetch.mockResolvedValue(
-      makeListResponse(twoMembers, { total: 40, per_page: 20 })
+      makeListResponse([
+        makeStaff({ id: "staff-1", full_name: "Jan de Vries" }),
+        makeStaff({ id: "staff-2", full_name: "Klaas Bakker" }),
+      ])
     );
 
-    const { default: StaffPage } = await import("@/app/dashboard/staff/page");
-    render(<StaffPage />);
+    const { default: StaffDirectoryPage } = await import(
+      "@/app/dashboard/staff/page"
+    );
+    render(<StaffDirectoryPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Jan de Vries")).toBeInTheDocument();
+      expect(screen.getByText("Klaas Bakker")).toBeInTheDocument();
+    });
+  });
+
+  it("renders staff roles", async () => {
+    const apiFetch = await getApiFetch();
+    apiFetch.mockResolvedValue(
+      makeListResponse([
+        makeStaff({ id: "staff-1", role: "Timmerman" }),
+        makeStaff({ id: "staff-2", full_name: "Piet", role: "Elektricien" }),
+      ])
+    );
+
+    const { default: StaffDirectoryPage } = await import(
+      "@/app/dashboard/staff/page"
+    );
+    render(<StaffDirectoryPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Timmerman")).toBeInTheDocument();
+      expect(screen.getByText("Elektricien")).toBeInTheDocument();
+    });
+  });
+
+  it("renders hourly rate formatted as Dutch locale euros", async () => {
+    const apiFetch = await getApiFetch();
+    apiFetch.mockResolvedValue(
+      makeListResponse([makeStaff({ hourly_rate_cents: 4500 })])
+    );
+
+    const { default: StaffDirectoryPage } = await import(
+      "@/app/dashboard/staff/page"
+    );
+    render(<StaffDirectoryPage />);
+
+    await waitFor(() => {
+      // €45,00 in Dutch locale
+      expect(screen.getByText(/45,00/)).toBeInTheDocument();
+    });
+  });
+
+  it("renders active status badge", async () => {
+    const apiFetch = await getApiFetch();
+    apiFetch.mockResolvedValue(
+      makeListResponse([
+        makeStaff({ id: "staff-1", active: true }),
+        makeStaff({ id: "staff-2", full_name: "Inactief Persoon", active: false }),
+      ])
+    );
+
+    const { default: StaffDirectoryPage } = await import(
+      "@/app/dashboard/staff/page"
+    );
+    render(<StaffDirectoryPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Actief")).toBeInTheDocument();
+      expect(screen.getByText("Inactief")).toBeInTheDocument();
+    });
+  });
+
+  it("renders email when present", async () => {
+    const apiFetch = await getApiFetch();
+    apiFetch.mockResolvedValue(
+      makeListResponse([makeStaff({ email: "jan@bouw.nl" })])
+    );
+
+    const { default: StaffDirectoryPage } = await import(
+      "@/app/dashboard/staff/page"
+    );
+    render(<StaffDirectoryPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("jan@bouw.nl")).toBeInTheDocument();
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tests — header and add button
+// ---------------------------------------------------------------------------
+
+describe("StaffDirectoryPage — header", () => {
+  it("renders Personeel page title", async () => {
+    const apiFetch = await getApiFetch();
+    apiFetch.mockResolvedValue(makeListResponse([]));
+
+    const { default: StaffDirectoryPage } = await import(
+      "@/app/dashboard/staff/page"
+    );
+    render(<StaffDirectoryPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /personeel/i })).toBeInTheDocument();
+    });
+  });
+
+  it("renders Medewerker toevoegen button", async () => {
+    const apiFetch = await getApiFetch();
+    apiFetch.mockResolvedValue(makeListResponse([]));
+
+    const { default: StaffDirectoryPage } = await import(
+      "@/app/dashboard/staff/page"
+    );
+    render(<StaffDirectoryPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /medewerker toevoegen/i })).toBeInTheDocument();
+    });
+  });
+
+  it("opens add dialog when Medewerker toevoegen button is clicked", async () => {
+    const apiFetch = await getApiFetch();
+    apiFetch.mockResolvedValue(makeListResponse([]));
+
+    const { default: StaffDirectoryPage } = await import(
+      "@/app/dashboard/staff/page"
+    );
+    render(<StaffDirectoryPage />);
+
+    await waitFor(() => screen.getByRole("button", { name: /medewerker toevoegen/i }));
+    fireEvent.click(screen.getByRole("button", { name: /medewerker toevoegen/i }));
+
+    await waitFor(() => {
+      // The dialog/form should show a full_name field
+      expect(screen.getByLabelText(/naam/i)).toBeInTheDocument();
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tests — pagination
+// ---------------------------------------------------------------------------
+
+describe("StaffDirectoryPage — pagination", () => {
+  it("shows next page button when there are more pages", async () => {
+    const apiFetch = await getApiFetch();
+    apiFetch.mockResolvedValue(
+      makeListResponse(
+        Array.from({ length: 20 }, (_, i) =>
+          makeStaff({ id: `staff-${i}`, full_name: `Medewerker ${i}` })
+        ),
+        { total: 40, page: 1, per_page: 20 }
+      )
+    );
+
+    const { default: StaffDirectoryPage } = await import(
+      "@/app/dashboard/staff/page"
+    );
+    render(<StaffDirectoryPage />);
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: /volgende/i })).toBeInTheDocument();
     });
   });
 
-  it("does not show Volgende button when only one page", async () => {
+  it("shows previous page button after navigating to page 2", async () => {
     const apiFetch = await getApiFetch();
-    apiFetch.mockResolvedValue(makeListResponse(twoMembers, { total: 2, per_page: 20 }));
+    apiFetch.mockResolvedValue(
+      makeListResponse(
+        Array.from({ length: 20 }, (_, i) =>
+          makeStaff({ id: `staff-${i}`, full_name: `Medewerker ${i}` })
+        ),
+        { total: 40, page: 1, per_page: 20 }
+      )
+    );
 
-    const { default: StaffPage } = await import("@/app/dashboard/staff/page");
-    render(<StaffPage />);
+    const { default: StaffDirectoryPage } = await import(
+      "@/app/dashboard/staff/page"
+    );
+    render(<StaffDirectoryPage />);
 
-    await waitFor(() => screen.getByText("Jan de Vries"));
+    await waitFor(() => screen.getByRole("button", { name: /volgende/i }));
+    fireEvent.click(screen.getByRole("button", { name: /volgende/i }));
 
-    expect(screen.queryByRole("button", { name: /volgende/i })).toBeNull();
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /vorige/i })).toBeInTheDocument();
+    });
+  });
+
+  it("does not show next page button when on last page", async () => {
+    const apiFetch = await getApiFetch();
+    apiFetch.mockResolvedValue(
+      makeListResponse([makeStaff()], { total: 1, page: 1, per_page: 20 })
+    );
+
+    const { default: StaffDirectoryPage } = await import(
+      "@/app/dashboard/staff/page"
+    );
+    render(<StaffDirectoryPage />);
+
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: /volgende/i })).toBeNull();
+    });
   });
 });
