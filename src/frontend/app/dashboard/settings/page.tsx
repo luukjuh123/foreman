@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { Sun, Moon, Monitor } from "lucide-react";
+import React from "react";
+import Link from "next/link";
+import { Sun, Moon, Monitor, CreditCard } from "lucide-react";
 import { useTheme } from "@/lib/theme-provider";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -131,6 +132,22 @@ export default function SettingsPage() {
         <h1 className="text-2xl font-bold text-foreground">Instellingen</h1>
         <p className="text-muted-foreground mt-1">Beheer uw voorkeuren</p>
       </div>
+
+      <Link href="/dashboard/settings/subscription" className="block">
+        <Card className="hover:bg-accent transition-colors cursor-pointer">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5 text-muted-foreground" />
+              <CardTitle>Abonnement</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              Beheer uw abonnement, plan en gebruik.
+            </p>
+          </CardContent>
+        </Card>
+      </Link>
 
       <Card>
         <CardHeader>
