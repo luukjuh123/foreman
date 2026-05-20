@@ -1,0 +1,19 @@
+apiVersion: v2
+name: foreman
+description: AI-powered construction management platform for Dutch bouwbedrijven
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - construction
+  - management
+  - fastapi
+  - nextjs
+home: https://github.com/luukjuh123/foreman
+maintainers:
+  - name: luukjuh123
+dependencies:
+  - name: postgresql
+    version: "15.5.17"
+    repository: https://charts.bitnami.com/bitnami
+    condition: postgresql.enabled
