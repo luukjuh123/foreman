@@ -235,26 +235,6 @@ export interface StaffResponse {
   availability?: unknown[];
 }
 
-export interface StaffCreate {
-  full_name: string;
-  role: string;
-  hourly_rate_cents: number;
-  email?: string;
-  phone?: string;
-  weekly_hours_target?: number;
-  active?: boolean;
-}
-
-export interface StaffUpdate {
-  full_name?: string;
-  role?: string;
-  hourly_rate_cents?: number;
-  email?: string;
-  phone?: string;
-  weekly_hours_target?: number;
-  active?: boolean;
-}
-
 export interface StaffListResponse {
   data: StaffResponse[];
   total: number;
@@ -262,38 +242,47 @@ export interface StaffListResponse {
   per_page: number;
 }
 
-// Staff types
+// Loan types
 
-export interface StaffResponse {
+export interface LoanDeductionResponse {
   id: string;
-  owner_id?: string;
-  full_name: string;
-  role: string;
-  email?: string | null;
-  phone?: string | null;
-  hourly_rate_cents: number;
-  weekly_hours_target?: number;
-  active: boolean;
-  created_at?: string;
-  updated_at?: string;
-  availability?: unknown[];
+  loan_id: string;
+  amount_cents: number;
+  deduction_date: string;
+  notes?: string | null;
+  created_at: string;
 }
 
-export interface StaffListResponse {
-  data: StaffResponse[];
-  total: number;
-  page: number;
-  per_page: number;
-}
-
-export interface StaffAssignmentResponse {
+export interface StaffLoanResponse {
   id: string;
   staff_id: string;
-  project_id: string;
-  task_id?: string | null;
-  start_at: string;
-  end_at: string;
+  principal_cents: number;
+  issued_date: string;
   notes?: string | null;
-  project_name?: string;
-  created_at?: string;
+  created_at: string;
+  updated_at: string;
+  deductions: LoanDeductionResponse[];
+  deducted_cents: number;
+  outstanding_cents: number;
+}
+
+export interface StaffOutstandingBalance {
+  staff_id: string;
+  total_principal_cents: number;
+  total_deducted_cents: number;
+  outstanding_cents: number;
+  loans: StaffLoanResponse[];
+}
+
+export interface StaffLoanCreate {
+  staff_id: string;
+  principal_cents: number;
+  issued_date: string;
+  notes?: string;
+}
+
+export interface LoanDeductionCreate {
+  amount_cents: number;
+  deduction_date: string;
+  notes?: string;
 }
