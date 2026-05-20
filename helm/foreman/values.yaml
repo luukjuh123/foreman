@@ -1,0 +1,200 @@
+# foreman Helm chart values
+# All secrets must be provided via external secret store — never hardcode here.
+# Reference: secretKeyRef pointing to the `foreman-secrets` Secret.
+
+# ---------------------------------------------------------------------------
+# Backend (FastAPI / Python 3.12)
+# ---------------------------------------------------------------------------
+backend:
+  replicaCount: 1
+
+  image:
+    repository: ghcr.io/luukjuh123/foreman-backend
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+  containerPort: 8000
+
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8000
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    fsGroup: 1001
+
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+
+  livenessProbe:
+    httpGet:
+      path: /healthz
+      port: 8000
+    initialDelaySeconds: 15
+    periodSeconds: 20
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  readinessProbe:
+    httpGet:
+      path: /healthz
+      port: 8000
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+  # Non-secret env vars — plain values safe to commit.
+  env:
+    # App behaviour
+    DEBUG: "false"
+    LOG_LEVEL: "INFO"
+    JWT_ALGORITHM: "HS256"
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: "30"
+    JWT_REFRESH_TOKEN_EXPIRE_DAYS: "7"
+    OPENAI_MODEL: "gpt-4o-mini"
+    SCRAPER_RATE_LIMIT_DELAY_SECONDS: "1.0"
+    SCRAPER_CACHE_TTL_SECONDS: "3600"
+    TRIAL_PERIOD_DAYS: "14"
+    CORS_ORIGINS: '["https://foreman.galaxy.internal"]'
+    # Company / invoice issuer — safe defaults, override via values for each env.
+    COMPANY_NAME: "Foreman Bouw B.V."
+    COMPANY_KVK: "00000000"
+    COMPANY_VAT_NUMBER: "NL000000000B00"
+    COMPANY_ADDRESS_LINE1: "Hoofdstraat 1"
+    COMPANY_POSTAL_CODE: "1011AA"
+    COMPANY_CITY: "Amsterdam"
+    COMPANY_COUNTRY_CODE: "NL"
+    COMPANY_EMAIL: "info@foreman.local"
+    COMPANY_IBAN: "NL00BANK0000000000"
+
+  # Secret references — values come from the `foreman-secrets` Secret.
+  # The Secret itself is NOT created by this chart; provision it externally
+  # (e.g. via Sealed Secrets, External Secrets Operator, or kubectl create secret).
+  secretEnv:
+    DATABASE_URL: database-url
+    JWT_SECRET_KEY: jwt-secret-key
+    OPENAI_API_KEY: openai-api-key
+    GOOGLE_BUSINESS_ACCESS_TOKEN: google-business-access-token
+    MOLLIE_API_KEY: mollie-api-key
+    MOLLIE_WEBHOOK_SECRET: mollie-webhook-secret
+
+  secretName: foreman-secrets
+
+# ---------------------------------------------------------------------------
+# Frontend (Next.js 16 standalone)
+# ---------------------------------------------------------------------------
+frontend:
+  replicaCount: 1
+
+  image:
+    repository: ghcr.io/luukjuh123/foreman-frontend
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+  containerPort: 3000
+
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 3000
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 256Mi
+
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    fsGroup: 1001
+
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+
+  livenessProbe:
+    httpGet:
+      path: /
+      port: 3000
+    initialDelaySeconds: 15
+    periodSeconds: 20
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  readinessProbe:
+    httpGet:
+      path: /
+      port: 3000
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+  env:
+    # Build-time public var — points at backend ingress hostname.
+    NEXT_PUBLIC_API_URL: "https://foreman-api.galaxy.internal"
+
+# ---------------------------------------------------------------------------
+# PostgreSQL (bitnami subchart)
+# ---------------------------------------------------------------------------
+postgresql:
+  enabled: true
+  auth:
+    database: foreman
+    # username and password must be set via --set or a sealed values override.
+    # Never commit real credentials here.
+    username: foreman
+    # password: "" — set externally
+    existingSecret: foreman-secrets
+    secretKeys:
+      adminPasswordKey: postgresql-admin-password
+      userPasswordKey: postgresql-password
+  primary:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    persistence:
+      enabled: true
+      size: 10Gi
+
+# ---------------------------------------------------------------------------
+# Ingress
+# ---------------------------------------------------------------------------
+ingress:
+  enabled: true
+  className: "tailscale"
+  annotations:
+    tailscale.com/funnel: "true"
+  hosts:
+    - host: foreman.galaxy.internal
+      paths:
+        - path: /api
+          pathType: Prefix
+          backend: backend
+        - path: /
+          pathType: Prefix
+          backend: frontend
+  tls: []
