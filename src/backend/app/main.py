@@ -5,7 +5,18 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.logging import RequestLoggingMiddleware, configure_logging
-from app.routers import auth, billing, projects, ai_planning, materials, financials, processes, time_tracking, photos, reports
+from app.routers import (
+    auth,
+    billing,
+    projects,
+    ai_planning,
+    materials,
+    financials,
+    processes,
+    time_tracking,
+    photos,
+    reviews,
+)
 
 
 def create_app() -> FastAPI:
@@ -38,7 +49,7 @@ def create_app() -> FastAPI:
     app.include_router(processes.router, prefix="/api/v1/processes", tags=["processes"])
     app.include_router(time_tracking.router, prefix="/api/v1/time-tracking", tags=["time-tracking"])
     app.include_router(photos.router, prefix="/api/v1/photos", tags=["photos"])
-    app.include_router(reports.router, prefix="/api/v1/reports", tags=["reports"])
+    app.include_router(reviews.router, prefix="/api/v1/reviews", tags=["reviews"])
 
     @app.get("/healthz", tags=["health"])
     async def health_check() -> dict:
