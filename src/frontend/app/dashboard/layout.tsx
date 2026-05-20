@@ -7,6 +7,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import OfflineIndicator from "@/components/offline-indicator";
 import PwaRegister from "@/components/pwa-register";
 import MobileNav from "@/components/mobile-nav";
+import MobileTimeTracker from "@/components/mobile-time-tracker";
 
 const ACCESS_TOKEN_KEY = "foreman_access_token";
 
@@ -43,6 +44,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <OfflineIndicator />
         <PwaRegister />
         <main className="flex-1 p-4 pb-16 md:p-6 md:pb-6">{children}</main>
+        <MobileTimeTracker projectId="" />
         <MobileNav />
       </div>
     </div>
