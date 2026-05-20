@@ -1,5 +1,9 @@
 """Materials router — store integrations, material search, estimation."""
 
+from __future__ import annotations
+
+from collections import defaultdict
+
 from fastapi import APIRouter
 
 from app.schemas.material_estimate import (
@@ -11,6 +15,13 @@ from app.schemas.material_estimate import (
     RoomEstimateResponse,
     RoomEstimateResponseData,
     TileSpec,
+)
+from app.schemas.materials_search import (
+    CompareData,
+    CompareResponse,
+    ProductResultSchema,
+    SearchResponse,
+    StoresResponse,
 )
 from app.services.material_estimation import (
     estimate_concrete,
@@ -25,6 +36,31 @@ from app.services.stores.hornbach import HornbachClient
 from app.services.stores.praxis import PraxisClient
 
 router = APIRouter()
+
+STORE_NAMES = ["hornbach", "gamma", "praxis", "bouwmaat"]
+
+
+def _to_schema(p: ProductResult) -> ProductResultSchema:
+    return ProductResultSchema(
+        store=p.store,
+        product_id=p.product_id,
+        name=p.name,
+        url=p.url,
+        price_cents=p.price_cents,
+        in_stock=p.in_stock,
+        unit=p.unit,
+        extra=dict(p.extra),
+    )
+
+
+def _make_clients() -> list:
+    return [HornbachClient(), GammaClient(), PraxisClient(), BouwmaatClient()]
+
+
+@router.get("/stores", response_model=StoresResponse)
+async def list_stores() -> StoresResponse:
+    """Return list of available hardware store names."""
+    return StoresResponse(data=STORE_NAMES, error=None)
 
 
 @router.get("/search")
