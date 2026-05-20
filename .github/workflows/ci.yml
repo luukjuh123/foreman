@@ -1,0 +1,66 @@
+# ci-template-version: 1.0
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # --- Backend (Python/FastAPI) ---
+  backend-quality:
+    uses: luukjuh123/gitops-templates/.github/workflows/python-quality.yml@main
+    with:
+      python-version: '3.12'
+      src-dir: src/backend
+
+  backend-test:
+    needs: backend-quality
+    uses: luukjuh123/gitops-templates/.github/workflows/python-test.yml@main
+    with:
+      coverage-threshold: 80
+
+  # --- Frontend (Next.js/TypeScript) ---
+  frontend-quality:
+    uses: luukjuh123/gitops-templates/.github/workflows/typescript-quality.yml@main
+    with:
+      node-version: '20'
+      working-directory: src/frontend
+
+  frontend-test:
+    needs: frontend-quality
+    uses: luukjuh123/gitops-templates/.github/workflows/typescript-test.yml@main
+    with:
+      node-version: '20'
+      working-directory: src/frontend
+
+  frontend-build:
+    needs: frontend-test
+    uses: luukjuh123/gitops-templates/.github/workflows/typescript-build.yml@main
+    with:
+      node-version: '20'
+      working-directory: src/frontend
+
+  # --- Docker build (both images) ---
+  docker-backend:
+    needs: backend-test
+    uses: luukjuh123/gitops-templates/.github/workflows/docker-build.yml@main
+    with:
+      image-name: foreman-backend
+      dockerfile: src/backend/Dockerfile
+      push: ${{ github.ref == 'refs/heads/main' }}
+
+  docker-frontend:
+    needs: frontend-build
+    uses: luukjuh123/gitops-templates/.github/workflows/docker-build.yml@main
+    with:
+      image-name: foreman-frontend
+      dockerfile: src/frontend/Dockerfile
+      push: ${{ github.ref == 'refs/heads/main' }}
+      build-args: |
+        NEXT_PUBLIC_API_URL=https://foreman-backend.galaxy.internal

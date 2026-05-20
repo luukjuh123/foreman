@@ -1,0 +1,60 @@
+name: foreman-backend
+
+replicas: 1
+
+image:
+  repository: ghcr.io/luukjuh123/foreman-backend
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+service:
+  enabled: true
+  type: ClusterIP
+  port: 80
+  targetPort: 8000
+
+containerPort: 8000
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  fsGroup: 1001
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: 8000
+  initialDelaySeconds: 10
+  periodSeconds: 15
+
+readinessProbe:
+  httpGet:
+    path: /healthz
+    port: 8000
+  initialDelaySeconds: 5
+  periodSeconds: 5
+
+env:
+  - name: DATABASE_URL
+    valueFrom:
+      secretKeyRef:
+        name: foreman-secrets
+        key: database-url
+  - name: CORS_ORIGINS
+    value: "https://foreman.galaxy.internal"
+  - name: LOG_LEVEL
+    value: "info"
