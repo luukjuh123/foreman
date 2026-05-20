@@ -36,6 +36,23 @@ class ReviewResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class MonthlyTrend(BaseModel):
+    month: str  # "YYYY-MM"
+    average_rating: float
+    count: int
+
+
+class ReviewStats(BaseModel):
+    average_rating: float
+    total_count: int
+    rating_distribution: dict[str, int]
+    monthly_trend: list[MonthlyTrend]
+
+
+class DraftReplyResponse(BaseModel):
+    draft_text: str
+
+
 class Envelope(BaseModel):
     """Standard response envelope: {data, error}."""
 
