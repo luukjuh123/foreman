@@ -212,43 +212,46 @@ export interface TaskCreate {
   end_date?: string;
 }
 
-// ---------------------------------------------------------------------------
-// Time tracking types
-// ---------------------------------------------------------------------------
+// Staff types
 
-export interface TimeEntryResponse {
+export interface StaffResponse {
   id: string;
-  project_process_id: string;
-  started_at: string;
-  stopped_at: string | null;
-  duration_seconds: number | null;
-  notes: string | null;
-  created_at: string;
+  owner_id?: string;
+  full_name: string;
+  role: string;
+  email?: string | null;
+  phone?: string | null;
+  hourly_rate_cents: number;
+  weekly_hours_target?: number;
+  active: boolean;
+  created_at?: string;
+  updated_at?: string;
+  availability?: unknown[];
 }
 
-export interface TimeEntryListResponse {
-  data: TimeEntryResponse[];
-  total_seconds: number;
+export interface StaffCreate {
+  full_name: string;
+  role: string;
+  hourly_rate_cents: number;
+  email?: string;
+  phone?: string;
+  weekly_hours_target?: number;
+  active?: boolean;
 }
 
-export interface ProcessResponse {
-  id: string;
-  slug: string;
-  name: string;
-  description: string | null;
-  unit: string;
-  created_at: string;
+export interface StaffUpdate {
+  full_name?: string;
+  role?: string;
+  hourly_rate_cents?: number;
+  email?: string;
+  phone?: string;
+  weekly_hours_target?: number;
+  active?: boolean;
 }
 
-export interface ProjectProcessResponse {
-  id: string;
-  project_id: string;
-  process_id: string;
-  notes: string | null;
-  created_at: string;
-  process: ProcessResponse;
-}
-
-export interface ProjectProcessListResponse {
-  data: ProjectProcessResponse[];
+export interface StaffListResponse {
+  data: StaffResponse[];
+  total: number;
+  page: number;
+  per_page: number;
 }
