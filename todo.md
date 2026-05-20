@@ -31,7 +31,7 @@
 - [x] Frontend: Time tracking widget — start/stop timer, attach photos, notes — PR #108
 - [x] Frontend: Process library — browse all known processes with avg durations and costs — PR #110
 
-## Priority: High (Phase 4 — AI Planning Engine)
+## Priority: High (Phase 4 — AI Planning Engine) ✅
 
 - [x] Backend: AI agent service — analyze project specs and generate optimal task ordering — PR #23
 - [x] Backend: Critical path calculation (CPM algorithm) and dependency resolution — PR #27
@@ -69,7 +69,7 @@
 - [x] Frontend: Material cost tracker with live price update badges — PR #112
 - [x] Frontend: Profit margin calculator for professional planners — PR #115
 
-## Priority: Medium (Phase 8 — Full Financials)
+## Priority: Medium (Phase 8 — Full Financials) ✅
 
 - [x] Backend: Chart of accounts model — standard Dutch boekhoudschema (rekeningschema) (PR: `feat/chart-of-accounts`)
 - [x] Backend: Journal entries and double-entry bookkeeping engine (PR: `feat/journal-entries`)
@@ -78,11 +78,11 @@
 - [x] Backend: Cash flow statement generation — operating, investing, financing activities (PR: `feat/cashflow-statement`)
 - [x] Backend: Period closing — lock periods, generate year-end reports (PR: `feat/period-closing`)
 - [x] Frontend: Income statement view — revenue vs expenses per period — PR #117
-- [ ] Frontend: Balance sheet view — expandable account tree with totals — PR #132 (open)
-- [ ] Frontend: Cash flow overview with charts (monthly/quarterly/yearly) — PR #133 (open)
-- [ ] Frontend: Financial reports export (PDF, CSV) — PR #134 (open)
+- [x] Frontend: Balance sheet view — expandable account tree with totals — PR #162
+- [x] Frontend: Cash flow overview with charts (monthly/quarterly/yearly) — PR #133
+- [x] Frontend: Financial reports export (PDF, CSV) — PR #161
 
-## Priority: Medium (Phase 9 — Staff Management)
+## Priority: Medium (Phase 9 — Staff Management) ✅
 
 - [x] Backend: Staff model — employees, hourly rates, roles, availability (PR feat/staff-model)
 - [x] Backend: Payroll basics — hours worked per project, gross salary calculation (PR feat/payroll-basics)
@@ -93,28 +93,28 @@
 - [x] Frontend: Loan tracking — issue advances, view outstanding balances per employee — PR #153
 - [x] Frontend: Payroll overview — hours per project, total due per employee per period — PR #153
 
-## Priority: Medium (Phase 10 — Rapports / Reports)
+## Priority: Medium (Phase 10 — Rapports / Reports) ✅
 
 - [x] Backend: Report generation engine — aggregate project data into structured reports — PR #26
 - [x] Backend: Weekly report — work done per project, hours, costs, photos, next week plan — PR #29
 - [x] Backend: Project completion report — full summary: timeline, costs vs budget, photos, lessons — PR #30
 - [x] Backend: PDF report generation with branded template — PR #37
 - [x] Backend: Auto-send reports via email to customers/stakeholders — PR #45
-- [ ] Frontend: Report builder — select project/period, preview, generate
-- [ ] Frontend: Report history — browse past reports per project
-- [ ] Frontend: Customer-facing report view (shareable link, no login required)
+- [x] Frontend: Report builder — select project/period, preview, generate — PR #139
+- [x] Frontend: Report history — browse past reports per project — PR #139
+- [x] Frontend: Customer-facing report view (shareable link, no login required) — PR #139
 
-## Priority: Medium (Phase 11 — Notifications)
+## Priority: Medium (Phase 11 — Notifications) ✅
 
 - [x] Backend: Notification engine — in-app + email + push notification dispatch — PR #57
 - [x] Backend: Customer email notifications — project updates, invoice sent, report ready — PR #58
 - [x] Backend: Inbound detection — new customer inquiry via email/form triggers notification — PR #59
 - [x] Backend: AI-driven alerts — recognize anomalies (over budget, behind schedule, weather risk) — PR #91
 - [x] Backend: Notification preferences per user (email, push, in-app toggles) — PR #92
-- [ ] Frontend: Notification center — bell icon, unread count, notification list — PR #127 (open)
-- [ ] Frontend: Notification settings page — per-type toggle (email/push/in-app)
+- [x] Frontend: Notification center — bell icon, unread count, notification list — PR #127
+- [x] Frontend: Notification settings page — per-type toggle (email/push/in-app) — PR #140
 
-## Priority: Medium (Phase 12 — Hardware Store Integrations)
+## Priority: Medium (Phase 12 — Hardware Store Integrations) ✅
 
 - [x] Backend: Scraping service base — async, rate-limited, cached (Redis or in-memory TTL) — PR feat/scraper-base
 - [x] Backend: Hornbach integration — product search, pricing (euro cents), stock availability — PR feat/hornbach-integration
@@ -122,61 +122,61 @@
 - [x] Backend: Praxis integration — product search, pricing (euro cents), stock availability — PR feat/praxis-integration
 - [x] Backend: Bouwmaat integration — product search, pricing (euro cents), stock availability — PR feat/bouwmaat-integration
 - [x] Backend: Price comparison engine — cross-store ranking by price + availability — PR feat/price-comparison-engine
-- [ ] Frontend: Material search with cross-store price comparison table
+- [x] Frontend: Material search with cross-store price comparison table — PR #147
 - [x] Frontend: Store availability map — per-store stock status badges — PR #151
 
-## Priority: Medium (Phase 13 — Material Calculator)
+## Priority: Medium (Phase 13 — Material Calculator) ✅
 
 - [x] Backend: Material estimation algorithms — paint (m2/liter), tiles (m2 + 10% waste), concrete (m3), lumber (linear meters) — branch `feat/material-estimation-algorithms`
 - [x] Backend: Room/area dimension API — inputs dimensions -> material quantities — branch `feat/room-dimension-api`
-- [ ] Frontend: Material calculator wizard — input dimensions -> quantities + costs -> shopping list — PR #126 (open)
-- [ ] Frontend: Shopping list generator with store deep-links — PR #125 (open)
+- [x] Frontend: Material calculator wizard — input dimensions -> quantities + costs -> shopping list — PR #126
+- [x] Frontend: Shopping list generator with store deep-links — PR #125
 
-## Priority: Medium (Phase 14 — Voice Prompting)
+## Priority: Medium (Phase 14 — Voice Prompting) ✅
 
 - [x] Backend: Voice input endpoint — accept audio, transcribe (Whisper or Nvidia Riva) — PR #24
 - [x] Backend: Nvidia Personaplex integration — conversational AI for hands-free project management — PR #25
 - [x] Backend: Voice command parser — map spoken commands to actions (create task, log hours, check schedule) — PR #28
 - [x] Backend: Voice response generation — TTS for AI responses (status updates, schedule readouts) — PR #32
-- [ ] Frontend: Voice input button — push-to-talk or continuous listening mode
-- [ ] Frontend: Voice conversation UI — transcript view with AI responses
-- [ ] Frontend: Hands-free mode — optimized for mobile use while commuting or on-site
+- [x] Frontend: Voice input button — push-to-talk or continuous listening mode — PR #144
+- [x] Frontend: Voice conversation UI — transcript view with AI responses — PR #145
+- [x] Frontend: Hands-free mode — optimized for mobile use while commuting or on-site — PR #143
 
-## Priority: Medium (Phase 15 — Google Reviews)
+## Priority: Medium (Phase 15 — Google Reviews) ✅
 
 - [x] Backend: Google Business Profile API integration — fetch reviews, ratings, reply — PR #38
 - [x] Backend: Review aggregation — track rating trends over time — PR #60
 - [x] Backend: AI-assisted review responses — draft professional replies to customer reviews — PR #61
-- [ ] Frontend: Reviews dashboard — latest reviews, avg rating, trend chart
-- [ ] Frontend: Review response composer — AI draft + manual edit + post
+- [x] Frontend: Reviews dashboard — latest reviews, avg rating, trend chart — PR #141
+- [x] Frontend: Review response composer — AI draft + manual edit + post — PR #142
 
-## Priority: Low (Phase 16 — Mobile App)
+## Priority: Low (Phase 16 — Mobile App) ✅
 
-- [ ] Evaluate: PWA vs React Native vs Expo for mobile delivery
-- [ ] Mobile: Core navigation — bottom tab bar (Dashboard, Projects, Agenda, Notifications, More)
-- [ ] Mobile: Offline support — cache active project data, sync when online
-- [ ] Mobile: Camera integration — take site photos directly into process tracking
-- [ ] Mobile: Push notifications via FCM/APNs
-- [ ] Mobile: Voice input integration (reuse Phase 14 backend)
-- [ ] Mobile: Time tracking widget — quick start/stop from home screen
+- [x] Evaluate: PWA vs React Native vs Expo for mobile delivery — PWA chosen (reuses Next.js frontend)
+- [x] Mobile: Core navigation — bottom tab bar (Dashboard, Projects, Agenda, Notifications, More)
+- [x] Mobile: Offline support — cache active project data, sync when online
+- [x] Mobile: Camera integration — take site photos directly into process tracking
+- [x] Mobile: Push notifications via Web Push API
+- [x] Mobile: Voice input integration (reuse Phase 14 backend) — already available via PWA
+- [x] Mobile: Time tracking widget — quick start/stop from home screen
 
-## Priority: Low (Phase 17 — Billing / Subscription)
+## Priority: Low (Phase 17 — Billing / Subscription) ✅
 
 - [x] Backend: Subscription model — free tier (1 project), paid tiers (unlimited projects) (branch `feat/subscription-model-v2`)
 - [x] Backend: Stripe/Mollie integration — subscription creation, invoicing, webhooks (branch `feat/mollie-integration`)
 - [x] Backend: Usage metering — track projects, users, storage per account (branch `feat/usage-metering`)
 - [x] Backend: Trial period logic — first-time users get full access free, then paywall (branch `feat/trial-period-logic`)
-- [ ] Frontend: Pricing page — tier comparison, feature matrix
-- [ ] Frontend: Settings > Subscription — current plan, upgrade, payment method, invoices
-- [ ] Frontend: Paywall gate — soft limit on free tier, prompt to upgrade
+- [x] Frontend: Pricing page — tier comparison, feature matrix — PR #148
+- [x] Frontend: Settings > Subscription — current plan, upgrade, payment method, invoices — PR #150
+- [x] Frontend: Paywall gate — soft limit on free tier, prompt to upgrade — PR #149
 
 ## Priority: Low (Phase 18 — Production Readiness)
 
-- [ ] Docker multi-stage build — backend (Python/uvicorn) + frontend (Next.js standalone)
+- [x] Docker multi-stage build — backend (Python/uvicorn) + frontend (Next.js standalone) — PR #157
 - [ ] Helm chart values.yaml for k8s deployment
-- [ ] Nginx reverse proxy config (frontend serves static, /api/* proxies to backend)
-- [ ] E2E tests for critical flows: auth, project creation, AI plan generation, material search
-- [ ] E2E tests for billing flows: signup, free trial, upgrade, invoice generation
+- [x] Nginx reverse proxy config (frontend serves static, /api/* proxies to backend) — PR #159
+- [x] E2E tests for critical flows: auth, project creation, AI plan generation, material search — PR #158
+- [x] E2E tests for billing flows: signup, free trial, upgrade, invoice generation — PR #160
 
 ## Completed
 <!-- [x] Task description — PR #N -->
