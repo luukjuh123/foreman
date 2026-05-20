@@ -13,6 +13,7 @@ from app.routers import (
     materials,
     financials,
     processes,
+    push,
     time_tracking,
     photos,
     reviews,
@@ -50,6 +51,7 @@ def create_app() -> FastAPI:
     app.include_router(time_tracking.router, prefix="/api/v1/time-tracking", tags=["time-tracking"])
     app.include_router(photos.router, prefix="/api/v1/photos", tags=["photos"])
     app.include_router(reviews.router, prefix="/api/v1/reviews", tags=["reviews"])
+    app.include_router(push.router, prefix="/api/v1/push", tags=["push"])
 
     @app.get("/healthz", tags=["health"])
     async def health_check() -> dict:
