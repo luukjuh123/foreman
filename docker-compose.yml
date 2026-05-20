@@ -1,13 +1,21 @@
 services:
+  nginx:
+    build:
+      context: nginx
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+      - frontend
+
   backend:
     build:
       context: src/backend
       dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
     environment:
       - DATABASE_URL=postgresql+asyncpg://foreman:foreman@db:5432/foreman
-      - CORS_ORIGINS=["http://localhost:3000"]
+      - CORS_ORIGINS=["http://nginx"]
       - LOG_LEVEL=debug
     depends_on:
       db:
@@ -18,9 +26,7 @@ services:
       context: src/frontend
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: http://localhost:8000
-    ports:
-      - "3000:3000"
+        NEXT_PUBLIC_API_URL: http://nginx/api
     depends_on:
       - backend
 
