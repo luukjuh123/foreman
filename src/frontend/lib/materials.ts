@@ -1,68 +1,53 @@
 import { apiFetch } from "@/lib/api";
 
 // ---------------------------------------------------------------------------
-// Request types
+// Types
 // ---------------------------------------------------------------------------
 
-export interface PaintSpec {
-  type: "paint";
-  surface: "walls" | "ceiling" | "floor";
-  coats?: number;
-  coverage_m2_per_liter?: number | null;
-}
-
-export interface TileSpec {
-  type: "tiles";
-  surface: "floor" | "walls";
-  waste_pct?: number | null;
-}
-
-export interface ConcreteSpec {
-  type: "concrete";
-  surface: "floor";
-  thickness_m: number;
-}
-
-export interface LumberSpec {
-  type: "lumber";
-  total_length_m: number;
-  piece_length_m: number;
-}
-
-export type MaterialSpec = PaintSpec | TileSpec | ConcreteSpec | LumberSpec;
-
-export interface RoomEstimateRequest {
-  length_m: number;
-  width_m: number;
-  height_m: number;
-  materials: MaterialSpec[];
-}
-
-// ---------------------------------------------------------------------------
-// Response types
-// ---------------------------------------------------------------------------
-
-export interface MaterialEstimate {
-  material: string;
-  quantity: number;
+export interface MaterialResult {
+  store: string;
+  product_id: string;
+  name: string;
+  url: string;
+  price_cents: number;
+  in_stock: boolean;
   unit: string;
-  notes: string;
 }
 
-export interface RoomEstimateResponse {
-  data: { estimates: MaterialEstimate[] } | null;
-  error: Record<string, unknown> | null;
+export interface SearchResponse {
+  data: MaterialResult[];
+  error: string | null;
+}
+
+export interface StoresResponse {
+  data: string[];
+  error: string | null;
 }
 
 // ---------------------------------------------------------------------------
-// API client function
+// Helpers
 // ---------------------------------------------------------------------------
 
-export async function estimateMaterials(
-  req: RoomEstimateRequest
-): Promise<RoomEstimateResponse> {
-  return apiFetch<RoomEstimateResponse>("/materials/estimate", {
-    method: "POST",
-    body: JSON.stringify(req),
-  });
+export function formatPriceCents(cents: number): string {
+  return new Intl.NumberFormat("nl-NL", {
+    style: "currency",
+    currency: "EUR",
+    minimumFractionDigits: 2,
+  }).format(cents / 100);
+}
+
+// ---------------------------------------------------------------------------
+// API
+// ---------------------------------------------------------------------------
+
+export async function searchMaterials(
+  query: string,
+  maxResults = 20
+): Promise<SearchResponse> {
+  const params = new URLSearchParams({ query, max_results: String(maxResults) });
+  return apiFetch<SearchResponse>(`/materials/search?${params}`);
+}
+
+export async function fetchStores(): Promise<StoresResponse> {
+  return apiFetch<StoresResponse>("/materials/stores");
 }

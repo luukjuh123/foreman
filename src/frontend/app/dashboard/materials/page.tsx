@@ -1,484 +1,296 @@
 "use client";
 
-import React, { useState } from "react";
-import { Button } from "@/components/ui/button";
+import React, { useEffect, useState, useCallback } from "react";
+import { Search, ExternalLink } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Plus, Trash2 } from "lucide-react";
 import {
-  estimateMaterials,
-  type MaterialSpec,
-  type MaterialEstimate,
+  searchMaterials,
+  fetchStores,
+  formatPriceCents,
+  type MaterialResult,
 } from "@/lib/materials";
 
 // ---------------------------------------------------------------------------
-// Types for local form state
+// Store colour mapping
 // ---------------------------------------------------------------------------
 
-type MaterialType = "paint" | "tiles" | "concrete" | "lumber";
-
-interface MaterialRow {
-  id: number;
-  type: MaterialType;
-  // paint + tiles
-  surface: "walls" | "ceiling" | "floor";
-  // paint
-  coats: string;
-  // concrete
-  thickness_m: string;
-  // lumber
-  total_length_m: string;
-  piece_length_m: string;
-}
-
-function defaultRow(id: number): MaterialRow {
-  return {
-    id,
-    type: "paint",
-    surface: "walls",
-    coats: "2",
-    thickness_m: "0.1",
-    total_length_m: "",
-    piece_length_m: "2.4",
-  };
-}
-
-function rowToSpec(row: MaterialRow): MaterialSpec {
-  switch (row.type) {
-    case "paint":
-      return {
-        type: "paint",
-        surface: row.surface as "walls" | "ceiling" | "floor",
-        coats: parseInt(row.coats, 10) || 2,
-      };
-    case "tiles":
-      return {
-        type: "tiles",
-        surface: row.surface as "floor" | "walls",
-      };
-    case "concrete":
-      return {
-        type: "concrete",
-        surface: "floor",
-        thickness_m: parseFloat(row.thickness_m) || 0.1,
-      };
-    case "lumber":
-      return {
-        type: "lumber",
-        total_length_m: parseFloat(row.total_length_m) || 0,
-        piece_length_m: parseFloat(row.piece_length_m) || 2.4,
-      };
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Material type labels (Dutch)
-// ---------------------------------------------------------------------------
-
-const TYPE_LABELS: Record<MaterialType, string> = {
-  paint: "Verf",
-  tiles: "Tegels",
-  concrete: "Beton",
-  lumber: "Hout",
+const STORE_COLORS: Record<string, string> = {
+  hornbach: "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300",
+  gamma: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
+  praxis: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
+  bouwmaat: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
 };
 
-const SURFACE_OPTIONS_PAINT = [
-  { value: "walls", label: "Wanden" },
-  { value: "ceiling", label: "Plafond" },
-  { value: "floor", label: "Vloer" },
-] as const;
-
-const SURFACE_OPTIONS_TILES = [
-  { value: "floor", label: "Vloer" },
-  { value: "walls", label: "Wanden" },
-] as const;
-
-// ---------------------------------------------------------------------------
-// Material row form component
-// ---------------------------------------------------------------------------
-
-interface MaterialRowFormProps {
-  row: MaterialRow;
-  onChange: (row: MaterialRow) => void;
-  onRemove: () => void;
-}
-
-function MaterialRowForm({ row, onChange, onRemove }: MaterialRowFormProps) {
-  function set<K extends keyof MaterialRow>(field: K, value: MaterialRow[K]) {
-    onChange({ ...row, [field]: value });
-  }
-
+function storeBadgeClass(store: string): string {
   return (
-    <div className="border rounded-md p-4 space-y-3">
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex-1 space-y-1">
-          <label htmlFor={`type-${row.id}`} className="text-sm font-medium">
-            Type
-          </label>
-          <select
-            id={`type-${row.id}`}
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            value={row.type}
-            onChange={(e) => {
-              const t = e.target.value as MaterialType;
-              // Reset surface to valid default when switching type
-              const surface =
-                t === "tiles" ? "floor" : t === "paint" ? "walls" : "floor";
-              onChange({ ...row, type: t, surface: surface as MaterialRow["surface"] });
-            }}
-          >
-            {(Object.keys(TYPE_LABELS) as MaterialType[]).map((t) => (
-              <option key={t} value={t}>
-                {TYPE_LABELS[t]}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={onRemove}
-          aria-label="Verwijderen"
-          className="mt-6"
-        >
-          <Trash2 className="h-4 w-4 text-destructive" />
-        </Button>
-      </div>
-
-      {/* Paint-specific fields */}
-      {row.type === "paint" && (
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <label htmlFor={`surface-${row.id}`} className="text-sm font-medium">
-              Oppervlak
-            </label>
-            <select
-              id={`surface-${row.id}`}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              value={row.surface}
-              onChange={(e) => set("surface", e.target.value as MaterialRow["surface"])}
-            >
-              {SURFACE_OPTIONS_PAINT.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-1">
-            <label htmlFor={`coats-${row.id}`} className="text-sm font-medium">
-              Lagen
-            </label>
-            <Input
-              id={`coats-${row.id}`}
-              type="number"
-              min="1"
-              max="10"
-              value={row.coats}
-              onChange={(e) => set("coats", e.target.value)}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Tiles-specific fields */}
-      {row.type === "tiles" && (
-        <div className="space-y-1">
-          <label htmlFor={`surface-${row.id}`} className="text-sm font-medium">
-            Oppervlak
-          </label>
-          <select
-            id={`surface-${row.id}`}
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            value={row.surface}
-            onChange={(e) => set("surface", e.target.value as MaterialRow["surface"])}
-          >
-            {SURFACE_OPTIONS_TILES.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      {/* Concrete-specific fields */}
-      {row.type === "concrete" && (
-        <div className="space-y-1">
-          <label htmlFor={`thickness-${row.id}`} className="text-sm font-medium">
-            Dikte (m)
-          </label>
-          <Input
-            id={`thickness-${row.id}`}
-            type="number"
-            min="0.01"
-            step="0.01"
-            value={row.thickness_m}
-            onChange={(e) => set("thickness_m", e.target.value)}
-          />
-        </div>
-      )}
-
-      {/* Lumber-specific fields */}
-      {row.type === "lumber" && (
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <label htmlFor={`total-length-${row.id}`} className="text-sm font-medium">
-              Totale lengte (m)
-            </label>
-            <Input
-              id={`total-length-${row.id}`}
-              type="number"
-              min="0"
-              step="0.1"
-              value={row.total_length_m}
-              onChange={(e) => set("total_length_m", e.target.value)}
-              placeholder="0"
-            />
-          </div>
-          <div className="space-y-1">
-            <label htmlFor={`piece-length-${row.id}`} className="text-sm font-medium">
-              Stuklengte (m)
-            </label>
-            <Input
-              id={`piece-length-${row.id}`}
-              type="number"
-              min="0.01"
-              step="0.1"
-              value={row.piece_length_m}
-              onChange={(e) => set("piece_length_m", e.target.value)}
-            />
-          </div>
-        </div>
-      )}
-    </div>
+    STORE_COLORS[store.toLowerCase()] ??
+    "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
   );
 }
 
 // ---------------------------------------------------------------------------
-// Results table
+// Sort: in-stock first, then cheapest
 // ---------------------------------------------------------------------------
 
-function ResultsTable({ estimates }: { estimates: MaterialEstimate[] }) {
-  if (estimates.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground">Geen schattingen beschikbaar.</p>
-    );
-  }
-
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b">
-            <th className="text-left py-2 pr-4 font-medium">Materiaal</th>
-            <th className="text-right py-2 pr-4 font-medium">Hoeveelheid</th>
-            <th className="text-left py-2 pr-4 font-medium">Eenheid</th>
-            <th className="text-left py-2 font-medium">Toelichting</th>
-          </tr>
-        </thead>
-        <tbody>
-          {estimates.map((est, idx) => (
-            <tr key={idx} className="border-b last:border-0">
-              <td className="py-2 pr-4 font-medium">{est.material}</td>
-              <td className="py-2 pr-4 text-right">
-                {est.quantity.toLocaleString("nl-NL", { maximumFractionDigits: 2 })}
-              </td>
-              <td className="py-2 pr-4 text-muted-foreground">{est.unit}</td>
-              <td className="py-2 text-muted-foreground">{est.notes}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
+function sortResults(results: MaterialResult[]): MaterialResult[] {
+  return [...results].sort((a, b) => {
+    if (a.in_stock !== b.in_stock) return a.in_stock ? -1 : 1;
+    return a.price_cents - b.price_cents;
+  });
 }
 
 // ---------------------------------------------------------------------------
-// Main page
+// Page
 // ---------------------------------------------------------------------------
 
-export default function MaterialsPage() {
-  const [length, setLength] = useState("");
-  const [width, setWidth] = useState("");
-  const [height, setHeight] = useState("");
-  const [materials, setMaterials] = useState<MaterialRow[]>([]);
-  const [nextId, setNextId] = useState(1);
-
+export default function MaterialsSearchPage() {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<MaterialResult[]>([]);
+  const [stores, setStores] = useState<string[]>([]);
+  const [activeStores, setActiveStores] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState<MaterialEstimate[] | null>(null);
-  const [apiError, setApiError] = useState<string | null>(null);
-  const [validationError, setValidationError] = useState<string | null>(null);
+  const [searched, setSearched] = useState(false);
 
-  function addMaterial() {
-    setMaterials((prev) => [...prev, defaultRow(nextId)]);
-    setNextId((n) => n + 1);
-  }
+  // Load available stores on mount
+  useEffect(() => {
+    let cancelled = false;
+    fetchStores()
+      .then((res) => {
+        if (cancelled) return;
+        setStores(res.data);
+        setActiveStores(new Set(res.data));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  function removeMaterial(id: number) {
-    setMaterials((prev) => prev.filter((r) => r.id !== id));
-  }
-
-  function updateMaterial(updated: MaterialRow) {
-    setMaterials((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
-  }
-
-  async function handleCalculate() {
-    setValidationError(null);
-    setApiError(null);
-    setResults(null);
-
-    const l = parseFloat(length);
-    const w = parseFloat(width);
-    const h = parseFloat(height);
-
-    if (!length || !width || !height || isNaN(l) || isNaN(w) || isNaN(h) || l <= 0 || w <= 0 || h <= 0) {
-      setValidationError("Vul geldige afmetingen in (lengte, breedte en hoogte).");
+  // Debounced search
+  useEffect(() => {
+    if (!query.trim()) {
+      setResults([]);
+      setSearched(false);
       return;
     }
 
-    setLoading(true);
-    try {
-      const response = await estimateMaterials({
-        length_m: l,
-        width_m: w,
-        height_m: h,
-        materials: materials.map(rowToSpec),
-      });
+    const timer = setTimeout(() => {
+      let cancelled = false;
+      setLoading(true);
+      setSearched(false);
 
-      if (response.error) {
-        setApiError("Berekening mislukt. Controleer de invoer en probeer opnieuw.");
+      searchMaterials(query)
+        .then((res) => {
+          if (cancelled) return;
+          setResults(res.data);
+          setSearched(true);
+          setLoading(false);
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setLoading(false);
+          setSearched(true);
+        });
+
+      return () => {
+        cancelled = true;
+      };
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  const toggleStore = useCallback((store: string) => {
+    setActiveStores((prev) => {
+      const next = new Set(prev);
+      if (next.has(store)) {
+        next.delete(store);
       } else {
-        setResults(response.data?.estimates ?? []);
+        next.add(store);
       }
-    } catch {
-      setApiError("Er is een fout opgetreden bij de berekening.");
-    } finally {
-      setLoading(false);
-    }
-  }
+      return next;
+    });
+  }, []);
+
+  const filtered = sortResults(results.filter((r) => activeStores.has(r.store)));
 
   return (
-    <div className="max-w-2xl mx-auto py-8 px-4">
-      <h1 className="text-2xl font-bold mb-2">Materialen</h1>
-      <p className="text-muted-foreground text-sm mb-6">
-        Bereken de benodigde materialen voor een ruimte op basis van de afmetingen.
-      </p>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <Search className="h-6 w-6 text-muted-foreground" />
+        <h1 className="text-2xl font-bold text-foreground">Materialen zoeken</h1>
+      </div>
 
-      {/* Room dimensions */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="text-lg">Ruimte-afmetingen</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-1">
-              <label htmlFor="length" className="text-sm font-medium">
-                Lengte (m)
-              </label>
-              <Input
-                id="length"
-                type="number"
-                min="0.01"
-                step="0.01"
-                value={length}
-                onChange={(e) => setLength(e.target.value)}
-                placeholder="0,00"
-              />
-            </div>
-            <div className="space-y-1">
-              <label htmlFor="width" className="text-sm font-medium">
-                Breedte (m)
-              </label>
-              <Input
-                id="width"
-                type="number"
-                min="0.01"
-                step="0.01"
-                value={width}
-                onChange={(e) => setWidth(e.target.value)}
-                placeholder="0,00"
-              />
-            </div>
-            <div className="space-y-1">
-              <label htmlFor="height" className="text-sm font-medium">
-                Hoogte (m)
-              </label>
-              <Input
-                id="height"
-                type="number"
-                min="0.01"
-                step="0.01"
-                value={height}
-                onChange={(e) => setHeight(e.target.value)}
-                placeholder="0,00"
-              />
-            </div>
-          </div>
-          {validationError && (
-            <p className="text-sm text-destructive mt-2">{validationError}</p>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Materials list */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="text-lg">Materialen</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {materials.map((row) => (
-            <MaterialRowForm
-              key={row.id}
-              row={row}
-              onChange={updateMaterial}
-              onRemove={() => removeMaterial(row.id)}
+      {/* Search bar */}
+      <Card>
+        <CardContent className="pt-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              data-testid="materials-search-input"
+              type="text"
+              placeholder="Zoeken... (bijv. verf, kit, schroeven)"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className="w-full rounded-md border border-input bg-background py-2 pl-9 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             />
-          ))}
-
-          <Button
-            type="button"
-            variant="outline"
-            onClick={addMaterial}
-            className="w-full"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Materiaal toevoegen
-          </Button>
+          </div>
         </CardContent>
       </Card>
 
-      {/* Calculate */}
-      <Button
-        type="button"
-        onClick={handleCalculate}
-        disabled={loading}
-        className="w-full mb-6"
-      >
-        {loading ? "Bezig met berekenen…" : "Berekenen"}
-      </Button>
+      {/* Store filter chips */}
+      {stores.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {stores.map((store) => {
+            const active = activeStores.has(store);
+            return (
+              <button
+                key={store}
+                data-testid={`store-filter-${store}`}
+                onClick={() => toggleStore(store)}
+                className={[
+                  "rounded-full border px-3 py-1 text-xs font-medium transition-opacity",
+                  active ? storeBadgeClass(store) : "opacity-40 bg-muted text-muted-foreground",
+                ].join(" ")}
+              >
+                {store.charAt(0).toUpperCase() + store.slice(1)}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
-      {/* Error */}
-      {apiError && (
-        <Card className="mb-6 border-destructive">
-          <CardContent className="pt-4">
-            <p className="text-sm text-destructive">{apiError}</p>
+      {/* Loading skeleton */}
+      {loading && (
+        <div data-testid="materials-loading" className="space-y-2">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-12 animate-pulse rounded bg-muted" />
+          ))}
+        </div>
+      )}
+
+      {/* Results table */}
+      {!loading && searched && filtered.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">
+              {filtered.length} resultaten
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <table
+              data-testid="materials-results-table"
+              className="w-full text-sm"
+            >
+              <thead>
+                <tr className="border-b text-left text-xs text-muted-foreground">
+                  <th className="px-4 py-2">Product</th>
+                  <th className="px-4 py-2">Winkel</th>
+                  <th className="px-4 py-2">Prijs</th>
+                  <th className="px-4 py-2">Beschikbaarheid</th>
+                  <th className="px-4 py-2" />
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((item) => (
+                  <tr
+                    key={`${item.store}-${item.product_id}`}
+                    data-testid="materials-result-row"
+                    data-store={item.store}
+                    className="border-b last:border-0 hover:bg-muted/30"
+                  >
+                    {/* Product name */}
+                    <td className="px-4 py-2 font-medium text-foreground">
+                      <a
+                        data-testid="result-product-link"
+                        href={item.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hover:underline"
+                      >
+                        {item.name}
+                      </a>
+                    </td>
+
+                    {/* Store badge */}
+                    <td className="px-4 py-2">
+                      <span
+                        data-testid={`store-badge-${item.store}`}
+                        className={[
+                          "inline-block rounded-full px-2 py-0.5 text-xs font-semibold",
+                          storeBadgeClass(item.store),
+                        ].join(" ")}
+                      >
+                        {item.store.charAt(0).toUpperCase() + item.store.slice(1)}
+                      </span>
+                    </td>
+
+                    {/* Price */}
+                    <td
+                      data-testid="result-price"
+                      className="px-4 py-2 font-semibold text-foreground"
+                    >
+                      {formatPriceCents(item.price_cents)}
+                    </td>
+
+                    {/* Stock badge */}
+                    <td className="px-4 py-2">
+                      {item.in_stock ? (
+                        <span
+                          data-testid="badge-in-stock"
+                          className="inline-block rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/40 dark:text-green-300"
+                        >
+                          Op voorraad
+                        </span>
+                      ) : (
+                        <span
+                          data-testid="badge-out-of-stock"
+                          className="inline-block rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800 dark:bg-red-900/40 dark:text-red-300"
+                        >
+                          Niet op voorraad
+                        </span>
+                      )}
+                    </td>
+
+                    {/* Link icon */}
+                    <td className="px-4 py-2">
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-muted-foreground hover:text-foreground"
+                        aria-label="Bekijk in winkel"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </a>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </CardContent>
         </Card>
       )}
 
-      {/* Results */}
-      {results !== null && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Resultaten</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResultsTable estimates={results} />
-          </CardContent>
-        </Card>
+      {/* Empty state */}
+      {!loading && searched && filtered.length === 0 && (
+        <div
+          data-testid="materials-empty-state"
+          className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16 text-center text-muted-foreground"
+        >
+          <Search className="mb-3 h-10 w-10 opacity-30" />
+          <p className="text-sm font-medium">Geen resultaten gevonden</p>
+          <p className="mt-1 text-xs">Probeer een andere zoekterm of pas de winkelfilters aan</p>
+        </div>
+      )}
+
+      {/* Initial state — no search yet */}
+      {!loading && !searched && !query && (
+        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16 text-center text-muted-foreground">
+          <Search className="mb-3 h-10 w-10 opacity-30" />
+          <p className="text-sm">Zoek naar materialen om prijzen te vergelijken</p>
+        </div>
       )}
     </div>
   );
