@@ -218,42 +218,48 @@ export interface TaskCreate {
   end_date?: string;
 }
 
-export interface CustomerResponse {
+// Staff types
+
+export interface StaffResponse {
   id: string;
-  name: string;
-  email: string | null;
-  phone: string | null;
-  address: string | null;
-  kvk_number: string | null;
-  btw_number: string | null;
+  owner_id?: string;
+  full_name: string;
+  role: string;
+  email?: string | null;
+  phone?: string | null;
+  hourly_rate_cents: number;
+  weekly_hours_target?: number;
+  active: boolean;
+  created_at?: string;
+  updated_at?: string;
+  availability?: unknown[];
 }
 
-export interface CustomerCreate {
-  name: string;
+export interface StaffCreate {
+  full_name: string;
+  role: string;
+  hourly_rate_cents: number;
   email?: string;
   phone?: string;
-  address?: string;
-  kvk_number?: string;
-  btw_number?: string;
+  weekly_hours_target?: number;
+  active?: boolean;
 }
 
-export interface InvoiceLineCreate {
-  description: string;
-  quantity: number;
-  unit: string;
-  unit_price_cents: number;
-  vat_rate_bp: number;
+export interface StaffUpdate {
+  full_name?: string;
+  role?: string;
+  hourly_rate_cents?: number;
+  email?: string;
+  phone?: string;
+  weekly_hours_target?: number;
+  active?: boolean;
 }
 
-export interface InvoiceCreate {
-  customer_id: string;
-  project_id?: string;
-  issue_date: string;
-  due_date: string;
-  payment_terms_days: number;
-  currency: string;
-  notes?: string;
-  lines: InvoiceLineCreate[];
+export interface StaffListResponse {
+  data: StaffResponse[];
+  total: number;
+  page: number;
+  per_page: number;
 }
 
 // Staff types
