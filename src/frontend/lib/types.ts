@@ -286,3 +286,47 @@ export interface LoanDeductionCreate {
   deduction_date: string;
   notes?: string;
 }
+
+// Staff types
+
+export interface StaffResponse {
+  id: string;
+  owner_id: string;
+  full_name: string;
+  role: string;
+  email: string | null;
+  phone: string | null;
+  hourly_rate_cents: number;
+  weekly_hours_target: number | null;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+  availability: unknown[];
+}
+
+export interface StaffListResponse {
+  data: StaffResponse[];
+  total: number;
+  page: number;
+  per_page: number;
+}
+
+export interface StaffCreate {
+  full_name: string;
+  role: string;
+  hourly_rate_cents: number;
+  email?: string;
+  phone?: string;
+  weekly_hours_target?: number;
+  active?: boolean;
+}
+
+export interface StaffUpdate {
+  full_name?: string;
+  role?: string;
+  hourly_rate_cents?: number;
+  email?: string;
+  phone?: string;
+  weekly_hours_target?: number;
+  active?: boolean;
+}

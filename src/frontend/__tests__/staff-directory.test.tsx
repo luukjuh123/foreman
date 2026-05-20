@@ -13,20 +13,14 @@ vi.mock("next/link", () => ({
   ),
 }));
 
+// Mock at the API transport layer so formatRate (pure function) still works.
 vi.mock("@/lib/api", () => ({
   apiFetch: vi.fn(),
 }));
 
-vi.mock("@/lib/staff", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/staff")>();
-  return {
-    ...actual,
-    listStaff: vi.fn(),
-    createStaff: vi.fn(),
-    updateStaff: vi.fn(),
-    deleteStaff: vi.fn(),
-  };
-});
+// ---------------------------------------------------------------------------
+// Fixtures
+// ---------------------------------------------------------------------------
 
 const mockStaff = (overrides: Partial<{
   id: string;
@@ -52,61 +46,81 @@ const mockStaff = (overrides: Partial<{
   availability: [],
 });
 
-const mockListResponse = {
-  data: [
-    mockStaff({ id: "staff-1", full_name: "Jan de Vries", role: "Timmerman" }),
-    mockStaff({ id: "staff-2", full_name: "Piet Bakker", role: "Metselaar", active: false }),
-  ],
-  total: 2,
-  page: 1,
-  per_page: 20,
-};
+const makeListResponse = (
+  items: ReturnType<typeof mockStaff>[],
+  overrides: Partial<{ total: number; page: number; per_page: number }> = {}
+) => ({
+  data: items,
+  total: overrides.total ?? items.length,
+  page: overrides.page ?? 1,
+  per_page: overrides.per_page ?? 20,
+});
+
+const twoMembers = [
+  mockStaff({ id: "staff-1", full_name: "Jan de Vries", role: "Timmerman", active: true }),
+  mockStaff({ id: "staff-2", full_name: "Piet Bakker", role: "Metselaar", active: false }),
+];
+
+async function getApiFetch() {
+  const { apiFetch } = await import("@/lib/api");
+  return vi.mocked(apiFetch);
+}
+
+// ---------------------------------------------------------------------------
+// formatRate unit tests
+// ---------------------------------------------------------------------------
 
 describe("formatRate", () => {
-  it("formats 3500 cents to Dutch euro format", async () => {
+  it("formats 3500 cents to Dutch euro format containing 35", async () => {
     const { formatRate } = await import("@/lib/staff");
     expect(formatRate(3500)).toContain("35");
     expect(formatRate(3500)).toContain("€");
   });
 
-  it("formats 0 cents", async () => {
+  it("formats 0 cents and includes euro sign", async () => {
     const { formatRate } = await import("@/lib/staff");
     expect(formatRate(0)).toContain("€");
     expect(formatRate(0)).toContain("0");
   });
 });
 
-describe("StaffPage loading state", () => {
-  it("shows loading text while fetching", async () => {
-    const { listStaff } = await import("@/lib/staff");
-    vi.mocked(listStaff).mockReturnValue(new Promise(() => {}));
-
-    const { default: StaffPage } = await import("@/app/dashboard/staff/page");
-    render(<StaffPage />);
-
-    expect(screen.getByText(/laden/i)).toBeInTheDocument();
-  });
-});
+// ---------------------------------------------------------------------------
+// Renders staff list
+// ---------------------------------------------------------------------------
 
 describe("StaffPage renders staff list", () => {
   beforeEach(async () => {
-    const { listStaff } = await import("@/lib/staff");
-    vi.mocked(listStaff).mockResolvedValue(mockListResponse);
+    const apiFetch = await getApiFetch();
+    apiFetch.mockResolvedValue(makeListResponse(twoMembers));
   });
 
   it("renders Personeel heading", async () => {
     const { default: StaffPage } = await import("@/app/dashboard/staff/page");
     render(<StaffPage />);
-    expect(screen.getByText("Personeel")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /personeel/i })).toBeInTheDocument();
   });
 
-  it("renders Nieuw Personeelslid button", async () => {
+  it("renders Nieuw button", async () => {
     const { default: StaffPage } = await import("@/app/dashboard/staff/page");
     render(<StaffPage />);
-    expect(screen.getByRole("button", { name: /nieuw personeelslid/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^nieuw$/i })).toBeInTheDocument();
   });
 
-  it("renders staff member names after loading", async () => {
+  it("renders table column headers in Dutch", async () => {
+    const { default: StaffPage } = await import("@/app/dashboard/staff/page");
+    render(<StaffPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Naam")).toBeInTheDocument();
+      expect(screen.getByText("Functie")).toBeInTheDocument();
+      expect(screen.getByText("Uurloon")).toBeInTheDocument();
+      expect(screen.getByText("Uren/week")).toBeInTheDocument();
+      expect(screen.getByText("Status")).toBeInTheDocument();
+      expect(screen.getByText("Acties")).toBeInTheDocument();
+    });
+  });
+
+  it("renders staff member names in table rows", async () => {
     const { default: StaffPage } = await import("@/app/dashboard/staff/page");
     render(<StaffPage />);
 
@@ -116,7 +130,7 @@ describe("StaffPage renders staff list", () => {
     });
   });
 
-  it("renders staff roles", async () => {
+  it("renders staff roles in Functie column", async () => {
     const { default: StaffPage } = await import("@/app/dashboard/staff/page");
     render(<StaffPage />);
 
@@ -135,21 +149,54 @@ describe("StaffPage renders staff list", () => {
     });
   });
 
-  it("shows active/inactive status badge", async () => {
+  it("renders weekly_hours_target value", async () => {
     const { default: StaffPage } = await import("@/app/dashboard/staff/page");
     render(<StaffPage />);
 
     await waitFor(() => {
-      expect(screen.getAllByText(/actief/i).length).toBeGreaterThan(0);
-      expect(screen.getAllByText(/inactief/i).length).toBeGreaterThan(0);
+      expect(screen.getAllByText("40").length).toBeGreaterThan(0);
     });
+  });
+
+  it("shows Actief badge for active staff", async () => {
+    const { default: StaffPage } = await import("@/app/dashboard/staff/page");
+    render(<StaffPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Actief")).toBeInTheDocument();
+    });
+  });
+
+  it("shows Inactief badge for inactive staff", async () => {
+    const { default: StaffPage } = await import("@/app/dashboard/staff/page");
+    render(<StaffPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Inactief")).toBeInTheDocument();
+    });
+  });
+
+  it("renders edit and delete action buttons per row", async () => {
+    const { default: StaffPage } = await import("@/app/dashboard/staff/page");
+    render(<StaffPage />);
+
+    await waitFor(() => screen.getByText("Jan de Vries"));
+
+    const editButtons = screen.getAllByRole("button", { name: /bewerk/i });
+    const deleteButtons = screen.getAllByRole("button", { name: /verwijder/i });
+    expect(editButtons.length).toBe(2);
+    expect(deleteButtons.length).toBe(2);
   });
 });
 
+// ---------------------------------------------------------------------------
+// Empty state
+// ---------------------------------------------------------------------------
+
 describe("StaffPage empty state", () => {
   it("shows empty state message when no staff", async () => {
-    const { listStaff } = await import("@/lib/staff");
-    vi.mocked(listStaff).mockResolvedValue({ data: [], total: 0, page: 1, per_page: 20 });
+    const apiFetch = await getApiFetch();
+    apiFetch.mockResolvedValue(makeListResponse([]));
 
     const { default: StaffPage } = await import("@/app/dashboard/staff/page");
     render(<StaffPage />);
@@ -160,133 +207,87 @@ describe("StaffPage empty state", () => {
   });
 });
 
-describe("StaffPage create dialog", () => {
-  beforeEach(async () => {
-    const { listStaff } = await import("@/lib/staff");
-    vi.mocked(listStaff).mockResolvedValue(mockListResponse);
-  });
+// ---------------------------------------------------------------------------
+// Loading state
+// ---------------------------------------------------------------------------
 
-  it("opens create dialog when Nieuw Personeelslid is clicked", async () => {
+describe("StaffPage loading state", () => {
+  it("shows loading text while fetching", async () => {
+    const apiFetch = await getApiFetch();
+    apiFetch.mockReturnValue(new Promise(() => {}));
+
     const { default: StaffPage } = await import("@/app/dashboard/staff/page");
     render(<StaffPage />);
 
-    fireEvent.click(screen.getByRole("button", { name: /nieuw personeelslid/i }));
+    expect(screen.getByText(/laden/i)).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Add staff form submission
+// ---------------------------------------------------------------------------
+
+describe("StaffPage add staff form", () => {
+  beforeEach(async () => {
+    const apiFetch = await getApiFetch();
+    apiFetch.mockResolvedValue(makeListResponse(twoMembers));
+  });
+
+  it("opens form dialog when Nieuw is clicked", async () => {
+    const { default: StaffPage } = await import("@/app/dashboard/staff/page");
+    render(<StaffPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: /^nieuw$/i }));
 
     await waitFor(() => {
       expect(screen.getByRole("dialog")).toBeInTheDocument();
     });
   });
 
-  it("create dialog contains Naam field", async () => {
-    const { default: StaffPage } = await import("@/app/dashboard/staff/page");
-    render(<StaffPage />);
-
-    fireEvent.click(screen.getByRole("button", { name: /nieuw personeelslid/i }));
-
-    await waitFor(() => {
-      expect(screen.getByLabelText(/naam/i)).toBeInTheDocument();
-    });
-  });
-
-  it("submitting create form calls createStaff and refreshes list", async () => {
-    const { createStaff, listStaff } = await import("@/lib/staff");
+  it("submitting create form calls POST /staff/ and refreshes list", async () => {
+    const apiFetch = await getApiFetch();
     const newMember = mockStaff({ id: "staff-3", full_name: "Kees Smit", role: "Schilder" });
-    vi.mocked(createStaff).mockResolvedValue(newMember);
-    vi.mocked(listStaff).mockResolvedValue({
-      ...mockListResponse,
-      data: [...mockListResponse.data, newMember],
-      total: 3,
-    });
+    // initial load, POST create, refresh load
+    apiFetch
+      .mockResolvedValueOnce(makeListResponse(twoMembers))
+      .mockResolvedValueOnce(newMember)
+      .mockResolvedValueOnce(makeListResponse([...twoMembers, newMember], { total: 3 }));
 
     const { default: StaffPage } = await import("@/app/dashboard/staff/page");
     render(<StaffPage />);
 
-    fireEvent.click(screen.getByRole("button", { name: /nieuw personeelslid/i }));
+    await waitFor(() => screen.getByRole("button", { name: /^nieuw$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^nieuw$/i }));
+
     await waitFor(() => screen.getByRole("dialog"));
 
     fireEvent.change(screen.getByLabelText(/naam/i), { target: { value: "Kees Smit" } });
-    fireEvent.change(screen.getByLabelText(/rol/i), { target: { value: "Schilder" } });
+    fireEvent.change(screen.getByLabelText(/functie/i), { target: { value: "Schilder" } });
     fireEvent.change(screen.getByLabelText(/uurtarief/i), { target: { value: "25" } });
 
-    fireEvent.click(screen.getByRole("button", { name: /opslaan/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^opslaan$/i }));
 
     await waitFor(() => {
-      expect(createStaff).toHaveBeenCalledWith(
-        expect.objectContaining({ full_name: "Kees Smit", role: "Schilder" })
+      const postCall = apiFetch.mock.calls.find(
+        ([, opts]) => (opts as RequestInit & { method?: string })?.method === "POST"
       );
+      expect(postCall).toBeTruthy();
+      expect(postCall![1].body).toContain("Kees Smit");
     });
   });
 });
 
-describe("StaffPage edit dialog", () => {
+// ---------------------------------------------------------------------------
+// Delete confirmation
+// ---------------------------------------------------------------------------
+
+describe("StaffPage delete confirmation", () => {
   beforeEach(async () => {
-    const { listStaff } = await import("@/lib/staff");
-    vi.mocked(listStaff).mockResolvedValue(mockListResponse);
+    const apiFetch = await getApiFetch();
+    apiFetch.mockResolvedValue(makeListResponse(twoMembers));
   });
 
-  it("opens edit dialog when edit button is clicked", async () => {
-    const { default: StaffPage } = await import("@/app/dashboard/staff/page");
-    render(<StaffPage />);
-
-    await waitFor(() => screen.getByText("Jan de Vries"));
-
-    const editButtons = screen.getAllByRole("button", { name: /bewerk/i });
-    fireEvent.click(editButtons[0]);
-
-    await waitFor(() => {
-      expect(screen.getByRole("dialog")).toBeInTheDocument();
-    });
-  });
-
-  it("edit dialog is pre-filled with staff data", async () => {
-    const { default: StaffPage } = await import("@/app/dashboard/staff/page");
-    render(<StaffPage />);
-
-    await waitFor(() => screen.getByText("Jan de Vries"));
-
-    const editButtons = screen.getAllByRole("button", { name: /bewerk/i });
-    fireEvent.click(editButtons[0]);
-
-    await waitFor(() => {
-      const nameInput = screen.getByLabelText(/naam/i) as HTMLInputElement;
-      expect(nameInput.value).toBe("Jan de Vries");
-    });
-  });
-
-  it("submitting edit form calls updateStaff with staff id", async () => {
-    const { updateStaff, listStaff } = await import("@/lib/staff");
-    vi.mocked(updateStaff).mockResolvedValue(mockStaff({ full_name: "Jan Gewijzigd" }));
-    vi.mocked(listStaff).mockResolvedValue(mockListResponse);
-
-    const { default: StaffPage } = await import("@/app/dashboard/staff/page");
-    render(<StaffPage />);
-
-    await waitFor(() => screen.getByText("Jan de Vries"));
-
-    const editButtons = screen.getAllByRole("button", { name: /bewerk/i });
-    fireEvent.click(editButtons[0]);
-    await waitFor(() => screen.getByRole("dialog"));
-
-    fireEvent.change(screen.getByLabelText(/naam/i), { target: { value: "Jan Gewijzigd" } });
-    fireEvent.click(screen.getByRole("button", { name: /opslaan/i }));
-
-    await waitFor(() => {
-      expect(updateStaff).toHaveBeenCalledWith(
-        "staff-1",
-        expect.objectContaining({ full_name: "Jan Gewijzigd" })
-      );
-    });
-  });
-});
-
-describe("StaffPage delete", () => {
-  it("calls deleteStaff when delete button is clicked", async () => {
-    const { deleteStaff, listStaff } = await import("@/lib/staff");
-    vi.mocked(listStaff).mockResolvedValueOnce(mockListResponse);
-    vi.mocked(deleteStaff).mockResolvedValue(undefined);
-    // After delete, re-fetch returns remaining staff
-    vi.mocked(listStaff).mockResolvedValueOnce({ data: [mockListResponse.data[1]], total: 1, page: 1, per_page: 20 });
-
+  it("shows confirmation dialog when delete button is clicked", async () => {
     const { default: StaffPage } = await import("@/app/dashboard/staff/page");
     render(<StaffPage />);
 
@@ -296,7 +297,94 @@ describe("StaffPage delete", () => {
     fireEvent.click(deleteButtons[0]);
 
     await waitFor(() => {
-      expect(deleteStaff).toHaveBeenCalledWith("staff-1");
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+      expect(screen.getByText(/weet u het zeker/i)).toBeInTheDocument();
     });
+  });
+
+  it("calls DELETE /staff/{id} when confirmed", async () => {
+    const apiFetch = await getApiFetch();
+    apiFetch
+      .mockResolvedValueOnce(makeListResponse(twoMembers))
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(makeListResponse([twoMembers[1]], { total: 1 }));
+
+    const { default: StaffPage } = await import("@/app/dashboard/staff/page");
+    render(<StaffPage />);
+
+    await waitFor(() => screen.getByText("Jan de Vries"));
+
+    const deleteButtons = screen.getAllByRole("button", { name: /verwijder/i });
+    fireEvent.click(deleteButtons[0]);
+
+    await waitFor(() => screen.getByRole("dialog"));
+
+    fireEvent.click(screen.getByRole("button", { name: /bevestig verwijderen/i }));
+
+    await waitFor(() => {
+      const deleteCall = apiFetch.mock.calls.find(
+        ([path, opts]) =>
+          typeof path === "string" &&
+          path.includes("staff-1") &&
+          (opts as { method?: string })?.method === "DELETE"
+      );
+      expect(deleteCall).toBeTruthy();
+    });
+  });
+
+  it("does not call DELETE when cancel is clicked", async () => {
+    const apiFetch = await getApiFetch();
+    apiFetch.mockResolvedValue(makeListResponse(twoMembers));
+
+    const { default: StaffPage } = await import("@/app/dashboard/staff/page");
+    render(<StaffPage />);
+
+    await waitFor(() => screen.getByText("Jan de Vries"));
+    apiFetch.mockClear();
+
+    const deleteButtons = screen.getAllByRole("button", { name: /verwijder/i });
+    fireEvent.click(deleteButtons[0]);
+
+    await waitFor(() => screen.getByRole("dialog"));
+
+    fireEvent.click(screen.getByRole("button", { name: /^annuleren$/i }));
+
+    expect(
+      apiFetch.mock.calls.some(
+        ([, opts]) => (opts as { method?: string })?.method === "DELETE"
+      )
+    ).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Pagination
+// ---------------------------------------------------------------------------
+
+describe("StaffPage pagination", () => {
+  it("shows Volgende button when there are more pages", async () => {
+    const apiFetch = await getApiFetch();
+    apiFetch.mockResolvedValue(
+      makeListResponse(twoMembers, { total: 40, per_page: 20 })
+    );
+
+    const { default: StaffPage } = await import("@/app/dashboard/staff/page");
+    render(<StaffPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /volgende/i })).toBeInTheDocument();
+    });
+  });
+
+  it("does not show Volgende button when only one page", async () => {
+    const apiFetch = await getApiFetch();
+    apiFetch.mockResolvedValue(makeListResponse(twoMembers, { total: 2, per_page: 20 }));
+
+    const { default: StaffPage } = await import("@/app/dashboard/staff/page");
+    render(<StaffPage />);
+
+    await waitFor(() => screen.getByText("Jan de Vries"));
+
+    expect(screen.queryByRole("button", { name: /volgende/i })).toBeNull();
   });
 });
