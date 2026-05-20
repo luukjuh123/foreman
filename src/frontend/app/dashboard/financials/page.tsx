@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { listProjects, formatBudget } from "@/lib/projects";
@@ -68,44 +69,8 @@ export default function FinancialsPage() {
     load();
   }, []);
 
-  if (loading) {
-    return (
-      <div data-testid="financials-loading" className="space-y-6">
-        <div className="h-8 w-48 animate-pulse rounded bg-muted" />
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          {[0, 1, 2].map((i) => (
-            <Card key={i}>
-              <CardHeader>
-                <div className="h-4 w-24 animate-pulse rounded bg-muted" />
-              </CardHeader>
-              <CardContent>
-                <div className="h-8 w-32 animate-pulse rounded bg-muted" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-        <div className="space-y-3">
-          {[0, 1, 2].map((i) => (
-            <div key={i} className="h-16 animate-pulse rounded bg-muted" />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div
-        data-testid="financials-error"
-        className="rounded border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive"
-      >
-        {error}
-      </div>
-    );
-  }
-
   // ---------------------------------------------------------------------------
-  // Aggregate totals
+  // Aggregate totals (only when data is available)
   // ---------------------------------------------------------------------------
 
   const totalBudgetCents = data.reduce(
@@ -123,6 +88,77 @@ export default function FinancialsPage() {
     <div className="space-y-6">
       {/* Header */}
       <h1 className="text-2xl font-bold text-foreground">Overzicht Financiën</h1>
+
+      {/* Boekhouding navigation — always visible */}
+      <div>
+        <h2 className="text-lg font-semibold mb-3">Boekhouding</h2>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <Link href="/dashboard/financials/balance-sheet">
+            <Card className="hover:shadow-md transition-shadow cursor-pointer">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">Balans</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-xs text-muted-foreground">Activa, passiva en eigen vermogen</p>
+              </CardContent>
+            </Card>
+          </Link>
+          <Link href="/dashboard/financials/income-statement">
+            <Card className="hover:shadow-md transition-shadow cursor-pointer">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">Winst &amp; Verlies</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-xs text-muted-foreground">Opbrengsten en kosten per periode</p>
+              </CardContent>
+            </Card>
+          </Link>
+          <Link href="/dashboard/financials/cash-flow">
+            <Card className="hover:shadow-md transition-shadow cursor-pointer">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">Kasstroom</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-xs text-muted-foreground">Overzicht geldstromen per periode</p>
+              </CardContent>
+            </Card>
+          </Link>
+        </div>
+      </div>
+
+      {/* Loading skeleton */}
+      {loading && (
+        <div data-testid="financials-loading" className="space-y-6">
+          <div className="h-8 w-48 animate-pulse rounded bg-muted" />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            {[0, 1, 2].map((i) => (
+              <Card key={i}>
+                <CardHeader>
+                  <div className="h-4 w-24 animate-pulse rounded bg-muted" />
+                </CardHeader>
+                <CardContent>
+                  <div className="h-8 w-32 animate-pulse rounded bg-muted" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          <div className="space-y-3">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="h-16 animate-pulse rounded bg-muted" />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Error */}
+      {!loading && error && (
+        <div
+          data-testid="financials-error"
+          className="rounded border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive"
+        >
+          {error}
+        </div>
+      )}
 
       {/* Summary cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
