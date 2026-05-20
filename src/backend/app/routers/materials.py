@@ -1,5 +1,9 @@
 """Materials router — store integrations, material search, estimation."""
 
+from __future__ import annotations
+
+from collections import defaultdict
+
 from fastapi import APIRouter
 
 from app.schemas.material_estimate import (
@@ -12,20 +16,98 @@ from app.schemas.material_estimate import (
     RoomEstimateResponseData,
     TileSpec,
 )
+from app.schemas.materials_search import (
+    CompareData,
+    CompareResponse,
+    ProductResultSchema,
+    SearchResponse,
+    StoresResponse,
+)
 from app.services.material_estimation import (
     estimate_concrete,
     estimate_lumber,
     estimate_paint,
     estimate_tiles,
 )
+from app.services.stores.base import ProductResult
+from app.services.stores.bouwmaat import BouwmaatClient
+from app.services.stores.comparison import compare_prices
+from app.services.stores.gamma import GammaClient
+from app.services.stores.hornbach import HornbachClient
+from app.services.stores.praxis import PraxisClient
 
 router = APIRouter()
 
+STORE_NAMES = ["hornbach", "gamma", "praxis", "bouwmaat"]
 
-@router.get("/search")
-async def search_materials(query: str = "") -> dict:
-    """Stub — implement in todo item: Backend: Scraping service base."""
-    return {"data": [], "error": None, "query": query}
+
+def _to_schema(p: ProductResult) -> ProductResultSchema:
+    return ProductResultSchema(
+        store=p.store,
+        product_id=p.product_id,
+        name=p.name,
+        url=p.url,
+        price_cents=p.price_cents,
+        in_stock=p.in_stock,
+        unit=p.unit,
+        extra=dict(p.extra),
+    )
+
+
+def _make_clients() -> list:
+    return [HornbachClient(), GammaClient(), PraxisClient(), BouwmaatClient()]
+
+
+@router.get("/stores", response_model=StoresResponse)
+async def list_stores() -> StoresResponse:
+    """Return list of available hardware store names."""
+    return StoresResponse(data=STORE_NAMES, error=None)
+
+
+@router.get("/search", response_model=SearchResponse)
+async def search_materials(query: str = "", max_results: int = 10) -> SearchResponse:
+    """Search all stores for materials, ranked by price + availability."""
+    if not query.strip():
+        return SearchResponse(data=[], error=None)
+
+    clients = _make_clients()
+    try:
+        results = await compare_prices(query, clients, max_per_store=max_results)
+    finally:
+        for c in clients:
+            await c.aclose()
+
+    return SearchResponse(data=[_to_schema(p) for p in results], error=None)
+
+
+@router.get("/compare", response_model=CompareResponse)
+async def compare_materials(query: str = "") -> CompareResponse:
+    """Search all stores and return results grouped by store + ranked."""
+    if not query.strip():
+        return CompareResponse(
+            data=CompareData(query=query, results_by_store={}, ranked=[]),
+            error=None,
+        )
+
+    clients = _make_clients()
+    try:
+        results = await compare_prices(query, clients, max_per_store=10)
+    finally:
+        for c in clients:
+            await c.aclose()
+
+    by_store: dict[str, list[ProductResultSchema]] = defaultdict(list)
+    for p in results:
+        by_store[p.store].append(_to_schema(p))
+
+    return CompareResponse(
+        data=CompareData(
+            query=query,
+            results_by_store=dict(by_store),
+            ranked=[_to_schema(p) for p in results],
+        ),
+        error=None,
+    )
 
 
 def _surface_area_m2(length_m: float, width_m: float, height_m: float, surface: str) -> float:
