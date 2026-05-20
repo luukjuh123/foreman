@@ -18,6 +18,7 @@ import {
   Settings,
   Menu,
   X,
+  Bell,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -33,6 +34,7 @@ const NAV_ITEMS = [
   { label: "Personeel", href: "/dashboard/staff", icon: Users },
   { label: "Rapporten", href: "/dashboard/reports", icon: BarChart3 },
   { label: "Reviews", href: "/dashboard/reviews", icon: Star },
+  { label: "Meldingen", href: "/dashboard/notifications", icon: Bell },
   { label: "Boekhouding", href: "/dashboard/financials", icon: BookOpen },
   { label: "Instellingen", href: "/dashboard/settings", icon: Settings },
 ];

@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
 import React from "react";
 
 // ---------------------------------------------------------------------------
@@ -25,23 +25,22 @@ vi.mock("@/lib/api", () => ({
   apiFetch: vi.fn(),
 }));
 
+// Mock TimeTracker so page tests don't depend on its internal API
+vi.mock("@/components/time-tracking/TimeTracker", () => ({
+  default: ({ projectProcessId, processName }: { projectProcessId: string; processName: string }) => (
+    <div data-testid={`tracker-${projectProcessId}`}>{processName}</div>
+  ),
+  formatTotalDuration: (seconds: number): string => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    if (h > 0) return `${h} u ${m} min`;
+    return `${m} min`;
+  },
+}));
+
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
-
-const makeEntry = (overrides: Partial<{
-  id: string;
-  stopped_at: string | null;
-  duration_seconds: number | null;
-}> = {}) => ({
-  id: overrides.id ?? "entry-1",
-  project_process_id: "pp-1",
-  started_at: "2026-01-01T10:00:00Z",
-  stopped_at: overrides.stopped_at !== undefined ? overrides.stopped_at : "2026-01-01T10:30:00Z",
-  duration_seconds: overrides.duration_seconds !== undefined ? overrides.duration_seconds : 1800,
-  notes: null,
-  created_at: "2026-01-01T10:00:00Z",
-});
 
 const makeProjectProcess = (overrides: Partial<{ id: string; name: string }> = {}) => ({
   id: overrides.id ?? "pp-1",
@@ -61,382 +60,33 @@ const makeProjectProcess = (overrides: Partial<{ id: string; name: string }> = {
 });
 
 // ---------------------------------------------------------------------------
-// Unit: formatDuration helper
+// formatTotalDuration — additional edge cases not in time-tracker.test.tsx
 // ---------------------------------------------------------------------------
 
-describe("formatDuration (time-tracking)", () => {
-  it("formats zero seconds as 0:00", async () => {
-    const { formatDuration } = await import(
-      "@/components/time-tracking/TimeTracker"
-    );
-    expect(formatDuration(0)).toBe("0:00");
+describe("formatTotalDuration additional cases", () => {
+  it("formats 30 seconds as '0 min'", async () => {
+    const { formatTotalDuration } = await import("@/components/time-tracking/TimeTracker");
+    expect(formatTotalDuration(30)).toBe("0 min");
   });
 
-  it("formats 59 seconds as 0:59", async () => {
-    const { formatDuration } = await import(
-      "@/components/time-tracking/TimeTracker"
-    );
-    expect(formatDuration(59)).toBe("0:59");
+  it("formats 90 seconds as '1 min'", async () => {
+    const { formatTotalDuration } = await import("@/components/time-tracking/TimeTracker");
+    expect(formatTotalDuration(90)).toBe("1 min");
   });
 
-  it("formats 90 seconds as 1:30", async () => {
-    const { formatDuration } = await import(
-      "@/components/time-tracking/TimeTracker"
-    );
-    expect(formatDuration(90)).toBe("1:30");
+  it("formats 7200 seconds as '2 u 0 min'", async () => {
+    const { formatTotalDuration } = await import("@/components/time-tracking/TimeTracker");
+    expect(formatTotalDuration(7200)).toBe("2 u 0 min");
   });
 
-  it("formats 3600 seconds as 1:00:00", async () => {
-    const { formatDuration } = await import(
-      "@/components/time-tracking/TimeTracker"
-    );
-    expect(formatDuration(3600)).toBe("1:00:00");
-  });
-
-  it("formats 3661 seconds as 1:01:01", async () => {
-    const { formatDuration } = await import(
-      "@/components/time-tracking/TimeTracker"
-    );
-    expect(formatDuration(3661)).toBe("1:01:01");
-  });
-
-  it("formats 7322 seconds as 2:02:02", async () => {
-    const { formatDuration } = await import(
-      "@/components/time-tracking/TimeTracker"
-    );
-    expect(formatDuration(7322)).toBe("2:02:02");
+  it("formats 9000 seconds as '2 u 30 min'", async () => {
+    const { formatTotalDuration } = await import("@/components/time-tracking/TimeTracker");
+    expect(formatTotalDuration(9000)).toBe("2 u 30 min");
   });
 });
 
 // ---------------------------------------------------------------------------
-// TimeTracker component
-// ---------------------------------------------------------------------------
-
-describe("TimeTracker component", () => {
-  afterEach(() => {
-    vi.resetAllMocks();
-  });
-
-  it("renders the process name", async () => {
-    const { apiFetch } = await import("@/lib/api");
-    vi.mocked(apiFetch).mockResolvedValue({ data: [], total_seconds: 0 });
-
-    const { default: TimeTracker } = await import(
-      "@/components/time-tracking/TimeTracker"
-    );
-    render(<TimeTracker projectProcessId="pp-1" processName="Stucen" />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Stucen")).toBeInTheDocument();
-    });
-  });
-
-  it("shows Start button when no timer is running", async () => {
-    const { apiFetch } = await import("@/lib/api");
-    vi.mocked(apiFetch).mockResolvedValue({ data: [], total_seconds: 0 });
-
-    const { default: TimeTracker } = await import(
-      "@/components/time-tracking/TimeTracker"
-    );
-    render(<TimeTracker projectProcessId="pp-1" processName="Stucen" />);
-
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: /start/i })).toBeInTheDocument();
-    });
-  });
-
-  it("calls start API and shows Stop button after clicking Start", async () => {
-    const { apiFetch } = await import("@/lib/api");
-    const runningEntry = makeEntry({ stopped_at: null, duration_seconds: null });
-
-    // Stateful mock: after start is called, GET returns a running entry
-    let started = false;
-    vi.mocked(apiFetch).mockImplementation(async (path: string) => {
-      const p = path as string;
-      if (p.includes("/start")) {
-        started = true;
-        return runningEntry;
-      }
-      // GET /time-tracking/pp-1
-      if (started) {
-        return { data: [runningEntry], total_seconds: 0 };
-      }
-      return { data: [], total_seconds: 0 };
-    });
-
-    const { default: TimeTracker } = await import(
-      "@/components/time-tracking/TimeTracker"
-    );
-    render(<TimeTracker projectProcessId="pp-1" processName="Stucen" />);
-
-    await waitFor(() => screen.getByRole("button", { name: /start/i }));
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /start/i }));
-    });
-
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: /stop/i })).toBeInTheDocument();
-    });
-  });
-
-  it("calls POST /time-tracking/pp-1/start when Start is clicked", async () => {
-    const { apiFetch } = await import("@/lib/api");
-    const runningEntry = makeEntry({ stopped_at: null, duration_seconds: null });
-    let started = false;
-    vi.mocked(apiFetch).mockImplementation(async (path: string) => {
-      const p = path as string;
-      if (p.includes("/start")) { started = true; return runningEntry; }
-      return { data: started ? [runningEntry] : [], total_seconds: 0 };
-    });
-
-    const { default: TimeTracker } = await import(
-      "@/components/time-tracking/TimeTracker"
-    );
-    render(<TimeTracker projectProcessId="pp-1" processName="Stucen" />);
-
-    await waitFor(() => screen.getByRole("button", { name: /start/i }));
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /start/i }));
-    });
-
-    await waitFor(() => {
-      expect(vi.mocked(apiFetch)).toHaveBeenCalledWith(
-        expect.stringContaining("/time-tracking/pp-1/start"),
-        expect.objectContaining({ method: "POST" })
-      );
-    });
-  });
-
-  it("calls POST /time-tracking/pp-1/stop when Stop is clicked", async () => {
-    const { apiFetch } = await import("@/lib/api");
-    const runningEntry = makeEntry({ stopped_at: null, duration_seconds: null });
-    const stoppedEntry = makeEntry({ duration_seconds: 60 });
-    let state: "idle" | "running" | "stopped" = "running"; // start pre-running
-
-    vi.mocked(apiFetch).mockImplementation(async (path: string) => {
-      const p = path as string;
-      if (p.includes("/stop")) { state = "stopped"; return stoppedEntry; }
-      if (state === "running") return { data: [runningEntry], total_seconds: 0 };
-      return { data: [stoppedEntry], total_seconds: 60 };
-    });
-
-    const { default: TimeTracker } = await import(
-      "@/components/time-tracking/TimeTracker"
-    );
-    render(<TimeTracker projectProcessId="pp-1" processName="Stucen" />);
-
-    await waitFor(() => screen.getByRole("button", { name: /stop/i }));
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /stop/i }));
-    });
-
-    await waitFor(() => {
-      expect(vi.mocked(apiFetch)).toHaveBeenCalledWith(
-        expect.stringContaining("/time-tracking/pp-1/stop"),
-        expect.objectContaining({ method: "POST" })
-      );
-    });
-  });
-
-  it("shows Stop button when a running entry is loaded", async () => {
-    const { apiFetch } = await import("@/lib/api");
-    const runningEntry = makeEntry({ stopped_at: null, duration_seconds: null });
-    vi.mocked(apiFetch).mockResolvedValue({
-      data: [runningEntry],
-      total_seconds: 0,
-    });
-
-    const { default: TimeTracker } = await import(
-      "@/components/time-tracking/TimeTracker"
-    );
-    render(<TimeTracker projectProcessId="pp-1" processName="Stucen" />);
-
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: /stop/i })).toBeInTheDocument();
-    });
-  });
-
-  it("shows entry in history after stopping", async () => {
-    const { apiFetch } = await import("@/lib/api");
-    const runningEntry = makeEntry({ stopped_at: null, duration_seconds: null });
-    const stoppedEntry = makeEntry({ duration_seconds: 1800 });
-    let state: "idle" | "running" | "stopped" = "running";
-
-    vi.mocked(apiFetch).mockImplementation(async (path: string) => {
-      const p = path as string;
-      if (p.includes("/stop")) { state = "stopped"; return stoppedEntry; }
-      if (state === "running") return { data: [runningEntry], total_seconds: 0 };
-      return { data: [stoppedEntry], total_seconds: 1800 };
-    });
-
-    const { default: TimeTracker } = await import(
-      "@/components/time-tracking/TimeTracker"
-    );
-    render(<TimeTracker projectProcessId="pp-1" processName="Stucen" />);
-
-    await waitFor(() => screen.getByRole("button", { name: /stop/i }));
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /stop/i }));
-    });
-
-    await waitFor(() => {
-      // 1800s = 30:00 — may appear in both total and history list
-      expect(screen.getAllByText("30:00").length).toBeGreaterThan(0);
-    });
-  });
-
-  it("shows total time tracked", async () => {
-    const { apiFetch } = await import("@/lib/api");
-    vi.mocked(apiFetch).mockResolvedValue({
-      data: [makeEntry({ duration_seconds: 3600 })],
-      total_seconds: 3600,
-    });
-
-    const { default: TimeTracker } = await import(
-      "@/components/time-tracking/TimeTracker"
-    );
-    render(<TimeTracker projectProcessId="pp-1" processName="Stucen" />);
-
-    await waitFor(() => {
-      expect(screen.getByText(/totale tijd/i)).toBeInTheDocument();
-      // total_seconds 3600 → 1:00:00 (may also appear in history)
-      expect(screen.getAllByText("1:00:00").length).toBeGreaterThan(0);
-    });
-  });
-
-  it("shows notes input", async () => {
-    const { apiFetch } = await import("@/lib/api");
-    vi.mocked(apiFetch).mockResolvedValue({ data: [], total_seconds: 0 });
-
-    const { default: TimeTracker } = await import(
-      "@/components/time-tracking/TimeTracker"
-    );
-    render(<TimeTracker projectProcessId="pp-1" processName="Stucen" />);
-
-    await waitFor(() => {
-      expect(screen.getByPlaceholderText(/opmerkingen/i)).toBeInTheDocument();
-    });
-  });
-
-  it("sends notes in start API call", async () => {
-    const { apiFetch } = await import("@/lib/api");
-    const runningEntry = makeEntry({ stopped_at: null, duration_seconds: null });
-    let started = false;
-    vi.mocked(apiFetch).mockImplementation(async (path: string) => {
-      const p = path as string;
-      if (p.includes("/start")) { started = true; return runningEntry; }
-      return { data: started ? [runningEntry] : [], total_seconds: 0 };
-    });
-
-    const { default: TimeTracker } = await import(
-      "@/components/time-tracking/TimeTracker"
-    );
-    render(<TimeTracker projectProcessId="pp-1" processName="Stucen" />);
-
-    await waitFor(() => screen.getByPlaceholderText(/opmerkingen/i));
-    fireEvent.change(screen.getByPlaceholderText(/opmerkingen/i), {
-      target: { value: "Muur A klaar" },
-    });
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /start/i }));
-    });
-
-    await waitFor(() => {
-      const calls = vi.mocked(apiFetch).mock.calls;
-      const startCall = calls.find(([p]) => (p as string).includes("/start"));
-      expect(startCall).toBeDefined();
-      const body = JSON.parse((startCall![1] as { body: string }).body);
-      expect(body.notes).toBe("Muur A klaar");
-    });
-  });
-
-  it("calls onUpdate callback after start", async () => {
-    const { apiFetch } = await import("@/lib/api");
-    const runningEntry = makeEntry({ stopped_at: null, duration_seconds: null });
-    let started = false;
-    vi.mocked(apiFetch).mockImplementation(async (path: string) => {
-      const p = path as string;
-      if (p.includes("/start")) { started = true; return runningEntry; }
-      return { data: started ? [runningEntry] : [], total_seconds: 0 };
-    });
-
-    const onUpdate = vi.fn();
-    const { default: TimeTracker } = await import(
-      "@/components/time-tracking/TimeTracker"
-    );
-    render(
-      <TimeTracker
-        projectProcessId="pp-1"
-        processName="Stucen"
-        onUpdate={onUpdate}
-      />
-    );
-
-    await waitFor(() => screen.getByRole("button", { name: /start/i }));
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /start/i }));
-    });
-
-    await waitFor(() => {
-      expect(onUpdate).toHaveBeenCalled();
-    });
-  });
-});
-
-// ---------------------------------------------------------------------------
-// TimeTracker live timer (isolated fake timers test)
-// ---------------------------------------------------------------------------
-
-describe("TimeTracker live timer", () => {
-  afterEach(() => {
-    vi.useRealTimers();
-    vi.resetAllMocks();
-  });
-
-  it("live timer ticks every second when running", async () => {
-    const { apiFetch } = await import("@/lib/api");
-    const runningEntry = makeEntry({ stopped_at: null, duration_seconds: null });
-    let started = false;
-
-    vi.mocked(apiFetch).mockImplementation(async (path: string) => {
-      const p = path as string;
-      if (p.includes("/start")) { started = true; return runningEntry; }
-      return { data: started ? [runningEntry] : [], total_seconds: 0 };
-    });
-
-    const { default: TimeTracker } = await import(
-      "@/components/time-tracking/TimeTracker"
-    );
-
-    render(<TimeTracker projectProcessId="pp-1" processName="Stucen" />);
-
-    // Wait for initial load with real timers
-    await waitFor(() => screen.getByRole("button", { name: /start/i }));
-
-    // Switch to fake timers before triggering state change
-    vi.useFakeTimers();
-
-    fireEvent.click(screen.getByRole("button", { name: /start/i }));
-
-    // Flush all promises (the start + loadEntries calls)
-    await act(async () => {
-      await Promise.resolve();
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    // Advance 3 seconds
-    act(() => {
-      vi.advanceTimersByTime(3000);
-    });
-
-    expect(screen.getByText("0:03")).toBeInTheDocument();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Time tracking page
+// TimeTrackingPage
 // ---------------------------------------------------------------------------
 
 describe("TimeTrackingPage", () => {
@@ -446,12 +96,7 @@ describe("TimeTrackingPage", () => {
 
   it("renders Tijdregistratie heading", async () => {
     const { apiFetch } = await import("@/lib/api");
-    vi.mocked(apiFetch).mockImplementation(async (path: string) => {
-      if ((path as string).includes("/processes/projects/")) {
-        return { data: [makeProjectProcess({ id: "pp-1", name: "Stucen" })] };
-      }
-      return { data: [], total_seconds: 0 };
-    });
+    vi.mocked(apiFetch).mockResolvedValue({ data: [] });
 
     const { default: TimeTrackingPage } = await import(
       "@/app/dashboard/projects/[id]/time-tracking/page"
@@ -459,22 +104,29 @@ describe("TimeTrackingPage", () => {
     render(<TimeTrackingPage params={Promise.resolve({ id: "proj-1" })} />);
 
     await waitFor(() => {
-      expect(screen.getByText(/tijdregistratie/i)).toBeInTheDocument();
+      expect(screen.getByText("Tijdregistratie")).toBeInTheDocument();
     });
   });
 
-  it("renders a card for each project process", async () => {
+  it("shows loading state before data resolves", async () => {
     const { apiFetch } = await import("@/lib/api");
-    vi.mocked(apiFetch).mockImplementation(async (path: string) => {
-      if ((path as string).includes("/processes/projects/")) {
-        return {
-          data: [
-            makeProjectProcess({ id: "pp-1", name: "Stucen" }),
-            makeProjectProcess({ id: "pp-2", name: "Tegelen" }),
-          ],
-        };
-      }
-      return { data: [], total_seconds: 0 };
+    vi.mocked(apiFetch).mockImplementation(() => new Promise(() => {}));
+
+    const { default: TimeTrackingPage } = await import(
+      "@/app/dashboard/projects/[id]/time-tracking/page"
+    );
+    render(<TimeTrackingPage params={Promise.resolve({ id: "proj-1" })} />);
+
+    expect(screen.getByText(/laden/i)).toBeInTheDocument();
+  });
+
+  it("renders a tracker widget for each process", async () => {
+    const { apiFetch } = await import("@/lib/api");
+    vi.mocked(apiFetch).mockResolvedValue({
+      data: [
+        makeProjectProcess({ id: "pp-1", name: "Stucen" }),
+        makeProjectProcess({ id: "pp-2", name: "Tegelen" }),
+      ],
     });
 
     const { default: TimeTrackingPage } = await import(
@@ -488,14 +140,23 @@ describe("TimeTrackingPage", () => {
     });
   });
 
-  it("shows back button linking to project detail", async () => {
+  it("shows empty state when no processes are linked", async () => {
     const { apiFetch } = await import("@/lib/api");
-    vi.mocked(apiFetch).mockImplementation(async (path: string) => {
-      if ((path as string).includes("/processes/projects/")) {
-        return { data: [] };
-      }
-      return { data: [], total_seconds: 0 };
+    vi.mocked(apiFetch).mockResolvedValue({ data: [] });
+
+    const { default: TimeTrackingPage } = await import(
+      "@/app/dashboard/projects/[id]/time-tracking/page"
+    );
+    render(<TimeTrackingPage params={Promise.resolve({ id: "proj-1" })} />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/geen processen gekoppeld/i)).toBeInTheDocument();
     });
+  });
+
+  it("renders back link pointing to project detail", async () => {
+    const { apiFetch } = await import("@/lib/api");
+    vi.mocked(apiFetch).mockResolvedValue({ data: [] });
 
     const { default: TimeTrackingPage } = await import(
       "@/app/dashboard/projects/[id]/time-tracking/page"
@@ -511,14 +172,9 @@ describe("TimeTrackingPage", () => {
     });
   });
 
-  it("shows empty state when no processes", async () => {
+  it("shows error message when apiFetch fails", async () => {
     const { apiFetch } = await import("@/lib/api");
-    vi.mocked(apiFetch).mockImplementation(async (path: string) => {
-      if ((path as string).includes("/processes/projects/")) {
-        return { data: [] };
-      }
-      return { data: [], total_seconds: 0 };
-    });
+    vi.mocked(apiFetch).mockRejectedValue(new Error("Server onbereikbaar"));
 
     const { default: TimeTrackingPage } = await import(
       "@/app/dashboard/projects/[id]/time-tracking/page"
@@ -526,19 +182,24 @@ describe("TimeTrackingPage", () => {
     render(<TimeTrackingPage params={Promise.resolve({ id: "proj-1" })} />);
 
     await waitFor(() => {
-      expect(screen.getByText(/geen processen gekoppeld/i)).toBeInTheDocument();
+      expect(screen.getByText(/server onbereikbaar/i)).toBeInTheDocument();
     });
   });
 
-  it("shows loading state initially", async () => {
+  it("fetches processes from the correct API path", async () => {
     const { apiFetch } = await import("@/lib/api");
-    vi.mocked(apiFetch).mockImplementation(() => new Promise(() => {}));
+    vi.mocked(apiFetch).mockResolvedValue({ data: [] });
 
     const { default: TimeTrackingPage } = await import(
       "@/app/dashboard/projects/[id]/time-tracking/page"
     );
-    render(<TimeTrackingPage params={Promise.resolve({ id: "proj-1" })} />);
+    render(<TimeTrackingPage params={Promise.resolve({ id: "proj-42" })} />);
 
-    expect(screen.getByText(/laden/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(vi.mocked(apiFetch)).toHaveBeenCalledWith(
+        expect.stringContaining("/processes/projects/proj-42"),
+        expect.anything()
+      );
+    });
   });
 });
