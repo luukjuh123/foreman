@@ -41,11 +41,15 @@ def test_nginx_dockerfile_exists():
 
 def test_api_proxy_pass_to_backend():
     conf = _read_conf()
-    # /api/ location must proxy to backend:8000
+    # /api/ location must proxy to the backend upstream
     assert re.search(r"location\s+/api/", conf), "Missing /api/ location block"
-    assert "proxy_pass" in conf, "Missing proxy_pass directive"
-    assert "backend:8000" in conf or "localhost:8000" in conf, (
-        "proxy_pass must point to backend on port 8000"
+    # Verify proxy_pass inside the /api/ block points to backend
+    api_block = re.search(
+        r"location\s+/api/\s*\{(.*?)\}", conf, re.DOTALL
+    )
+    assert api_block, "Could not parse /api/ location block"
+    assert re.search(r"proxy_pass\s+http://backend", api_block.group(1)), (
+        "proxy_pass in /api/ must point to http://backend"
     )
 
 
@@ -144,6 +148,14 @@ def test_x_content_type_options_header():
 def test_hsts_header():
     conf = _read_conf()
     assert "Strict-Transport-Security" in conf, "Missing HSTS (Strict-Transport-Security) header"
+
+
+def test_content_security_policy_header():
+    conf = _read_conf()
+    assert "Content-Security-Policy" in conf, "Missing Content-Security-Policy header"
+    assert re.search(r"default-src\s+'self'", conf), (
+        "CSP must include default-src 'self'"
+    )
 
 
 # ---------------------------------------------------------------------------
