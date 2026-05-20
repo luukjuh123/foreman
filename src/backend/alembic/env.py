@@ -16,6 +16,7 @@ import app.models.project  # noqa: F401
 import app.models.material  # noqa: F401
 import app.models.subscription  # noqa: F401
 import app.models.usage  # noqa: F401
+import app.models.push_subscription  # noqa: F401
 
 config = context.config
 

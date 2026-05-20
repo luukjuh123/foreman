@@ -1,8 +1,6 @@
-"""Tests for push subscription endpoints — subscribe, unsubscribe, auth guard."""
+"""Tests for push subscription API endpoints and VAPID key endpoint."""
 
 from __future__ import annotations
-
-import uuid
 
 import pytest
 import pytest_asyncio
@@ -13,8 +11,6 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from app.core.database import Base, get_db
 from app.main import create_app
 from app.models.push_subscription import PushSubscription
-from app.models.user import User
-from app.core.security import hash_password
 
 TEST_DB_URL = "sqlite+aiosqlite://"
 
@@ -68,8 +64,17 @@ def _sub_payload(endpoint: str = "https://push.example.com/sub/abc") -> dict:
 
 
 @pytest.mark.asyncio
+async def test_vapid_key_no_auth_required(client):
+    """GET /api/v1/push/vapid-key returns the public key without authentication."""
+    resp = await client.get("/api/v1/push/vapid-key")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "public_key" in data
+
+
+@pytest.mark.asyncio
 async def test_subscribe_creates_record(app_with_db, client):
-    """POST /push/subscribe stores subscription for authenticated user."""
+    """POST /api/v1/push/subscribe stores subscription for authenticated user."""
     _, session_factory = app_with_db
     token = await _register_and_login(client)
 
@@ -90,13 +95,13 @@ async def test_subscribe_creates_record(app_with_db, client):
         )
         sub = result.scalar_one_or_none()
         assert sub is not None
-        assert sub.p256dh_key == payload["keys"]["p256dh"]
-        assert sub.auth_key == payload["keys"]["auth"]
+        assert sub.p256dh == payload["keys"]["p256dh"]
+        assert sub.auth == payload["keys"]["auth"]
 
 
 @pytest.mark.asyncio
 async def test_subscribe_upserts_on_duplicate_endpoint(app_with_db, client):
-    """POST /push/subscribe twice with same endpoint does not error."""
+    """POST /api/v1/push/subscribe twice with same endpoint succeeds (upsert)."""
     token = await _register_and_login(client, email="push2@example.com")
     payload = _sub_payload(endpoint="https://push.example.com/sub/dup")
 
@@ -117,7 +122,7 @@ async def test_subscribe_upserts_on_duplicate_endpoint(app_with_db, client):
 
 @pytest.mark.asyncio
 async def test_unsubscribe_removes_record(app_with_db, client):
-    """DELETE /push/unsubscribe removes the subscription record."""
+    """DELETE /api/v1/push/unsubscribe removes the subscription record."""
     _, session_factory = app_with_db
     token = await _register_and_login(client, email="push3@example.com")
     payload = _sub_payload(endpoint="https://push.example.com/sub/del")
@@ -145,15 +150,28 @@ async def test_unsubscribe_removes_record(app_with_db, client):
 
 
 @pytest.mark.asyncio
+async def test_unsubscribe_nonexistent_endpoint_is_204(client):
+    """DELETE /api/v1/push/unsubscribe on an unknown endpoint returns 204 (idempotent)."""
+    token = await _register_and_login(client, email="push4@example.com")
+    resp = await client.request(
+        "DELETE",
+        "/api/v1/push/unsubscribe",
+        json={"endpoint": "https://push.example.com/sub/ghost"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 204
+
+
+@pytest.mark.asyncio
 async def test_subscribe_requires_auth(client):
-    """POST /push/subscribe returns 403 without Authorization header."""
+    """POST /api/v1/push/subscribe returns 401/403 without Authorization header."""
     resp = await client.post("/api/v1/push/subscribe", json=_sub_payload())
     assert resp.status_code in (401, 403)
 
 
 @pytest.mark.asyncio
 async def test_unsubscribe_requires_auth(client):
-    """DELETE /push/unsubscribe returns 403 without Authorization header."""
+    """DELETE /api/v1/push/unsubscribe returns 401/403 without Authorization header."""
     resp = await client.request(
         "DELETE",
         "/api/v1/push/unsubscribe",

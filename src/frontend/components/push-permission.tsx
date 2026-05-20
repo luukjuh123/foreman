@@ -1,55 +1,70 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { isPushSupported, isPushSubscribed, subscribeToPush, unsubscribeFromPush } from "@/lib/push";
+/**
+ * PushPermission — prompts the user to enable Web Push notifications.
+ * Renders a banner that can be dismissed. Handles the denied state gracefully.
+ */
 
-export default function PushPermission() {
-  const supported = isPushSupported();
-  const [subscribed, setSubscribed] = useState(false);
-  const [loading, setLoading] = useState(false);
+import { useState } from "react";
+import { Bell, BellOff, X } from "lucide-react";
+import { subscribeToPush } from "@/lib/push";
 
-  useEffect(() => {
-    if (!supported) return;
-    isPushSubscribed().then(setSubscribed);
-  }, [supported]);
+interface Props {
+  /** JWT access token for the authenticated user. */
+  token: string;
+}
 
-  async function handleToggle() {
-    setLoading(true);
+type State = "idle" | "loading" | "granted" | "denied";
+
+export function PushPermission({ token }: Props) {
+  const [state, setState] = useState<State>("idle");
+  const [dismissed, setDismissed] = useState(false);
+
+  if (dismissed || state === "granted") return null;
+  if (typeof window === "undefined") return null;
+  if (!("PushManager" in window)) return null;
+
+  async function handleEnable() {
+    setState("loading");
     try {
-      if (subscribed) {
-        await unsubscribeFromPush();
-        setSubscribed(false);
-      } else {
-        const ok = await subscribeToPush();
-        if (ok) setSubscribed(true);
-      }
-    } finally {
-      setLoading(false);
+      const ok = await subscribeToPush(token);
+      setState(ok ? "granted" : "denied");
+    } catch {
+      setState("denied");
     }
   }
 
   return (
-    <div className="rounded-lg border bg-card p-4">
-      <h3 className="font-semibold mb-2">Pushmeldingen</h3>
-      {!supported ? (
-        <p data-testid="push-status" className="text-sm text-muted-foreground">
-          Niet ondersteund
-        </p>
+    <div className="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+      {state === "denied" ? (
+        <BellOff className="h-4 w-4 shrink-0 text-blue-400" />
       ) : (
-        <div className="flex items-center justify-between gap-4">
-          <p data-testid="push-status" className="text-sm text-muted-foreground">
-            {subscribed ? "Ingeschakeld" : "Uitgeschakeld"}
-          </p>
-          <button
-            data-testid="push-toggle"
-            onClick={handleToggle}
-            disabled={loading}
-            className="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50"
-          >
-            {subscribed ? "Uitschakelen" : "Inschakelen"}
-          </button>
-        </div>
+        <Bell className="h-4 w-4 shrink-0 text-blue-500" />
       )}
+
+      <span className="flex-1">
+        {state === "denied"
+          ? "Pushmeldingen zijn geblokkeerd. Pas de browserinstellingen aan om ze in te schakelen."
+          : "Schakel pushmeldingen in om op de hoogte te blijven van projectupdates."}
+      </span>
+
+      {state !== "denied" && (
+        <button
+          onClick={handleEnable}
+          disabled={state === "loading"}
+          className="rounded bg-blue-600 px-3 py-1 text-white hover:bg-blue-700 disabled:opacity-50"
+        >
+          {state === "loading" ? "Bezig…" : "Inschakelen"}
+        </button>
+      )}
+
+      <button
+        onClick={() => setDismissed(true)}
+        aria-label="Sluiten"
+        className="ml-1 text-blue-400 hover:text-blue-600"
+      >
+        <X className="h-4 w-4" />
+      </button>
     </div>
   );
 }

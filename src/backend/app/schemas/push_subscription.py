@@ -1,4 +1,11 @@
-from pydantic import BaseModel
+"""Pydantic schemas for push subscription endpoints."""
+
+from __future__ import annotations
+
+import uuid
+from datetime import datetime
+
+from pydantic import BaseModel, HttpUrl
 
 
 class PushKeys(BaseModel):
@@ -16,7 +23,13 @@ class PushUnsubscribeRequest(BaseModel):
 
 
 class PushSubscriptionResponse(BaseModel):
-    id: str
+    id: uuid.UUID
+    user_id: uuid.UUID
     endpoint: str
-    created_at: str
+    created_at: datetime
+
     model_config = {"from_attributes": True}
+
+
+class VapidKeyResponse(BaseModel):
+    public_key: str

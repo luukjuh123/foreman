@@ -40,6 +40,11 @@ class Settings(BaseSettings):
     debug: bool = False
     log_level: str = "INFO"
 
+    # Web Push / VAPID
+    vapid_private_key: str = ""
+    vapid_public_key: str = ""
+    vapid_claim_email: str = "mailto:info@foreman.local"
+
     # Company / invoice issuer details (used for UBL & PDF invoice generation).
     company_name: str = "Foreman Bouw B.V."
     company_kvk: str = "00000000"

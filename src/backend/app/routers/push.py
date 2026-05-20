@@ -1,9 +1,12 @@
-"""Push subscription router — subscribe and unsubscribe endpoints."""
+"""Push notification router — subscribe, unsubscribe, VAPID public key."""
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from __future__ import annotations
+
+from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.models.push_subscription import PushSubscription
 from app.models.user import User
@@ -12,18 +15,25 @@ from app.schemas.push_subscription import (
     PushSubscribeRequest,
     PushSubscriptionResponse,
     PushUnsubscribeRequest,
+    VapidKeyResponse,
 )
 
 router = APIRouter()
 
 
+@router.get("/vapid-key", response_model=VapidKeyResponse)
+async def get_vapid_key() -> VapidKeyResponse:
+    """Return the VAPID public key. No auth required — browsers need this to subscribe."""
+    return VapidKeyResponse(public_key=settings.vapid_public_key)
+
+
 @router.post("/subscribe", response_model=PushSubscriptionResponse, status_code=status.HTTP_201_CREATED)
 async def subscribe(
     body: PushSubscribeRequest,
-    user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> PushSubscriptionResponse:
-    """Upsert a push subscription for the current user."""
+    """Save (or update) a Web Push subscription for the authenticated user."""
     result = await db.execute(
         select(PushSubscription).where(PushSubscription.endpoint == body.endpoint)
     )
@@ -31,35 +41,34 @@ async def subscribe(
 
     if sub is None:
         sub = PushSubscription(
-            user_id=user.id,
+            user_id=current_user.id,
             endpoint=body.endpoint,
-            p256dh_key=body.keys.p256dh,
-            auth_key=body.keys.auth,
+            p256dh=body.keys.p256dh,
+            auth=body.keys.auth,
         )
         db.add(sub)
     else:
-        sub.p256dh_key = body.keys.p256dh
-        sub.auth_key = body.keys.auth
+        # Upsert: refresh keys in case the browser rotated them
+        sub.p256dh = body.keys.p256dh
+        sub.auth = body.keys.auth
 
     await db.commit()
     await db.refresh(sub)
-
-    return PushSubscriptionResponse(
-        id=str(sub.id),
-        endpoint=sub.endpoint,
-        created_at=sub.created_at.isoformat(),
-    )
+    return PushSubscriptionResponse.model_validate(sub)
 
 
 @router.delete("/unsubscribe", status_code=status.HTTP_204_NO_CONTENT)
 async def unsubscribe(
     body: PushUnsubscribeRequest,
-    user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
-    """Remove a push subscription by endpoint."""
+    """Remove a Web Push subscription. Idempotent — 204 even if not found."""
     result = await db.execute(
-        select(PushSubscription).where(PushSubscription.endpoint == body.endpoint)
+        select(PushSubscription).where(
+            PushSubscription.endpoint == body.endpoint,
+            PushSubscription.user_id == current_user.id,
+        )
     )
     sub = result.scalar_one_or_none()
     if sub is not None:
