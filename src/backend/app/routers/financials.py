@@ -28,6 +28,7 @@ from app.schemas.cost import (
     TaskLaborResponse,
     TotalCostResponse,
 )
+from app.schemas.finance import AccountCreate, AccountResponse, AccountTreeNode
 from app.services.financials.labor_cost import (
     DEFAULT_HOURLY_RATE_CENTS,
     LaborCostEstimator,
@@ -40,6 +41,11 @@ from app.services.financials.material_cost import (
 from app.services.financials.total_cost import TotalCostCalculator
 
 router = APIRouter()
+
+
+def get_price_provider() -> StorePriceProvider:
+    """Dependency that provides a store price provider."""
+    return DefaultStorePriceProvider()
 
 
 @router.post(
