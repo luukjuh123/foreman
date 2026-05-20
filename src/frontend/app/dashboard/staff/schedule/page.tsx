@@ -1,19 +1,61 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import { ChevronLeft, ChevronRight, Users } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { listStaff, listAssignments } from "@/lib/staff";
-import { getProjectColor } from "@/lib/agenda";
-import type { StaffResponse, StaffAssignmentResponse } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import { apiFetch } from "@/lib/api";
 
-const DUTCH_DAY_ABBR = ["Ma", "Di", "Wo", "Do", "Vr", "Za", "Zo"];
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
+interface StaffMember {
+  id: string;
+  full_name: string;
+  role: string;
+  hourly_rate_cents: number;
+  active: boolean;
+}
+
+interface StaffListResponse {
+  data: StaffMember[];
+  total: number;
+  page: number;
+  per_page: number;
+}
+
+interface ProjectItem {
+  id: string;
+  name: string;
+  status: string;
+}
+
+interface ProjectListResponse {
+  data: ProjectItem[];
+  total: number;
+  page: number;
+  per_page: number;
+}
+
+interface StaffAssignment {
+  id: string;
+  staff_id: string;
+  project_id: string;
+  task_id: string | null;
+  start_at: string;
+  end_at: string;
+  notes: string | null;
+  created_at: string;
+}
+
+// ---------------------------------------------------------------------------
+// Date helpers
+// ---------------------------------------------------------------------------
+
+/** Returns Monday of the week containing the given date. */
 function getMondayOf(date: Date): Date {
   const d = new Date(date);
-  const day = d.getDay();
+  const day = d.getDay(); // 0=Sun, 1=Mon, ...
   const diff = day === 0 ? -6 : 1 - day;
   d.setDate(d.getDate() + diff);
   d.setHours(0, 0, 0, 0);
@@ -26,93 +68,89 @@ function addDays(date: Date, days: number): Date {
   return d;
 }
 
+/** Format a Date as YYYY-MM-DD */
 function toISODate(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+  return date.toISOString().slice(0, 10);
 }
 
-function formatDutchDate(iso: string): string {
-  const [y, m, d] = iso.split("-");
-  return `${d}-${m}-${y}`;
+/** Format a Date as e.g. "18 mei" */
+function formatShortDate(date: Date): string {
+  return date.toLocaleDateString("nl-NL", { day: "numeric", month: "short" });
 }
 
-function toTimeStr(isoDatetime: string): string {
-  const t = isoDatetime.includes("T") ? isoDatetime.split("T")[1] : isoDatetime;
-  return t.slice(0, 5);
+const WEEKDAY_NAMES = ["Maandag", "Dinsdag", "Woensdag", "Donderdag", "Vrijdag"];
+
+// Project color palette — deterministic from project id
+const COLORS = [
+  "bg-blue-100 text-blue-800 border-blue-200",
+  "bg-green-100 text-green-800 border-green-200",
+  "bg-purple-100 text-purple-800 border-purple-200",
+  "bg-orange-100 text-orange-800 border-orange-200",
+  "bg-pink-100 text-pink-800 border-pink-200",
+  "bg-teal-100 text-teal-800 border-teal-200",
+  "bg-yellow-100 text-yellow-800 border-yellow-200",
+  "bg-red-100 text-red-800 border-red-200",
+];
+
+function projectColor(projectId: string): string {
+  let hash = 0;
+  for (let i = 0; i < projectId.length; i++) {
+    hash = (hash * 31 + projectId.charCodeAt(i)) & 0xffff;
+  }
+  return COLORS[hash % COLORS.length];
 }
 
-function toDatePart(isoDatetime: string): string {
-  return isoDatetime.includes("T") ? isoDatetime.split("T")[0] : isoDatetime.slice(0, 10);
-}
-
-function AssignmentBlock({ assignment }: { assignment: StaffAssignmentResponse }) {
-  const color = getProjectColor(assignment.project_id);
-  const startTime = toTimeStr(assignment.start_at);
-  const endTime = toTimeStr(assignment.end_at);
-
-  return (
-    <div
-      className="rounded p-1.5 mb-1 text-xs border-l-4 bg-card shadow-sm"
-      style={{ borderLeftColor: color }}
-    >
-      {assignment.project_name && (
-        <p className="font-semibold text-foreground truncate">{assignment.project_name}</p>
-      )}
-      <p className="text-muted-foreground">
-        {startTime}–{endTime}
-      </p>
-      {assignment.notes && (
-        <p className="text-muted-foreground truncate">{assignment.notes}</p>
-      )}
-    </div>
-  );
-}
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
 
 export default function StaffSchedulePage() {
-  const [weekStart, setWeekStart] = useState<string>(() =>
-    toISODate(getMondayOf(new Date()))
-  );
-  const [staff, setStaff] = useState<StaffResponse[]>([]);
-  const [assignmentMap, setAssignmentMap] = useState<
-    Record<string, Record<string, StaffAssignmentResponse[]>>
-  >({});
+  const [weekStart, setWeekStart] = useState<Date>(() => getMondayOf(new Date()));
+  const [staff, setStaff] = useState<StaffMember[]>([]);
+  const [projects, setProjects] = useState<Map<string, string>>(new Map());
+  const [assignments, setAssignments] = useState<Map<string, StaffAssignment[]>>(new Map());
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  const weekDates: string[] = Array.from({ length: 7 }, (_, i) =>
-    toISODate(addDays(new Date(weekStart), i))
-  );
+  // Weekday dates for the current week (Mon–Fri)
+  const weekDays = Array.from({ length: 5 }, (_, i) => addDays(weekStart, i));
 
-  const load = useCallback(
-    async (ws: string) => {
+  const loadData = useCallback(
+    async (monday: Date) => {
       setLoading(true);
-      setError(null);
       try {
-        const staffList = await listStaff(1, 100);
-        const members = staffList.data;
-        setStaff(members);
+        // Fetch staff and projects in parallel
+        const [staffRes, projectRes] = await Promise.all([
+          apiFetch<StaffListResponse>("/staff/?page=1&per_page=100"),
+          apiFetch<ProjectListResponse>("/projects/?page=1&per_page=100"),
+        ]);
 
-        const results = await Promise.all(
-          members.map((s) => listAssignments({ staffId: s.id }))
+        const activeStaff = staffRes.data.filter((s) => s.active);
+        setStaff(activeStaff);
+
+        const projectMap = new Map<string, string>();
+        for (const p of projectRes.data) {
+          projectMap.set(p.id, p.name);
+        }
+        setProjects(projectMap);
+
+        // Fetch assignments for each active staff member in parallel
+        const weekEnd = addDays(monday, 6);
+        const startParam = toISODate(monday);
+        const endParam = toISODate(weekEnd);
+
+        const assignmentResults = await Promise.all(
+          activeStaff.map((s) =>
+            apiFetch<StaffAssignment[]>(
+              `/assignments/?staff_id=${s.id}&start_after=${startParam}&end_before=${endParam}`
+            ).catch(() => [] as StaffAssignment[])
+          )
         );
 
-        const map: Record<string, Record<string, StaffAssignmentResponse[]>> = {};
-        const weekEnd = toISODate(addDays(new Date(ws), 6));
-        members.forEach((s, idx) => {
-          map[s.id] = {};
-          for (const a of results[idx]) {
-            const datePart = toDatePart(a.start_at);
-            if (datePart >= ws && datePart <= weekEnd) {
-              if (!map[s.id][datePart]) map[s.id][datePart] = [];
-              map[s.id][datePart].push(a);
-            }
-          }
-        });
-        setAssignmentMap(map);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Fout bij laden");
+        const newMap = new Map<string, StaffAssignment[]>();
+        for (let i = 0; i < activeStaff.length; i++) {
+          newMap.set(activeStaff[i].id, assignmentResults[i]);
+        }
+        setAssignments(newMap);
       } finally {
         setLoading(false);
       }
@@ -121,117 +159,107 @@ export default function StaffSchedulePage() {
   );
 
   useEffect(() => {
-    load(weekStart);
-  }, [weekStart, load]);
+    loadData(weekStart);
+  }, [weekStart, loadData]);
 
-  function goPrevWeek() {
-    setWeekStart((ws) => toISODate(addDays(new Date(ws), -7)));
+  const prevWeek = () => setWeekStart((d) => addDays(d, -7));
+  const nextWeek = () => setWeekStart((d) => addDays(d, 7));
+
+  // Check if any assignments exist for this week
+  const hasAnyAssignment = Array.from(assignments.values()).some((list) => list.length > 0);
+
+  // Returns assignments for a specific staff member on a specific day
+  function getAssignmentsForDay(staffId: string, day: Date): StaffAssignment[] {
+    const dayStr = toISODate(day);
+    return (assignments.get(staffId) ?? []).filter((a) => {
+      const aDate = a.start_at.slice(0, 10);
+      return aDate === dayStr;
+    });
   }
 
-  function goNextWeek() {
-    setWeekStart((ws) => toISODate(addDays(new Date(ws), 7)));
-  }
-
-  function goTodayWeek() {
-    setWeekStart(toISODate(getMondayOf(new Date())));
-  }
-
-  const weekEnd = toISODate(addDays(new Date(weekStart), 6));
-  const todayIso = toISODate(new Date());
+  const weekLabel = `${formatShortDate(weekStart)} – ${formatShortDate(addDays(weekStart, 4))}`;
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between flex-wrap gap-2">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-foreground">Personeelsplanning</h1>
         <div className="flex items-center gap-2">
-          <Users className="h-5 w-5 text-muted-foreground" />
-          <h1 className="text-2xl font-bold text-foreground">Personeelsplanning</h1>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={goPrevWeek} aria-label="Vorige week">
+          <Button variant="outline" size="sm" onClick={prevWeek} aria-label="Vorige week">
             <ChevronLeft className="h-4 w-4" />
+            Vorige
           </Button>
-          <Button variant="outline" size="sm" onClick={goTodayWeek}>
-            Vandaag
-          </Button>
-          <Button variant="outline" size="sm" onClick={goNextWeek} aria-label="Volgende week">
+          <span className="text-sm font-medium text-muted-foreground min-w-[140px] text-center">
+            {weekLabel}
+          </span>
+          <Button variant="outline" size="sm" onClick={nextWeek} aria-label="Volgende week">
+            Volgende
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
       </div>
 
-      {!loading && !error && (
-        <p className="text-sm text-muted-foreground">
-          Week van {formatDutchDate(weekStart)} t/m {formatDutchDate(weekEnd)}
-        </p>
-      )}
-
-      {loading && (
-        <Card>
-          <CardContent className="py-10 text-center text-muted-foreground">Laden…</CardContent>
-        </Card>
-      )}
-
-      {!loading && error && (
-        <Card>
-          <CardContent className="py-10 text-center text-destructive">{error}</CardContent>
-        </Card>
-      )}
-
-      {!loading && !error && (
-        <Card>
-          <CardContent className="p-0 overflow-x-auto">
-            <table className="w-full text-sm border-collapse">
-              <thead>
-                <tr>
-                  <th className="text-left px-3 py-2 bg-muted text-muted-foreground font-medium border-b w-40 min-w-[10rem]">
-                    Medewerker
+      {/* Content */}
+      {loading ? (
+        <p className="text-sm text-muted-foreground">Laden…</p>
+      ) : staff.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Geen actief personeel gevonden.</p>
+      ) : !hasAnyAssignment ? (
+        <p className="text-sm text-muted-foreground">Geen inplanningen voor deze week.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr>
+                {/* Staff column header */}
+                <th className="w-40 min-w-[10rem] border border-border bg-muted px-3 py-2 text-left font-semibold text-muted-foreground">
+                  Medewerker
+                </th>
+                {weekDays.map((day, i) => (
+                  <th
+                    key={i}
+                    className="border border-border bg-muted px-3 py-2 text-left font-semibold text-muted-foreground"
+                  >
+                    <div>{WEEKDAY_NAMES[i]}</div>
+                    <div className="text-xs font-normal">{formatShortDate(day)}</div>
                   </th>
-                  {weekDates.map((date, idx) => (
-                    <th
-                      key={date}
-                      className={cn(
-                        "px-2 py-2 text-center border-b font-medium min-w-[100px]",
-                        date === todayIso
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted text-muted-foreground"
-                      )}
-                    >
-                      <span className="block text-sm">{DUTCH_DAY_ABBR[idx]}</span>
-                      <span className="block text-xs">{formatDutchDate(date)}</span>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {staff.map((member) => (
-                  <tr key={member.id} className="border-b last:border-0">
-                    <td className="px-3 py-2 align-top bg-muted/30 font-medium text-foreground whitespace-nowrap">
-                      <p className="truncate max-w-[9rem]">{member.full_name}</p>
-                      <p className="text-xs text-muted-foreground">{member.role}</p>
-                    </td>
-                    {weekDates.map((date) => {
-                      const dayAssignments = assignmentMap[member.id]?.[date] ?? [];
-                      return (
-                        <td
-                          key={date}
-                          className={cn(
-                            "px-1.5 py-1.5 align-top min-h-[60px]",
-                            date === todayIso && "bg-primary/5"
-                          )}
-                        >
-                          {dayAssignments.map((a) => (
-                            <AssignmentBlock key={a.id} assignment={a} />
-                          ))}
-                        </td>
-                      );
-                    })}
-                  </tr>
                 ))}
-              </tbody>
-            </table>
-          </CardContent>
-        </Card>
+              </tr>
+            </thead>
+            <tbody>
+              {staff.map((member) => (
+                <tr key={member.id} className="hover:bg-muted/30">
+                  {/* Staff name + role */}
+                  <td className="border border-border px-3 py-2 align-top">
+                    <p className="font-medium text-foreground">{member.full_name}</p>
+                    <p className="text-xs text-muted-foreground">{member.role}</p>
+                  </td>
+                  {/* Day cells */}
+                  {weekDays.map((day, di) => {
+                    const dayAssignments = getAssignmentsForDay(member.id, day);
+                    return (
+                      <td key={di} className="border border-border px-2 py-1 align-top">
+                        <div className="flex flex-col gap-1">
+                          {dayAssignments.map((a) => {
+                            const projectName = projects.get(a.project_id) ?? a.project_id;
+                            return (
+                              <div
+                                key={a.id}
+                                className={`rounded border px-2 py-1 text-xs font-medium ${projectColor(a.project_id)}`}
+                              >
+                                {projectName}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
