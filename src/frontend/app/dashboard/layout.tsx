@@ -4,6 +4,7 @@ import React, { useEffect } from "react";
 import { redirect } from "next/navigation";
 import Sidebar from "@/components/sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
+import OfflineIndicator from "@/components/offline-indicator";
 
 const ACCESS_TOKEN_KEY = "foreman_access_token";
 
@@ -37,6 +38,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
           </div>
         </header>
+        <OfflineIndicator />
         <main className="flex-1 p-4 md:p-6">{children}</main>
       </div>
     </div>
