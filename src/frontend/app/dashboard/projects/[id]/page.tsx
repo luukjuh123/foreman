@@ -8,6 +8,7 @@ import { ArrowLeft, Calendar, ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getProject, calcPhaseProgress, formatBudget, formatDate } from "@/lib/projects";
 import type { ProjectResponse, PhaseResponse, TaskResponse } from "@/lib/types";
+import TimeTracker from "@/components/time-tracking/TimeTracker";
 
 // ---------------------------------------------------------------------------
 // Status helpers
@@ -192,6 +193,22 @@ export default function ProjectDetailPage({ params }: Props) {
         </div>
       </div>
 
+      {/* Sub-page navigation */}
+      <div className="flex flex-wrap gap-2">
+        <Link href={`/dashboard/projects/${project.id}/board`}>
+          <Button variant="outline" size="sm">Takenbord</Button>
+        </Link>
+        <Link href={`/dashboard/projects/${project.id}/gantt`}>
+          <Button variant="outline" size="sm">Gantt</Button>
+        </Link>
+        <Link href={`/dashboard/projects/${project.id}/processes`}>
+          <Button variant="outline" size="sm">Processen</Button>
+        </Link>
+        <Link href={`/dashboard/projects/${project.id}/timeline`}>
+          <Button variant="outline" size="sm">Tijdlijn</Button>
+        </Link>
+      </div>
+
       {/* Phases */}
       <div className="space-y-3">
         <h2 className="text-lg font-semibold">Fases</h2>
@@ -201,6 +218,9 @@ export default function ProjectDetailPage({ params }: Props) {
           project.phases.map((phase) => <PhaseCard key={phase.id} phase={phase} />)
         )}
       </div>
+
+      {/* Time tracking */}
+      <TimeTracker projectId={project.id} />
     </div>
   );
 }

@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.logging import RequestLoggingMiddleware, configure_logging
-from app.routers import auth, billing, projects, ai_planning, materials, financials
+from app.routers import auth, billing, projects, ai_planning, materials, financials, processes, time_tracking, photos, staff, payroll, loans, assignments
 
 
 def create_app() -> FastAPI:
@@ -35,6 +35,13 @@ def create_app() -> FastAPI:
     app.include_router(materials.router, prefix="/api/v1/materials", tags=["materials"])
     app.include_router(financials.router, prefix="/api/v1/financials", tags=["financials"])
     app.include_router(billing.router, prefix="/api/v1/billing", tags=["billing"])
+    app.include_router(processes.router, prefix="/api/v1/processes", tags=["processes"])
+    app.include_router(time_tracking.router, prefix="/api/v1/time-tracking", tags=["time-tracking"])
+    app.include_router(photos.router, prefix="/api/v1/photos", tags=["photos"])
+    app.include_router(staff.router, prefix="/api/v1/staff", tags=["staff"])
+    app.include_router(payroll.router, prefix="/api/v1/payroll", tags=["payroll"])
+    app.include_router(loans.router, prefix="/api/v1/loans", tags=["loans"])
+    app.include_router(assignments.router, prefix="/api/v1/assignments", tags=["assignments"])
 
     @app.get("/healthz", tags=["health"])
     async def health_check() -> dict:
