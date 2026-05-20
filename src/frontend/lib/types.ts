@@ -126,6 +126,12 @@ export interface AgendaDayResponse {
   tasks: AgendaTask[];
 }
 
+export interface AgendaWeekResponse {
+  week_start: string;
+  week_end: string;
+  days: AgendaDayResponse[];
+}
+
 // Process timeline types
 
 export interface ProcessResponse {
@@ -254,4 +260,40 @@ export interface StaffListResponse {
   total: number;
   page: number;
   per_page: number;
+}
+
+// Staff types
+
+export interface StaffResponse {
+  id: string;
+  owner_id?: string;
+  full_name: string;
+  role: string;
+  email?: string | null;
+  phone?: string | null;
+  hourly_rate_cents: number;
+  weekly_hours_target?: number;
+  active: boolean;
+  created_at?: string;
+  updated_at?: string;
+  availability?: unknown[];
+}
+
+export interface StaffListResponse {
+  data: StaffResponse[];
+  total: number;
+  page: number;
+  per_page: number;
+}
+
+export interface StaffAssignmentResponse {
+  id: string;
+  staff_id: string;
+  project_id: string;
+  task_id?: string | null;
+  start_at: string;
+  end_at: string;
+  notes?: string | null;
+  project_name?: string;
+  created_at?: string;
 }
