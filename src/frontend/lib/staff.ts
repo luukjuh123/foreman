@@ -5,7 +5,13 @@ import type {
   StaffListResponse,
   StaffResponse,
   StaffUpdate,
+  StaffAssignmentResponse,
+  StaffOutstandingBalance,
 } from "./types";
+
+function token(): string | undefined {
+  return getAccessToken() ?? undefined;
+}
 
 export function formatRate(cents: number): string {
   return new Intl.NumberFormat("nl-NL", {
@@ -15,9 +21,7 @@ export function formatRate(cents: number): string {
   }).format(cents / 100);
 }
 
-function token(): string | undefined {
-  return getAccessToken() ?? undefined;
-}
+export const formatCents = formatRate;
 
 export async function listStaff(page = 1, perPage = 20): Promise<StaffListResponse> {
   return apiFetch<StaffListResponse>(
@@ -45,6 +49,26 @@ export async function updateStaff(id: string, data: StaffUpdate): Promise<StaffR
 export async function deleteStaff(id: string): Promise<void> {
   return apiFetch<void>(`/staff/${id}`, {
     method: "DELETE",
+    token: token(),
+  });
+}
+
+export async function listAssignments({
+  staffId,
+  projectId,
+}: {
+  staffId?: string;
+  projectId?: string;
+} = {}): Promise<StaffAssignmentResponse[]> {
+  const params = new URLSearchParams();
+  if (staffId) params.set("staff_id", staffId);
+  if (projectId) params.set("project_id", projectId);
+  const qs = params.toString() ? `?${params.toString()}` : "";
+  return apiFetch<StaffAssignmentResponse[]>(`/assignments/${qs}`);
+}
+
+export async function getStaffLoanBalance(staffId: string): Promise<StaffOutstandingBalance> {
+  return apiFetch<StaffOutstandingBalance>(`/loans/staff/${staffId}/balance`, {
     token: token(),
   });
 }

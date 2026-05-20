@@ -262,7 +262,6 @@ export default function StaffPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-foreground">Personeel</h1>
         <Button size="sm" onClick={() => setShowCreate(true)}>
@@ -271,14 +270,12 @@ export default function StaffPage() {
         </Button>
       </div>
 
-      {/* Loading / error / empty */}
       {loading && <p className="text-sm text-muted-foreground">Laden…</p>}
       {!loading && error && <p className="text-sm text-destructive">{error}</p>}
       {!loading && !error && staff.length === 0 && (
         <p className="text-sm text-muted-foreground">Geen personeel gevonden.</p>
       )}
 
-      {/* Table */}
       {!loading && !error && staff.length > 0 && (
         <Card>
           <CardContent className="p-0">
@@ -346,7 +343,6 @@ export default function StaffPage() {
         </Card>
       )}
 
-      {/* Pagination */}
       {!loading && !error && totalPages > 1 && (
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
@@ -367,17 +363,12 @@ export default function StaffPage() {
         </div>
       )}
 
-      {/* Create dialog */}
       {showCreate && (
         <StaffFormDialog onSave={handleCreate} onClose={() => setShowCreate(false)} />
       )}
-
-      {/* Edit dialog */}
       {editing && (
         <StaffFormDialog initial={editing} onSave={handleUpdate} onClose={() => setEditing(null)} />
       )}
-
-      {/* Delete confirmation */}
       {deleting && (
         <DeleteConfirmDialog
           name={deleting.full_name}

@@ -342,7 +342,6 @@ export default function PayrollOverviewPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           <DollarSign className="h-5 w-5 text-muted-foreground" />
@@ -354,7 +353,6 @@ export default function PayrollOverviewPage() {
         </Button>
       </div>
 
-      {/* Period selector */}
       <Card>
         <CardContent className="pt-4">
           <div className="flex flex-wrap items-center gap-4">
@@ -388,7 +386,6 @@ export default function PayrollOverviewPage() {
         </CardContent>
       </Card>
 
-      {/* Staff table */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Overzicht per medewerker</CardTitle>
@@ -428,7 +425,6 @@ export default function PayrollOverviewPage() {
                   />
                 ))}
               </tbody>
-              {/* Summary row */}
               <tfoot>
                 <tr className="border-t-2 border-border bg-muted/30 font-semibold">
                   <td className="px-4 py-3 text-sm" colSpan={2}>Totaal</td>
@@ -445,7 +441,6 @@ export default function PayrollOverviewPage() {
         </CardContent>
       </Card>
 
-      {/* Log Hours Modal */}
       {showLogHours && (
         <LogHoursModal
           staff={staff}

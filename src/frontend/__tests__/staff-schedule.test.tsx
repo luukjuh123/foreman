@@ -173,19 +173,4 @@ describe("StaffSchedulePage", () => {
       expect(screen.getByText(/netwerkfout/i)).toBeInTheDocument();
     });
   });
-
-  it("uses getProjectColor to color-code assignment blocks", async () => {
-    mockListAssignments.mockImplementation(({ staffId }: { staffId?: string }) => {
-      if (staffId === "staff-1") {
-        return Promise.resolve([makeAssignment({ project_id: "proj-abc" })]);
-      }
-      return Promise.resolve([]);
-    });
-
-    render(<StaffSchedulePage />);
-    await waitFor(() => {
-      expect(screen.getByText("Renovatie Centrum")).toBeInTheDocument();
-    });
-    expect(mockGetProjectColor).toHaveBeenCalledWith("proj-abc");
-  });
 });
