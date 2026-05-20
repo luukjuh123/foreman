@@ -21,6 +21,16 @@ export interface IncomeStatementResponse {
   is_profit: boolean;
 }
 
+export interface BalanceSheetResponse {
+  as_of: string;
+  assets: { accounts: AccountNode[]; total_cents: number };
+  liabilities: { accounts: AccountNode[]; total_cents: number };
+  equity: { accounts: AccountNode[]; total_cents: number };
+  retained_earnings_cents: number;
+  total_liabilities_and_equity_cents: number;
+  is_balanced: boolean;
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -43,5 +53,13 @@ export async function fetchIncomeStatement(
 ): Promise<IncomeStatementResponse> {
   return apiFetch<IncomeStatementResponse>(
     `/financials/reports/income-statement?start_date=${startDate}&end_date=${endDate}`
+  );
+}
+
+export async function fetchBalanceSheet(
+  asOf: string
+): Promise<BalanceSheetResponse> {
+  return apiFetch<BalanceSheetResponse>(
+    `/financials/reports/balance-sheet?as_of=${asOf}`
   );
 }
