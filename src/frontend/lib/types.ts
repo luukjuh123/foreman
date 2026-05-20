@@ -126,6 +126,12 @@ export interface AgendaDayResponse {
   tasks: AgendaTask[];
 }
 
+export interface AgendaWeekResponse {
+  week_start: string;
+  week_end: string;
+  days: AgendaDayResponse[];
+}
+
 // Process timeline types
 
 export interface ProcessResponse {
@@ -212,40 +218,71 @@ export interface TaskCreate {
   end_date?: string;
 }
 
-export interface CustomerResponse {
+// Staff types
+
+export interface StaffResponse {
   id: string;
-  name: string;
-  email: string | null;
-  phone: string | null;
-  address: string | null;
-  kvk_number: string | null;
-  btw_number: string | null;
+  owner_id?: string;
+  full_name: string;
+  role: string;
+  email?: string | null;
+  phone?: string | null;
+  hourly_rate_cents: number;
+  weekly_hours_target?: number;
+  active: boolean;
+  created_at?: string;
+  updated_at?: string;
+  availability?: unknown[];
 }
 
-export interface CustomerCreate {
-  name: string;
-  email?: string;
-  phone?: string;
-  address?: string;
-  kvk_number?: string;
-  btw_number?: string;
+export interface StaffListResponse {
+  data: StaffResponse[];
+  total: number;
+  page: number;
+  per_page: number;
 }
 
-export interface InvoiceLineCreate {
-  description: string;
-  quantity: number;
-  unit: string;
-  unit_price_cents: number;
-  vat_rate_bp: number;
+// Loan types
+
+export interface LoanDeductionResponse {
+  id: string;
+  loan_id: string;
+  amount_cents: number;
+  deduction_date: string;
+  notes?: string | null;
+  created_at: string;
 }
 
-export interface InvoiceCreate {
-  customer_id: string;
-  project_id?: string;
-  issue_date: string;
-  due_date: string;
-  payment_terms_days: number;
-  currency: string;
+export interface StaffLoanResponse {
+  id: string;
+  staff_id: string;
+  principal_cents: number;
+  issued_date: string;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+  deductions: LoanDeductionResponse[];
+  deducted_cents: number;
+  outstanding_cents: number;
+}
+
+export interface StaffOutstandingBalance {
+  staff_id: string;
+  total_principal_cents: number;
+  total_deducted_cents: number;
+  outstanding_cents: number;
+  loans: StaffLoanResponse[];
+}
+
+export interface StaffLoanCreate {
+  staff_id: string;
+  principal_cents: number;
+  issued_date: string;
   notes?: string;
-  lines: InvoiceLineCreate[];
+}
+
+export interface LoanDeductionCreate {
+  amount_cents: number;
+  deduction_date: string;
+  notes?: string;
 }
