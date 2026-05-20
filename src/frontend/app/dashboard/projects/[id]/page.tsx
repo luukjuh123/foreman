@@ -8,6 +8,7 @@ import { ArrowLeft, Calendar, ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getProject, calcPhaseProgress, formatBudget, formatDate } from "@/lib/projects";
 import type { ProjectResponse, PhaseResponse, TaskResponse } from "@/lib/types";
+import TimeTracker from "@/components/time-tracking/TimeTracker";
 
 // ---------------------------------------------------------------------------
 // Status helpers
@@ -217,6 +218,9 @@ export default function ProjectDetailPage({ params }: Props) {
           project.phases.map((phase) => <PhaseCard key={phase.id} phase={phase} />)
         )}
       </div>
+
+      {/* Time tracking */}
+      <TimeTracker projectId={project.id} />
     </div>
   );
 }
