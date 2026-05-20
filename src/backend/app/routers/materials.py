@@ -29,7 +29,6 @@ from app.services.material_estimation import (
     estimate_paint,
     estimate_tiles,
 )
-from app.services.stores.base import ProductResult
 from app.services.stores.bouwmaat import BouwmaatClient
 from app.services.stores.comparison import compare_prices
 from app.services.stores.gamma import GammaClient
@@ -64,50 +63,40 @@ async def list_stores() -> StoresResponse:
     return StoresResponse(data=STORE_NAMES, error=None)
 
 
-@router.get("/search", response_model=SearchResponse)
-async def search_materials(query: str = "", max_results: int = 10) -> SearchResponse:
-    """Search all stores for materials, ranked by price + availability."""
-    if not query.strip():
-        return SearchResponse(data=[], error=None)
+@router.get("/search")
+async def search_materials(query: str = "") -> dict:
+    """Search hardware stores for a material query.
 
-    clients = _make_clients()
+    Fans out to Hornbach, Gamma, Praxis, and Bouwmaat concurrently via the
+    comparison engine. Individual store failures are swallowed — other stores
+    still contribute results. Returns results ranked: in-stock first, then
+    cheapest, then store name.
+    """
+    clients = [
+        HornbachClient(),
+        GammaClient(),
+        PraxisClient(),
+        BouwmaatClient(),
+    ]
     try:
-        results = await compare_prices(query, clients, max_per_store=max_results)
+        results = await compare_prices(query, clients)
     finally:
         for c in clients:
             await c.aclose()
 
-    return SearchResponse(data=[_to_schema(p) for p in results], error=None)
-
-
-@router.get("/compare", response_model=CompareResponse)
-async def compare_materials(query: str = "") -> CompareResponse:
-    """Search all stores and return results grouped by store + ranked."""
-    if not query.strip():
-        return CompareResponse(
-            data=CompareData(query=query, results_by_store={}, ranked=[]),
-            error=None,
-        )
-
-    clients = _make_clients()
-    try:
-        results = await compare_prices(query, clients, max_per_store=10)
-    finally:
-        for c in clients:
-            await c.aclose()
-
-    by_store: dict[str, list[ProductResultSchema]] = defaultdict(list)
-    for p in results:
-        by_store[p.store].append(_to_schema(p))
-
-    return CompareResponse(
-        data=CompareData(
-            query=query,
-            results_by_store=dict(by_store),
-            ranked=[_to_schema(p) for p in results],
-        ),
-        error=None,
-    )
+    data = [
+        {
+            "store": r.store,
+            "product_id": r.product_id,
+            "name": r.name,
+            "url": r.url,
+            "price_cents": r.price_cents,
+            "in_stock": r.in_stock,
+            "unit": r.unit,
+        }
+        for r in results
+    ]
+    return {"data": data, "error": None, "query": query}
 
 
 def _surface_area_m2(length_m: float, width_m: float, height_m: float, surface: str) -> float:
