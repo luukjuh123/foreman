@@ -77,10 +77,10 @@
 - [x] Backend: Income statement (winst- en verliesrekening) generation endpoint (PR: `feat/income-statement`)
 - [x] Backend: Cash flow statement generation — operating, investing, financing activities (PR: `feat/cashflow-statement`)
 - [x] Backend: Period closing — lock periods, generate year-end reports (PR: `feat/period-closing`)
-- [ ] Frontend: Balance sheet view — expandable account tree with totals
-- [ ] Frontend: Income statement view — revenue vs expenses per period
-- [ ] Frontend: Cash flow overview with charts (monthly/quarterly/yearly)
-- [ ] Frontend: Financial reports export (PDF, CSV)
+- [x] Frontend: Income statement view — revenue vs expenses per period — PR #117
+- [ ] Frontend: Balance sheet view — expandable account tree with totals — PR #132 (open)
+- [ ] Frontend: Cash flow overview with charts (monthly/quarterly/yearly) — PR #133 (open)
+- [ ] Frontend: Financial reports export (PDF, CSV) — PR #134 (open)
 
 ## Priority: Medium (Phase 9 — Staff Management)
 
@@ -88,10 +88,10 @@
 - [x] Backend: Payroll basics — hours worked per project, gross salary calculation (PR feat/payroll-basics)
 - [x] Backend: Staff loans (voorschotten) — track advances, deductions from salary (PR feat/staff-loans)
 - [x] Backend: Staff assignment to projects/tasks — who works where when (PR feat/staff-assignment)
-- [ ] Frontend: Staff directory — list, add, edit employees with rates and roles
-- [ ] Frontend: Staff schedule — who is assigned to which project this week
-- [ ] Frontend: Loan tracking — issue advances, view outstanding balances per employee
-- [ ] Frontend: Payroll overview — hours per project, total due per employee per period
+- [x] Frontend: Staff directory — list, add, edit employees with rates and roles — PR #153
+- [x] Frontend: Staff schedule — who is assigned to which project this week — PR #153
+- [x] Frontend: Loan tracking — issue advances, view outstanding balances per employee — PR #153
+- [x] Frontend: Payroll overview — hours per project, total due per employee per period — PR #153
 
 ## Priority: Medium (Phase 10 — Rapports / Reports)
 
