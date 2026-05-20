@@ -4,8 +4,9 @@ Covers:
 1. Auth flow: register → login → /me → refresh → /me with new token
 2. Project lifecycle: register → create → list → get → update → delete → verify deleted
 3. Project with phases and tasks: create project → add phase → add tasks → verify structure
-4. Material search: test /materials/search with mocked scraper
-5. Unauthorized access: create project without token → 401/403
+4. AI plan generation: create project with tasks → autofill schedule → verify proposals
+5. Material search: test /materials/search with mocked scraper
+6. Unauthorized access: create project without token → 401/403
 """
 
 import pytest
@@ -271,7 +272,90 @@ async def test_e2e_project_phases_and_tasks(client: AsyncClient) -> None:
 
 
 # ---------------------------------------------------------------------------
-# 4. Material search with mocked scraper
+# 4. AI plan generation E2E
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_e2e_ai_plan_generation(client: AsyncClient) -> None:
+    """Create project with tasks → autofill schedule → verify proposals returned."""
+    await _register(client, "e2e_planning@example.com")
+    headers = await _auth_headers(client, "e2e_planning@example.com")
+
+    # Create project
+    proj_resp = await client.post("/api/v1/projects/", json={
+        "name": "AI Planning Project",
+    }, headers=headers)
+    assert proj_resp.status_code == 201
+    project_id = proj_resp.json()["id"]
+
+    # Add a phase
+    phase_resp = await client.post(f"/api/v1/projects/{project_id}/phases", json={
+        "name": "Ruwbouw",
+        "order_index": 0,
+        "status": "pending",
+    }, headers=headers)
+    assert phase_resp.status_code == 201
+    phase_id = phase_resp.json()["id"]
+
+    # Add tasks with estimated hours
+    task1_resp = await client.post(
+        f"/api/v1/projects/{project_id}/phases/{phase_id}/tasks",
+        json={"name": "Fundering graven", "status": "todo", "estimated_hours": 16.0},
+        headers=headers,
+    )
+    assert task1_resp.status_code == 201
+
+    task2_resp = await client.post(
+        f"/api/v1/projects/{project_id}/phases/{phase_id}/tasks",
+        json={"name": "Beton storten", "status": "todo", "estimated_hours": 8.0},
+        headers=headers,
+    )
+    assert task2_resp.status_code == 201
+
+    # Call AI autofill endpoint
+    autofill_resp = await client.post("/api/v1/planning/autofill", json={
+        "project_id": project_id,
+        "start_date": "2026-06-01",
+        "working_hours_per_day": 8,
+    }, headers=headers)
+    assert autofill_resp.status_code == 200
+    proposals = autofill_resp.json()["proposals"]
+    assert len(proposals) == 2
+
+    # Each proposal must have required fields
+    for p in proposals:
+        assert "task_id" in p
+        assert "proposed_start_date" in p
+        assert "proposed_end_date" in p
+        assert "reasoning" in p
+        assert "is_critical" in p
+        assert p["proposed_start_date"] >= "2026-06-01"
+
+    # First task should start on or near the start date
+    assert proposals[0]["proposed_start_date"] == "2026-06-01"
+
+
+@pytest.mark.asyncio
+async def test_e2e_ai_plan_empty_project(client: AsyncClient) -> None:
+    """Autofill on a project with no tasks returns empty proposals."""
+    await _register(client, "e2e_plan_empty@example.com")
+    headers = await _auth_headers(client, "e2e_plan_empty@example.com")
+
+    proj_resp = await client.post("/api/v1/projects/", json={
+        "name": "Empty Project",
+    }, headers=headers)
+    assert proj_resp.status_code == 201
+    project_id = proj_resp.json()["id"]
+
+    autofill_resp = await client.post("/api/v1/planning/autofill", json={
+        "project_id": project_id,
+    }, headers=headers)
+    assert autofill_resp.status_code == 200
+    assert autofill_resp.json()["proposals"] == []
+
+
+# ---------------------------------------------------------------------------
+# 5. Material search with mocked scraper
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
@@ -336,7 +420,7 @@ async def test_e2e_material_search_empty_query(client: AsyncClient, monkeypatch)
 
 
 # ---------------------------------------------------------------------------
-# 5. Unauthorized access
+# 6. Unauthorized access
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
