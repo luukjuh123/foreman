@@ -249,3 +249,48 @@ export interface ProcessStatsResponse {
 export interface ProcessStatsListResponse {
   data: ProcessStatsResponse[];
 }
+
+// Report types
+
+export interface ReportSummaryResponse {
+  id: string;
+  project_id: string;
+  type: string;
+  title: string;
+  period_start: string | null;
+  period_end: string | null;
+  is_shared: boolean;
+  created_at: string;
+}
+
+export interface ReportResponse {
+  id: string;
+  project_id: string;
+  type: string;
+  title: string;
+  period_start: string | null;
+  period_end: string | null;
+  data: Record<string, unknown>;
+  is_shared: boolean;
+  share_token: string | null;
+  created_at: string;
+}
+
+export interface ReportListResponse {
+  data: ReportSummaryResponse[];
+  total: number;
+  page: number;
+  per_page: number;
+}
+
+export interface ReportShareResponse {
+  share_token: string | null;
+  share_url: string;
+}
+
+export interface ReportGenerateRequest {
+  project_id: string;
+  type: "weekly" | "completion";
+  period_start?: string;
+  period_end?: string;
+}

@@ -12,3 +12,12 @@ __pycache__/
 
 # Logs
 *.log
+
+# Node / Next.js
+node_modules/
+.next/
+tsconfig.tsbuildinfo
+next-env.d.ts
+
+# Claude worktrees
+.claude/worktrees/
