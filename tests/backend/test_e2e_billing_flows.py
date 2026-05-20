@@ -504,7 +504,7 @@ async def test_webhook_cancellation_downgrades_subscription(
     await client.post(
         "/api/v1/billing/webhook/mollie",
         content=p_active,
-        headers={"X-Mollie-Signature": _sign(p_active)},
+        headers={"X-Mollie-Signature": _sign(p_active), "Content-Type": "application/json"},
     )
 
     # Then cancel
@@ -512,7 +512,7 @@ async def test_webhook_cancellation_downgrades_subscription(
     cancel_resp = await client.post(
         "/api/v1/billing/webhook/mollie",
         content=p_cancel,
-        headers={"X-Mollie-Signature": _sign(p_cancel)},
+        headers={"X-Mollie-Signature": _sign(p_cancel), "Content-Type": "application/json"},
     )
     assert cancel_resp.status_code == 200
 
