@@ -20,6 +20,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.12'
       - run: uv sync --frozen
       - run: uv run ruff check app
       - run: uv run ruff format --check app
@@ -34,6 +36,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.12'
       - run: uv sync --frozen
       - run: uv run pytest --tb=short -q
 
