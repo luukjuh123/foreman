@@ -53,7 +53,7 @@ jobs:
     with:
       image-name: foreman-backend
       dockerfile: src/backend/Dockerfile
-      push: ${{ github.ref == 'refs/heads/main' }}
+      push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
 
   docker-frontend:
     needs: frontend-build
@@ -61,6 +61,6 @@ jobs:
     with:
       image-name: foreman-frontend
       dockerfile: src/frontend/Dockerfile
-      push: ${{ github.ref == 'refs/heads/main' }}
+      push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
       build-args: |
         NEXT_PUBLIC_API_URL=https://foreman-backend.galaxy.internal
