@@ -106,11 +106,8 @@ class TestDecodeToken:
         with pytest.raises(JWTError):
             decode_token(token)
 
-    def test_currently_accepts_refresh_as_access(self):
-        """Documents current behavior: decode_token does NOT check type claim.
-
-        The hardening PR will add type validation and this test will be updated.
-        """
+    def test_refresh_token_rejected_as_access(self):
+        """decode_token validates the type claim — refresh tokens are rejected when access is expected."""
         refresh = create_refresh_token("type-test")
-        payload = decode_token(refresh)
-        assert payload["type"] == "refresh"  # accepted without error
+        with pytest.raises(ValueError, match="Token type mismatch"):
+            decode_token(refresh)

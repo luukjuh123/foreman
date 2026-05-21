@@ -39,11 +39,7 @@ function formatVatRate(bp: number): string {
 // Page
 // ---------------------------------------------------------------------------
 
-interface Props {
-  params?: Promise<{ id: string }>;
-}
-
-export default function InvoicePreviewPage({ params: paramsProp }: Props = {}) {
+export default function InvoicePreviewPage() {
   const routeParams = useParams();
   const [id, setId] = useState<string>(routeParams?.id as string ?? "");
 
@@ -56,12 +52,10 @@ export default function InvoicePreviewPage({ params: paramsProp }: Props = {}) {
   const [customerEmail, setCustomerEmail] = useState<string | null>(null);
 
   useEffect(() => {
-    if (paramsProp) {
-      paramsProp.then(({ id: resolvedId }) => setId(resolvedId));
-    } else if (routeParams?.id) {
+    if (routeParams?.id) {
       setId(routeParams.id as string);
     }
-  }, [paramsProp, routeParams]);
+  }, [routeParams]);
 
   useEffect(() => {
     if (!id) return;
