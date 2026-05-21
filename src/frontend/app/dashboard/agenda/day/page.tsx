@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { Suspense, useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight, MapPin, Clock, Calendar } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -156,6 +156,14 @@ function ProjectSection({ group }: { group: ProjectGroup }) {
 // ---------------------------------------------------------------------------
 
 export default function AgendaDayPage() {
+  return (
+    <Suspense fallback={<p className="text-sm text-muted-foreground">Laden...</p>}>
+      <AgendaDayContent />
+    </Suspense>
+  );
+}
+
+function AgendaDayContent() {
   const searchParams = useSearchParams();
   const [currentDay, setCurrentDay] = useState<string>(
     searchParams.get("day") ?? todayISO()
