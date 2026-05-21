@@ -36,7 +36,7 @@ class ConstantWeatherProvider:
     def __init__(self, *, bad: bool = False) -> None:
         self._bad = bad
 
-    async def is_bad(self, day_index: int) -> bool:  # noqa: ARG002
+    async def is_bad(self, day_index: int) -> bool:
         return self._bad
 
 
@@ -176,7 +176,7 @@ class ScheduleOptimizer:
         scheduled: list[ScheduledTask] = []
         for cpm in ordered:
             si = input_by_id[cpm.id]
-            duration_s = int(round(cpm.duration_hours * _HOUR_S))
+            duration_s = round(cpm.duration_hours * _HOUR_S)
 
             # Dependency lower bound
             dep_finishes = [finish_by_id[d] for d in cpm.dependencies if d in finish_by_id]

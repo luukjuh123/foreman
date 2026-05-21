@@ -4,12 +4,6 @@ import secrets
 import uuid
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.responses import Response
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.core.config import settings
 from app.core.database import get_db
 from app.models.project import Project
 from app.models.report import Report
@@ -25,6 +19,10 @@ from app.schemas.report import (
 from app.services.reports.completion import generate_completion_report
 from app.services.reports.pdf import render_report_pdf
 from app.services.reports.weekly import generate_weekly_report
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import Response
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 
@@ -76,7 +74,8 @@ async def generate_report(
             )
         data = await generate_weekly_report(db, project_id, body.period_start)
         period_end = body.period_end or date.fromisoformat(data["period"]["end"])
-        title = f"Weekly report — {project.name} ({body.period_start.isoformat()} – {period_end.isoformat() if isinstance(period_end, date) else period_end})"
+        pe_str = period_end.isoformat() if isinstance(period_end, date) else period_end
+        title = f"Weekly report - {project.name} ({body.period_start.isoformat()} - {pe_str})"
     else:
         data = await generate_completion_report(db, project_id)
         title = f"Completion report — {project.name}"
@@ -88,7 +87,10 @@ async def generate_report(
         type=body.type,
         title=title,
         period_start=body.period_start,
-        period_end=period_end if isinstance(period_end, date) else (date.fromisoformat(period_end) if period_end else None),
+        period_end=(
+            period_end if isinstance(period_end, date)
+            else (date.fromisoformat(period_end) if period_end else None)
+        ),
         data=data,
     )
     db.add(report)
@@ -237,7 +239,7 @@ async def toggle_share(
         await db.refresh(report)
         return ReportShareResponse(
             share_token=report.share_token,
-            share_url=f"/report/{str(report.id)}",
+            share_url=f"/report/{report.id!s}",
         )
     else:
         # Disable sharing

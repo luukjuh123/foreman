@@ -412,6 +412,12 @@ describe("SettingsPage", () => {
     localStorage.clear();
     document.documentElement.className = "";
     vi.resetModules();
+    vi.doMock("@/lib/api", () => ({
+      apiFetch: vi.fn().mockResolvedValue({
+        data: { user_id: "u1", in_app_enabled: true, email_enabled: true, push_enabled: false, type_overrides: null },
+        error: null,
+      }),
+    }));
   });
 
   afterEach(() => {

@@ -10,10 +10,9 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
+from app.core.database import Base
 from sqlalchemy import DateTime, ForeignKey, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from app.core.database import Base
 
 
 class Process(Base):
@@ -35,7 +34,7 @@ class Process(Base):
     )
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    project_links: Mapped[list["ProjectProcess"]] = relationship(
+    project_links: Mapped[list[ProjectProcess]] = relationship(
         back_populates="process", cascade="all, delete-orphan"
     )
 
@@ -64,4 +63,4 @@ class ProjectProcess(Base):
         DateTime(timezone=True), server_default=func.now()
     )
 
-    process: Mapped["Process"] = relationship(back_populates="project_links")
+    process: Mapped[Process] = relationship(back_populates="project_links")

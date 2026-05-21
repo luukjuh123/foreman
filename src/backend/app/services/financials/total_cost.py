@@ -13,9 +13,6 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.models.material import Budget, BudgetItem
 from app.services.financials.labor_cost import (
     DEFAULT_HOURLY_RATE_CENTS,
@@ -26,6 +23,8 @@ from app.services.financials.material_cost import (
     MaterialCostAggregator,
     StorePriceProvider,
 )
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @dataclass

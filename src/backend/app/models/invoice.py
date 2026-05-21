@@ -9,6 +9,7 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime
 
+from app.core.database import Base
 from sqlalchemy import (
     Date,
     DateTime,
@@ -21,8 +22,6 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from app.core.database import Base
 
 # Allowed Dutch VAT rates in basis points.
 ALLOWED_VAT_RATES_BP: tuple[int, ...] = (0, 900, 2100)
@@ -101,7 +100,7 @@ class Invoice(Base):
     )
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    lines: Mapped[list["InvoiceLine"]] = relationship(
+    lines: Mapped[list[InvoiceLine]] = relationship(
         back_populates="invoice",
         cascade="all, delete-orphan",
         order_by="InvoiceLine.position",

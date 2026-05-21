@@ -5,10 +5,6 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.core.database import get_db
 from app.models.process import ProjectProcess
 from app.models.project import Project
@@ -21,6 +17,9 @@ from app.schemas.time_entry import (
     TimeEntryStartRequest,
     TimeEntryStopRequest,
 )
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 

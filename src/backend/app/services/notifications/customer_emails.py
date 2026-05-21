@@ -12,10 +12,9 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.models.notification import Notification
 from app.services.notifications.engine import NotificationDispatcher
+from sqlalchemy.ext.asyncio import AsyncSession
 
 _CUSTOMER_CHANNELS = ["in_app", "email"]
 

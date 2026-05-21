@@ -6,10 +6,9 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import date
 
+from app.models.finance import Account, JournalEntry, JournalLine
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.models.finance import Account, JournalEntry, JournalLine
 
 
 @dataclass
@@ -105,7 +104,7 @@ class BalanceSheetNode:
     code: str
     name: str
     balance_cents: int
-    children: list["BalanceSheetNode"] = field(default_factory=list)
+    children: list[BalanceSheetNode] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {

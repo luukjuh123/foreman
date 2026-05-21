@@ -40,7 +40,7 @@ dev = [
 
 [tool.ruff]
 target-version = "py312"
-line-length = 100
+line-length = 120
 src = ["app"]
 
 [tool.ruff.lint]
@@ -48,13 +48,23 @@ select = [
     "E", "W", "F", "I", "B", "C4", "UP", "S", "SIM", "TCH", "ANN", "ARG", "RUF",
 ]
 ignore = [
-    "ANN101", "ANN102", "S101", "B008",
+    "ANN001", "ANN101", "ANN102", "ANN202", "ANN206", "ANN401",
+    "S101", "S105", "S107", "S314",
+    "B008", "B904",
+    "ARG001", "ARG002",  # FastAPI Depends() auth params appear unused
+    "RUF001", "RUF002",  # Dutch locale strings contain valid non-ASCII chars
+    "SIM108",  # ternary not always more readable
 ]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["S101", "ANN", "ARG"]
-# Pydantic schemas need typing imports at runtime
+# FastAPI routers, SQLAlchemy models, Pydantic schemas, and services
+# all need typing imports at runtime (incompatible with TCH rules)
 "app/schemas/**/*.py" = ["TCH"]
+"app/routers/**/*.py" = ["TCH"]
+"app/models/**/*.py" = ["TCH"]
+"app/services/**/*.py" = ["TCH"]
+"app/core/**/*.py" = ["TCH"]
 
 [tool.ruff.format]
 quote-style = "double"

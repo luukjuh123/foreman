@@ -9,6 +9,7 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime
 
+from app.core.database import Base
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
@@ -23,8 +24,6 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from app.core.database import Base
 
 ACCOUNT_TYPES = ("asset", "liability", "equity", "revenue", "expense")
 NORMAL_BALANCES = ("debit", "credit")
@@ -118,7 +117,7 @@ class JournalEntry(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
-    lines: Mapped[list["JournalLine"]] = relationship(
+    lines: Mapped[list[JournalLine]] = relationship(
         back_populates="entry", cascade="all, delete-orphan"
     )
 
@@ -150,4 +149,4 @@ class JournalLine(Base):
         DateTime(timezone=True), server_default=func.now()
     )
 
-    entry: Mapped["JournalEntry"] = relationship(back_populates="lines")
+    entry: Mapped[JournalEntry] = relationship(back_populates="lines")

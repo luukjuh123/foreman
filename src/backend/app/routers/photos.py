@@ -4,10 +4,6 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.core.database import get_db
 from app.models.process import Process
 from app.models.process_photo import ProcessPhoto
@@ -23,6 +19,9 @@ from app.services.recognition.photo_client import (
     PhotoRecognitionClient,
     get_default_client,
 )
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 

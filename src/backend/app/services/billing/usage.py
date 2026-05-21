@@ -2,10 +2,9 @@
 
 import uuid
 
+from app.models.usage import UsageCounter
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.models.usage import UsageCounter
 
 
 async def get_or_create_counter(

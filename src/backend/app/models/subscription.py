@@ -4,19 +4,18 @@ import enum
 import uuid
 from datetime import datetime
 
+from app.core.database import Base
 from sqlalchemy import DateTime, ForeignKey, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.database import Base
 
-
-class SubscriptionTier(str, enum.Enum):
+class SubscriptionTier(enum.StrEnum):
     FREE = "free"
     STARTER = "starter"
     PRO = "pro"
 
 
-class SubscriptionStatus(str, enum.Enum):
+class SubscriptionStatus(enum.StrEnum):
     ACTIVE = "active"
     TRIALING = "trialing"
     PAST_DUE = "past_due"

@@ -46,7 +46,7 @@ async def compare_prices(
     async def _one(client: StoreClient) -> list[ProductResult]:
         try:
             return await client.search(query, max_results=max_per_store)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.warning(
                 "comparison: %s search failed for %r: %s",
                 getattr(client, "store_name", type(client).__name__),

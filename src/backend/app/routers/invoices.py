@@ -3,12 +3,8 @@
 from __future__ import annotations
 
 import uuid
+from datetime import date as _date
 from datetime import timedelta
-
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
 from app.core.database import get_db
@@ -25,12 +21,14 @@ from app.schemas.invoice import (
 )
 from app.services.invoices.from_project import build_project_lines
 from app.services.invoices.numbering import allocate_invoice_number
-from app.services.invoices.pdf import render_invoice_pdf
-from app.services.invoices.status import apply_transition, sweep_overdue
+from app.services.invoices.status import apply_transition
 from app.services.invoices.totals import compute_line_totals
 from app.services.invoices.ubl import build_invoice_ubl_xml
-from datetime import date as _date
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 router = APIRouter()
 

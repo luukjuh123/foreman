@@ -5,10 +5,9 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
+from app.core.database import Base
 from sqlalchemy import JSON, DateTime, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
-
-from app.core.database import Base
 
 
 class InboundInquiry(Base):

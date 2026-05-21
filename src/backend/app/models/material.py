@@ -3,10 +3,9 @@
 import uuid
 from datetime import datetime
 
+from app.core.database import Base
 from sqlalchemy import DateTime, ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from app.core.database import Base
 
 # Categories that drive the project total-cost breakdown.
 BUDGET_ITEM_CATEGORIES = ("materials", "labor", "equipment", "overhead", "other")

@@ -19,16 +19,15 @@ from __future__ import annotations
 import logging
 import uuid
 from abc import ABC, abstractmethod
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import date
-from typing import Awaitable, Callable
-
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.notification import Notification
 from app.models.project import Project
 from app.services.notifications.engine import NotificationDispatcher
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +93,7 @@ class OpenAIReasoner(Reasoner):  # pragma: no cover - thin shim, not unit-tested
                 temperature=0.2,
             )
             return resp.choices[0].message.content or ""
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.exception("openai_reasoner_failed")
             return FakeReasoner().explain(anomaly_type=anomaly_type, facts=facts)
 

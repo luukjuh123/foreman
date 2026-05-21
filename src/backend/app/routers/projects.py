@@ -21,9 +21,9 @@ from app.schemas.project import (
     TaskResponse,
     TaskUpdate,
 )
-from app.services.planning.cpm import detect_cycle
 from app.services.billing.subscriptions import enforce_project_limit
 from app.services.billing.usage import increment_projects
+from app.services.planning.cpm import detect_cycle
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession

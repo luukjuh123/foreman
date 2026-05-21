@@ -2,10 +2,6 @@
 
 from __future__ import annotations
 
-from collections import defaultdict
-
-from fastapi import APIRouter
-
 from app.schemas.material_estimate import (
     ConcreteSpec,
     EstimateItem,
@@ -17,10 +13,7 @@ from app.schemas.material_estimate import (
     TileSpec,
 )
 from app.schemas.materials_search import (
-    CompareData,
-    CompareResponse,
     ProductResultSchema,
-    SearchResponse,
     StoresResponse,
 )
 from app.services.material_estimation import (
@@ -29,11 +22,13 @@ from app.services.material_estimation import (
     estimate_paint,
     estimate_tiles,
 )
+from app.services.stores.base import ProductResult
 from app.services.stores.bouwmaat import BouwmaatClient
 from app.services.stores.comparison import compare_prices
 from app.services.stores.gamma import GammaClient
 from app.services.stores.hornbach import HornbachClient
 from app.services.stores.praxis import PraxisClient
+from fastapi import APIRouter
 
 router = APIRouter()
 

@@ -3,13 +3,8 @@
 import uuid
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
-
 from app.core.database import get_db
-from app.models.project import Phase, Project, Task, TaskDependency
+from app.models.project import Phase, Project, Task
 from app.models.user import User
 from app.routers.auth import get_current_user
 from app.routers.projects import _assert_owner
@@ -21,6 +16,10 @@ from app.schemas.planning import (
 )
 from app.services.planning.autofill import compute_schedule, get_historical_hours
 from app.services.planning.cpm import CpmTask
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 router = APIRouter()
 

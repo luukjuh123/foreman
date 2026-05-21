@@ -8,10 +8,6 @@ lead. Downstream, every admin user is notified so a human can triage.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, status
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.core.database import get_db
 from app.models.inbound_inquiry import InboundInquiry
 from app.models.user import User
@@ -23,6 +19,9 @@ from app.schemas.inbound import (
 )
 from app.services.notifications.dispatcher_dep import get_default_dispatcher
 from app.services.notifications.engine import NotificationDispatcher
+from fastapi import APIRouter, Depends, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 

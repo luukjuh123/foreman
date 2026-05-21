@@ -52,7 +52,7 @@ class AccountTreeNode(BaseModel):
     normal_balance: str
     cashflow_category: str | None
     is_active: bool
-    children: list["AccountTreeNode"] = Field(default_factory=list)
+    children: list[AccountTreeNode] = Field(default_factory=list)
 
 
 AccountTreeNode.model_rebuild()
@@ -70,7 +70,7 @@ class JournalLineInput(BaseModel):
     description: str | None = None
 
     @model_validator(mode="after")
-    def one_side_only(self) -> "JournalLineInput":
+    def one_side_only(self) -> JournalLineInput:
         if self.debit_cents > 0 and self.credit_cents > 0:
             raise ValueError("Line must be either debit or credit, not both")
         if self.debit_cents == 0 and self.credit_cents == 0:
@@ -85,7 +85,7 @@ class JournalEntryCreate(BaseModel):
     lines: list[JournalLineInput] = Field(min_length=2)
 
     @model_validator(mode="after")
-    def debits_equal_credits(self) -> "JournalEntryCreate":
+    def debits_equal_credits(self) -> JournalEntryCreate:
         total_debit = sum(line.debit_cents for line in self.lines)
         total_credit = sum(line.credit_cents for line in self.lines)
         if total_debit != total_credit:
@@ -138,7 +138,7 @@ class PeriodCreate(BaseModel):
     end_date: date
 
     @model_validator(mode="after")
-    def end_after_start(self) -> "PeriodCreate":
+    def end_after_start(self) -> PeriodCreate:
         if self.end_date < self.start_date:
             raise ValueError("end_date must be >= start_date")
         return self

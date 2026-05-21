@@ -9,12 +9,11 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
+from app.models.project import Phase, Project
+from app.services.reports.engine import aggregate_project_data
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-
-from app.models.project import Phase, Project
-from app.services.reports.engine import aggregate_project_data
 
 
 def _duration_days(start: str | None, end: str | None) -> int | None:

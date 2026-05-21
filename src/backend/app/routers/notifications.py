@@ -12,11 +12,6 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.core.database import get_db
 from app.models.notification import Notification
 from app.models.user import User
@@ -29,9 +24,18 @@ from app.schemas.notification import (
     NotificationPreferencesUpdate,
     NotificationResponse,
 )
+from app.services.notifications.customer_emails import (
+    notify_invoice_sent,
+    notify_project_update,
+    notify_report_ready,
+)
 from app.services.notifications.dispatcher_dep import get_default_dispatcher
 from app.services.notifications.engine import NotificationDispatcher
 from app.services.notifications.preferences import get_or_create_preferences
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 

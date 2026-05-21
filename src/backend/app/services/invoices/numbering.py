@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import uuid
 
+from app.models.invoice import InvoiceCounter
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.models.invoice import InvoiceCounter
 
 
 def format_invoice_number(year: int, number: int) -> str:

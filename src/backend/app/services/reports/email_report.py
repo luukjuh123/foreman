@@ -6,11 +6,10 @@ payload, a recipient, an ``EmailSender`` and a ``PDFRenderer`` and fires.
 
 from __future__ import annotations
 
-from typing import Iterable
+from collections.abc import Iterable
 
 from app.services.reports.email_sender import EmailMessage, EmailSender
 from app.services.reports.pdf import PDFRenderer, render_report_html, render_report_pdf
-
 
 _TYPE_LABELS = {"weekly": "Weekly", "completion": "Completion"}
 
@@ -78,10 +77,7 @@ def send_report_email(
     subject = _subject_for(data)
 
     recipients: list[str]
-    if isinstance(recipient, str):
-        recipients = [recipient]
-    else:
-        recipients = [r for r in recipient]
+    recipients = [recipient] if isinstance(recipient, str) else list(recipient)
 
     dispatched: list[EmailMessage] = []
     for to in recipients:

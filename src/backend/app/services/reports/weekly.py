@@ -8,17 +8,14 @@ per phase. Pure data — persistence, PDF, and email layers compose on top.
 from __future__ import annotations
 
 import uuid
-from collections import defaultdict
 from datetime import date, timedelta
 from typing import Any
 
+from app.models.project import Phase, Project, Task
+from app.services.reports.engine import _task_in_period, aggregate_project_data
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-
-from app.models.project import Phase, Project, Task
-from app.services.reports.engine import aggregate_project_data, _task_in_period
-
 
 WEEK_LENGTH_DAYS = 7
 

@@ -9,10 +9,9 @@ from __future__ import annotations
 
 import uuid
 
+from app.models.notification_preference import NotificationPreference
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.models.notification_preference import NotificationPreference
 
 ALL_CHANNELS: set[str] = {"in_app", "email", "push"}
 

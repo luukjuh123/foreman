@@ -3,42 +3,53 @@
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, timedelta
+from datetime import date as _date
+from datetime import datetime as _datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.core.database import get_db
-from app.models.finance import Account
+from app.models.finance import Account, JournalEntry, JournalLine, Period
 from app.models.user import User
 from app.routers.auth import get_current_user
-from app.schemas.budget import (
-    BudgetItemCreate,
-    BudgetItemResponse,
-    BudgetItemUpdate,
-    BudgetResponse,
-    BudgetUpsert,
-)
 from app.schemas.cost import (
     CostBreakdownResponse,
     LaborCostResponse,
-    MaterialCostResponse,
-    MaterialLineResponse,
     TaskLaborResponse,
     TotalCostResponse,
 )
-from app.schemas.finance import AccountCreate, AccountResponse, AccountTreeNode
+from app.schemas.finance import (
+    AccountCreate,
+    AccountResponse,
+    AccountTreeNode,
+    AccountUpdate,
+    JournalEntryCreate,
+    JournalEntryResponse,
+    PeriodCreate,
+    PeriodResponse,
+)
+from app.services.finance.reports import (
+    aggregate_balances,
+    build_balance_sheet,
+    build_cash_flow_statement,
+    build_income_statement,
+    compute_net_income_cents,
+)
+from app.services.finance.seed import DUTCH_RGS_LIGHT
 from app.services.financials.labor_cost import (
     DEFAULT_HOURLY_RATE_CENTS,
     LaborCostEstimator,
 )
 from app.services.financials.material_cost import (
     DefaultStorePriceProvider,
-    MaterialCostAggregator,
     StorePriceProvider,
 )
 from app.services.financials.total_cost import TotalCostCalculator
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import Query as _Query
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 router = APIRouter()
 
@@ -203,22 +214,24 @@ async def seed_dutch_rgs(
 # Journal entries — double-entry bookkeeping
 # ---------------------------------------------------------------------------
 
-from datetime import datetime as _dt  # noqa: E402
 
-from app.models.finance import (  # noqa: E402
-    JournalEntry,
-    JournalLine,
-    Period,
-)
-from app.schemas.finance import (  # noqa: E402
-    JournalEntryCreate,
-    JournalEntryResponse,
-)
-from sqlalchemy.orm import selectinload  # noqa: E402
+async def _project_for_user_or_404(
+    project_id: uuid.UUID, user: User, db: AsyncSession
+) -> None:
+    from app.models.project import Project
+
+    result = await db.execute(
+        select(Project).where(Project.id == project_id, Project.deleted_at.is_(None))
+    )
+    project = result.scalar_one_or_none()
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if project.owner_id != user.id:
+        raise HTTPException(status_code=403, detail="Not your project")
 
 
 async def _entry_date_in_locked_period(
-    db: AsyncSession, owner_id: uuid.UUID, entry_date
+    db: AsyncSession, owner_id: uuid.UUID, entry_date: _date
 ) -> bool:
     result = await db.execute(
         select(Period).where(
@@ -329,16 +342,6 @@ async def get_journal_entry(
 # Balance sheet (balans)
 # ---------------------------------------------------------------------------
 
-from datetime import date as _date  # noqa: E402
-
-from fastapi import Query as _Query  # noqa: E402
-
-from app.services.finance.reports import (  # noqa: E402
-    aggregate_balances,
-    build_balance_sheet,
-    compute_net_income_cents,
-)
-
 
 @router.get("/reports/balance-sheet")
 async def balance_sheet(
@@ -358,9 +361,6 @@ async def balance_sheet(
 # ---------------------------------------------------------------------------
 # Income statement (winst- en verliesrekening)
 # ---------------------------------------------------------------------------
-
-
-from app.services.finance.reports import build_income_statement  # noqa: E402
 
 
 @router.get("/reports/income-statement")
@@ -387,10 +387,6 @@ async def income_statement(
 # ---------------------------------------------------------------------------
 # Cash flow statement (kasstroomoverzicht) — indirect method
 # ---------------------------------------------------------------------------
-
-from datetime import timedelta  # noqa: E402
-
-from app.services.finance.reports import build_cash_flow_statement  # noqa: E402
 
 
 @router.get("/reports/cash-flow")
@@ -431,10 +427,6 @@ async def cash_flow_statement(
 # ---------------------------------------------------------------------------
 # Accounting periods — create, list, lock, year-end report
 # ---------------------------------------------------------------------------
-
-from datetime import datetime as _datetime, timezone as _tz  # noqa: E402
-
-from app.schemas.finance import PeriodCreate, PeriodResponse  # noqa: E402
 
 
 @router.post(
@@ -482,7 +474,7 @@ async def lock_period(
     if period.is_locked:
         raise HTTPException(status_code=409, detail="Period already locked")
     period.is_locked = True
-    period.locked_at = _datetime.now(_tz.utc)
+    period.locked_at = _datetime.now(UTC)
     await db.commit()
     await db.refresh(period)
     return period
@@ -525,13 +517,13 @@ async def year_end_report(
     )
     net_income = compute_net_income_cents(closing)
 
-    sheet = build_balance_sheet(
+    build_balance_sheet(
         closing, as_of=period.end_date, net_income_to_date_cents=net_income
     )
-    income = build_income_statement(
+    build_income_statement(
         period_aggregates, start_date=period.start_date, end_date=period.end_date
     )
-    cash = build_cash_flow_statement(
+    build_cash_flow_statement(
         opening_aggregates=opening,
         closing_aggregates=closing,
         period_aggregates=period_aggregates,
@@ -551,11 +543,11 @@ async def year_end_report(
 )
 async def get_labor_cost(
     project_id: uuid.UUID,
-    hourly_rate_cents: int = Query(default=DEFAULT_HOURLY_RATE_CENTS, ge=0),
+    hourly_rate_cents: int = _Query(default=DEFAULT_HOURLY_RATE_CENTS, ge=0),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> LaborCostResponse:
-    """Estimate labor cost = sum(task.estimated_hours) × hourly_rate_cents.
+    """Estimate labor cost = sum(task.estimated_hours) x hourly_rate_cents.
 
     The rate defaults to ``DEFAULT_HOURLY_RATE_CENTS`` (5000 ¢ = €50/hr) and
     can be overridden via query param to support what-if modelling on the
@@ -591,7 +583,7 @@ async def get_labor_cost(
 )
 async def get_total_cost(
     project_id: uuid.UUID,
-    hourly_rate_cents: int = Query(default=DEFAULT_HOURLY_RATE_CENTS, ge=0),
+    hourly_rate_cents: int = _Query(default=DEFAULT_HOURLY_RATE_CENTS, ge=0),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     provider: StorePriceProvider = Depends(get_price_provider),

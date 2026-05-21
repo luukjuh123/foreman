@@ -4,11 +4,7 @@ from __future__ import annotations
 
 import uuid
 from collections import defaultdict
-from datetime import datetime, timezone
-
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import UTC, datetime
 
 from app.core.database import get_db
 from app.models.review import Review
@@ -29,6 +25,9 @@ from app.services.reviews.google_client import (
     GoogleBusinessClient,
     get_google_business_client,
 )
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 
@@ -189,7 +188,7 @@ async def reply_to_review(
         )
     await google.reply_to_review(review.location_id, review.external_id, body.text)
     review.reply_text = body.text
-    review.replied_at = datetime.now(timezone.utc)
+    review.replied_at = datetime.now(UTC)
     db.add(review)
     await db.commit()
     await db.refresh(review)

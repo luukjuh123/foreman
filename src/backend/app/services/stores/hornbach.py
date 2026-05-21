@@ -28,9 +28,8 @@ from __future__ import annotations
 import re
 from urllib.parse import quote_plus, urljoin
 
-from bs4 import BeautifulSoup
-
 from app.services.stores.base import ProductResult, StoreClient
+from bs4 import BeautifulSoup
 
 
 class HornbachClient(StoreClient):
@@ -51,7 +50,7 @@ class HornbachClient(StoreClient):
 _PRICE_FALLBACK = re.compile(r"€\s*(\d+)[,.](\d{2})")
 
 
-def _parse_price_cents(node) -> int | None:  # noqa: ANN001
+def _parse_price_cents(node) -> int | None:
     """Extract price in integer euro cents from a price node.
 
     Prefers ``data-price-cents`` (authoritative integer); falls back to

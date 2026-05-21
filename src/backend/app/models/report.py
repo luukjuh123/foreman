@@ -1,14 +1,12 @@
 """Report model — persisted generated reports (weekly, completion)."""
 
-import secrets
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, Date, DateTime, String, Text, func
+from app.core.database import Base
+from sqlalchemy import Boolean, Date, DateTime, String, func
 from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.orm import Mapped, mapped_column
-
-from app.core.database import Base
 
 
 class Report(Base):

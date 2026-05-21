@@ -25,9 +25,8 @@ from __future__ import annotations
 
 from urllib.parse import quote_plus, urljoin
 
-from bs4 import BeautifulSoup
-
 from app.services.stores.base import ProductResult, StoreClient
+from bs4 import BeautifulSoup
 
 
 class PraxisClient(StoreClient):
@@ -44,7 +43,7 @@ class PraxisClient(StoreClient):
         return _parse_search(html, base_url=self.base_url)[:max_results]
 
 
-def _price_cents(item) -> int | None:  # noqa: ANN001
+def _price_cents(item) -> int | None:
     int_node = item.select_one(".product-item__price-int")
     frac_node = item.select_one(".product-item__price-frac")
     if int_node is None or frac_node is None:

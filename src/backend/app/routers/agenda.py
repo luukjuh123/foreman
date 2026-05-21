@@ -2,10 +2,6 @@
 
 from datetime import date, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy import and_, select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.core.database import get_db
 from app.models.project import Phase, Project, Task
 from app.models.user import User
@@ -17,6 +13,9 @@ from app.schemas.agenda import (
     AgendaWeekResponse,
 )
 from app.services.calendar import build_ics
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from sqlalchemy import and_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 
@@ -152,7 +151,7 @@ async def range_view(
 
 
 # Re-exported for the iCal exporter (separate PR will use it).
-__all__ = ["router", "_fetch_tasks_in_range"]
+__all__ = ["_fetch_tasks_in_range", "router"]
 
 
 @router.get(

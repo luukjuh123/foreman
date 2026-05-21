@@ -167,7 +167,7 @@ class HistoricalLearner:
 
         ratios = [r.actual_duration_s / r.estimated_duration_s for r in rows]
         bias = statistics.median(ratios)
-        corrected = int(round(estimated_duration_s * bias))
+        corrected = round(estimated_duration_s * bias)
         return Prediction(
             duration_s=corrected,
             confidence=_confidence(len(rows)),

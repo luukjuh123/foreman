@@ -2,10 +2,6 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Response, status
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.core.config import settings
 from app.core.database import get_db
 from app.models.push_subscription import PushSubscription
@@ -17,6 +13,9 @@ from app.schemas.push_subscription import (
     PushUnsubscribeRequest,
     VapidKeyResponse,
 )
+from fastapi import APIRouter, Depends, Response, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 

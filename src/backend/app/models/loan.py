@@ -8,10 +8,9 @@ All money in integer euro cents.
 import uuid
 from datetime import date, datetime
 
+from app.core.database import Base
 from sqlalchemy import CheckConstraint, Date, DateTime, ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from app.core.database import Base
 
 
 class StaffLoan(Base):

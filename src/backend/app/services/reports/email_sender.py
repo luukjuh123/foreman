@@ -15,9 +15,10 @@ trivially testable.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from email.message import EmailMessage as PyEmailMessage
-from typing import Callable, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 
 @dataclass

@@ -15,46 +15,46 @@ import { subscribeToPush, fetchVapidKey } from "@/lib/push";
 import { PushPermission } from "@/components/push-permission";
 
 // ---------------------------------------------------------------------------
-// Helper: jsdom doesn't have PushManager; inject it for tests
-// ---------------------------------------------------------------------------
-function withPushManager(fn: () => void) {
-  const original = (window as unknown as Record<string, unknown>).PushManager;
-  (window as unknown as Record<string, unknown>).PushManager = class {};
-  fn();
-  if (original === undefined) {
-    delete (window as unknown as Record<string, unknown>).PushManager;
-  } else {
-    (window as unknown as Record<string, unknown>).PushManager = original;
-  }
-}
-
-// ---------------------------------------------------------------------------
 // PushPermission component tests
 // ---------------------------------------------------------------------------
+
+let hadPushManager = false;
 
 describe("PushPermission", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Keep PushManager alive for the entire test (including async re-renders)
+    if (!("PushManager" in window)) {
+      (window as unknown as Record<string, unknown>).PushManager = class {};
+      hadPushManager = false;
+    } else {
+      hadPushManager = true;
+    }
+  });
+
+  afterEach(() => {
+    if (!hadPushManager) {
+      delete (window as unknown as Record<string, unknown>).PushManager;
+    }
   });
 
   it("renders enable button when PushManager is available", () => {
-    withPushManager(() => {
-      render(<PushPermission token="test-token" />);
-      expect(screen.getByText("Inschakelen")).toBeTruthy();
-    });
+    render(<PushPermission token="test-token" />);
+    expect(screen.getByText("Inschakelen")).toBeTruthy();
   });
 
   it("does not render when PushManager is unavailable", () => {
-    // PushManager not present in plain jsdom
+    // Temporarily remove PushManager
+    delete (window as unknown as Record<string, unknown>).PushManager;
     const { container } = render(<PushPermission token="test-token" />);
     expect(container.firstChild).toBeNull();
+    // Re-add for afterEach cleanup consistency
+    (window as unknown as Record<string, unknown>).PushManager = class {};
   });
 
   it("calls subscribeToPush with the token on button click", async () => {
-    withPushManager(() => {
-      render(<PushPermission token="my-jwt" />);
-      fireEvent.click(screen.getByText("Inschakelen"));
-    });
+    render(<PushPermission token="my-jwt" />);
+    fireEvent.click(screen.getByText("Inschakelen"));
     await waitFor(() => {
       expect(subscribeToPush).toHaveBeenCalledWith("my-jwt");
     });
@@ -62,21 +62,17 @@ describe("PushPermission", () => {
 
   it("shows denied message when subscription returns false", async () => {
     vi.mocked(subscribeToPush).mockResolvedValueOnce(false);
-    withPushManager(() => {
-      render(<PushPermission token="test-token" />);
-      fireEvent.click(screen.getByText("Inschakelen"));
-    });
+    render(<PushPermission token="test-token" />);
+    fireEvent.click(screen.getByText("Inschakelen"));
     await waitFor(() => {
       expect(screen.getByText(/geblokkeerd/i)).toBeTruthy();
     });
   });
 
   it("dismisses banner when X is clicked", () => {
-    withPushManager(() => {
-      render(<PushPermission token="test-token" />);
-      fireEvent.click(screen.getByLabelText("Sluiten"));
-      expect(screen.queryByText("Inschakelen")).toBeNull();
-    });
+    render(<PushPermission token="test-token" />);
+    fireEvent.click(screen.getByLabelText("Sluiten"));
+    expect(screen.queryByText("Inschakelen")).toBeNull();
   });
 });
 

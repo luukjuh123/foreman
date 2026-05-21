@@ -14,11 +14,10 @@ import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.models.material import Material
 from app.models.project import Phase, Task
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class StorePriceProvider(ABC):

@@ -30,7 +30,7 @@ class StaticLLMClient:
     def __init__(self, response: dict[str, Any] | None = None) -> None:
         self._response = response or {}
 
-    async def complete_json(self, system: str, user: str) -> dict[str, Any]:  # noqa: ARG002
+    async def complete_json(self, system: str, user: str) -> dict[str, Any]:
         return dict(self._response)
 
 

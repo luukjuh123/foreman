@@ -11,11 +11,10 @@ import uuid
 from datetime import date
 from typing import Any
 
+from app.models.project import Phase, Project, Task
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-
-from app.models.project import Phase, Project, Task
 
 
 def _date_str(d: date | None) -> str | None:
@@ -35,9 +34,7 @@ def _task_in_period(task: Task, start: date | None, end: date | None) -> bool:
         return True
     if start is not None and t_end is not None and t_end < start:
         return False
-    if end is not None and t_start is not None and t_start > end:
-        return False
-    return True
+    return not (end is not None and t_start is not None and t_start > end)
 
 
 def _serialise_task(task: Task) -> dict[str, Any]:

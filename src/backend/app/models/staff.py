@@ -3,10 +3,9 @@
 import uuid
 from datetime import datetime, time
 
+from app.core.database import Base
 from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, String, Time, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from app.core.database import Base
 
 
 class Staff(Base):

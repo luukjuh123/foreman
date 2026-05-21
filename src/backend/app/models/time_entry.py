@@ -11,10 +11,9 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
+from app.core.database import Base
 from sqlalchemy import DateTime, ForeignKey, Integer, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
-
-from app.core.database import Base
 
 
 class ProcessTimeEntry(Base):

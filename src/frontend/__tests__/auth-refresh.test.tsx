@@ -184,6 +184,22 @@ vi.mock("@/components/theme-toggle", () => ({
   ThemeToggle: () => <button data-testid="theme-toggle" />,
 }));
 
+vi.mock("@/components/offline-indicator", () => ({
+  default: () => null,
+}));
+
+vi.mock("@/components/pwa-register", () => ({
+  default: () => null,
+}));
+
+vi.mock("@/components/mobile-nav", () => ({
+  default: () => null,
+}));
+
+vi.mock("@/components/mobile-time-tracker", () => ({
+  default: () => null,
+}));
+
 describe("DashboardLayout auth guard", () => {
   afterEach(() => {
     localStorage.clear();

@@ -1,10 +1,5 @@
 """Billing router — subscription views, checkout, and provider webhooks."""
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
-from pydantic import BaseModel
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.core.database import get_db
 from app.models.subscription import (
     TIER_PROJECT_LIMIT,
@@ -18,6 +13,10 @@ from app.schemas.billing import SubscriptionResponse, UsageResponse
 from app.services.billing.providers import PaymentProvider, get_payment_provider
 from app.services.billing.subscriptions import ensure_free_subscription
 from app.services.billing.usage import get_or_create_counter
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 

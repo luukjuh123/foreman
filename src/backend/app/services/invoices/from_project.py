@@ -5,12 +5,11 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 
+from app.models.material import Material
+from app.models.project import Phase, Project, Task
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-
-from app.models.material import Material
-from app.models.project import Phase, Project, Task
 
 
 @dataclass

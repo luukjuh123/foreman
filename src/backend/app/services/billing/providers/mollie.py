@@ -10,7 +10,6 @@ import hmac
 import json
 
 import httpx
-
 from app.services.billing.providers.base import (
     CheckoutResult,
     PaymentProvider,

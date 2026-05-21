@@ -2,11 +2,6 @@
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
-
 from app.core.database import get_db
 from app.models.loan import LoanDeduction, StaffLoan
 from app.models.staff import Staff
@@ -20,6 +15,10 @@ from app.schemas.loan import (
     StaffOutstandingBalance,
 )
 from app.services.payroll.loans import compute_outstanding
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 router = APIRouter()
 

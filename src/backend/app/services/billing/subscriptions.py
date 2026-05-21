@@ -3,11 +3,6 @@
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from fastapi import HTTPException
-from fastapi import status as http_status
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.core.config import settings
 from app.models.project import Project
 from app.models.subscription import (
@@ -16,6 +11,10 @@ from app.models.subscription import (
     SubscriptionStatus,
     SubscriptionTier,
 )
+from fastapi import HTTPException
+from fastapi import status as http_status
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 async def get_subscription(
