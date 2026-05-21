@@ -23,10 +23,7 @@ WEEK_LENGTH_DAYS = 7
 def _ensure_monday(week_start: date) -> None:
     # Python: Monday == 0
     if week_start.weekday() != 0:
-        raise ValueError(
-            f"week_start must be a Monday; got {week_start.isoformat()} "
-            f"(weekday={week_start.weekday()})"
-        )
+        raise ValueError(f"week_start must be a Monday; got {week_start.isoformat()} (weekday={week_start.weekday()})")
 
 
 async def generate_weekly_report(
@@ -60,42 +57,40 @@ async def generate_weekly_report(
     next_week_plan: list[dict[str, Any]] = []
 
     for phase in sorted(project.phases, key=lambda p: p.order_index):
-        this_week_tasks: list[Task] = [
-            t for t in phase.tasks if _task_in_period(t, week_start, week_end)
-        ]
+        this_week_tasks: list[Task] = [t for t in phase.tasks if _task_in_period(t, week_start, week_end)]
         for t in this_week_tasks:
             if t.status == "done":
-                completed_this_week.append({
-                    "id": str(t.id),
-                    "name": t.name,
-                    "phase_name": phase.name,
-                    "estimated_hours": float(t.estimated_hours or 0.0),
-                    "labor_cost_cents": int(t.labor_cost_cents or 0),
-                })
+                completed_this_week.append(
+                    {
+                        "id": str(t.id),
+                        "name": t.name,
+                        "phase_name": phase.name,
+                        "estimated_hours": float(t.estimated_hours or 0.0),
+                        "labor_cost_cents": int(t.labor_cost_cents or 0),
+                    }
+                )
         if this_week_tasks:
             hours_by_phase_map[phase.id] = {
                 "phase_id": str(phase.id),
                 "phase_name": phase.name,
                 "task_count": len(this_week_tasks),
-                "estimated_hours": sum(
-                    float(t.estimated_hours or 0.0) for t in this_week_tasks
-                ),
-                "labor_cost_cents": sum(
-                    int(t.labor_cost_cents or 0) for t in this_week_tasks
-                ),
+                "estimated_hours": sum(float(t.estimated_hours or 0.0) for t in this_week_tasks),
+                "labor_cost_cents": sum(int(t.labor_cost_cents or 0) for t in this_week_tasks),
             }
         for t in phase.tasks:
             if _task_in_period(t, next_week_start, next_week_end):
-                next_week_plan.append({
-                    "id": str(t.id),
-                    "name": t.name,
-                    "phase_name": phase.name,
-                    "status": t.status,
-                    "estimated_hours": float(t.estimated_hours or 0.0),
-                    "labor_cost_cents": int(t.labor_cost_cents or 0),
-                    "start_date": t.start_date.isoformat() if t.start_date else None,
-                    "end_date": t.end_date.isoformat() if t.end_date else None,
-                })
+                next_week_plan.append(
+                    {
+                        "id": str(t.id),
+                        "name": t.name,
+                        "phase_name": phase.name,
+                        "status": t.status,
+                        "estimated_hours": float(t.estimated_hours or 0.0),
+                        "labor_cost_cents": int(t.labor_cost_cents or 0),
+                        "start_date": t.start_date.isoformat() if t.start_date else None,
+                        "end_date": t.end_date.isoformat() if t.end_date else None,
+                    }
+                )
 
     return {
         "type": "weekly",

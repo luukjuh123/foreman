@@ -67,8 +67,7 @@ async def notify_invoice_sent(
         type="customer.invoice_sent",
         title=f"Invoice {invoice_number} is ready",
         body=(
-            f"Your invoice {invoice_number} for {amount} has been sent. "
-            "Please check your email for payment details."
+            f"Your invoice {invoice_number} for {amount} has been sent. Please check your email for payment details."
         ),
         data={
             "invoice_id": str(invoice_id),

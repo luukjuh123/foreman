@@ -50,13 +50,9 @@ class LaborCostEstimator:
     def hourly_rate_cents(self) -> int:
         return self._rate
 
-    async def estimate(
-        self, project_id: uuid.UUID, db: AsyncSession
-    ) -> LaborCostReport:
+    async def estimate(self, project_id: uuid.UUID, db: AsyncSession) -> LaborCostReport:
         result = await db.execute(
-            select(Task)
-            .join(Phase, Task.phase_id == Phase.id)
-            .where(Phase.project_id == project_id)
+            select(Task).join(Phase, Task.phase_id == Phase.id).where(Phase.project_id == project_id)
         )
         tasks = list(result.scalars().all())
 

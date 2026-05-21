@@ -81,9 +81,7 @@ def _topo_sort_critical_first(tasks: list[CpmTask]) -> list[CpmTask]:
     if not tasks:
         return []
     snapshot = [
-        CpmTask(id=t.id, name=t.name, duration_hours=t.duration_hours,
-                dependencies=list(t.dependencies))
-        for t in tasks
+        CpmTask(id=t.id, name=t.name, duration_hours=t.duration_hours, dependencies=list(t.dependencies)) for t in tasks
     ]
     compute_critical_path(snapshot)
     task_map = {t.id: t for t in snapshot}
@@ -227,12 +225,14 @@ class ScheduleOptimizer:
                 usage.setdefault(res, []).append((start_s, end_s))
 
             finish_by_id[cpm.id] = end_s
-            scheduled.append(ScheduledTask(
-                task_id=cpm.id,
-                start_time_s=start_s,
-                end_time_s=end_s,
-                reasoning="; ".join(reasons),
-            ))
+            scheduled.append(
+                ScheduledTask(
+                    task_id=cpm.id,
+                    start_time_s=start_s,
+                    end_time_s=end_s,
+                    reasoning="; ".join(reasons),
+                )
+            )
 
         # Preserve input task order in output
         order_index = {si.task.id: i for i, si in enumerate(inputs)}

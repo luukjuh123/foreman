@@ -57,9 +57,7 @@ class NotificationDispatcher:
         `channels` (optional) restricts which channels are invoked, e.g.
         `["in_app", "email"]`. If `None` all registered channels are tried.
         """
-        user = (
-            await db.execute(select(User).where(User.id == user_id))
-        ).scalar_one_or_none()
+        user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
         if user is None:
             raise ValueError(f"user {user_id} does not exist")
 

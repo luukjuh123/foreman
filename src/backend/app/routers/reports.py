@@ -31,13 +31,10 @@ router = APIRouter()
 # Helpers
 # ---------------------------------------------------------------------------
 
-async def _get_own_report_or_404(
-    report_id: uuid.UUID, user: User, db: AsyncSession
-) -> Report:
+
+async def _get_own_report_or_404(report_id: uuid.UUID, user: User, db: AsyncSession) -> Report:
     """Fetch a report owned by the current user, or 404."""
-    result = await db.execute(
-        select(Report).where(Report.id == report_id, Report.created_by_id == user.id)
-    )
+    result = await db.execute(select(Report).where(Report.id == report_id, Report.created_by_id == user.id))
     report = result.scalar_one_or_none()
     if report is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
@@ -48,6 +45,7 @@ async def _get_own_report_or_404(
 # Endpoints
 # ---------------------------------------------------------------------------
 
+
 @router.post("/generate", response_model=ReportResponse, status_code=status.HTTP_201_CREATED)
 async def generate_report(
     body: ReportGenerateRequest,
@@ -57,9 +55,7 @@ async def generate_report(
     project_id = uuid.UUID(body.project_id)
 
     # Verify project exists and belongs to user
-    result = await db.execute(
-        select(Project).where(Project.id == project_id, Project.deleted_at.is_(None))
-    )
+    result = await db.execute(select(Project).where(Project.id == project_id, Project.deleted_at.is_(None)))
     project = result.scalar_one_or_none()
     if project is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
@@ -75,7 +71,7 @@ async def generate_report(
         data = await generate_weekly_report(db, project_id, body.period_start)
         period_end = body.period_end or date.fromisoformat(data["period"]["end"])
         pe_str = period_end.isoformat() if isinstance(period_end, date) else period_end
-        title = f"Weekly report - {project.name} ({body.period_start.isoformat()} - {pe_str})"
+        title = f"Weekly report \u2014 {project.name} ({body.period_start.isoformat()} \u2013 {pe_str})"
     else:
         data = await generate_completion_report(db, project_id)
         title = f"Completion report — {project.name}"
@@ -88,8 +84,7 @@ async def generate_report(
         title=title,
         period_start=body.period_start,
         period_end=(
-            period_end if isinstance(period_end, date)
-            else (date.fromisoformat(period_end) if period_end else None)
+            period_end if isinstance(period_end, date) else (date.fromisoformat(period_end) if period_end else None)
         ),
         data=data,
     )
@@ -120,9 +115,7 @@ async def list_reports(
     db: AsyncSession = Depends(get_db),
 ) -> ReportListResponse:
     base = select(Report).where(Report.created_by_id == current_user.id)
-    count_base = select(func.count()).select_from(Report).where(
-        Report.created_by_id == current_user.id
-    )
+    count_base = select(func.count()).select_from(Report).where(Report.created_by_id == current_user.id)
 
     if project_id:
         pid = uuid.UUID(project_id)
@@ -133,9 +126,7 @@ async def list_reports(
     total = total_result.scalar() or 0
 
     offset = (page - 1) * per_page
-    result = await db.execute(
-        base.order_by(Report.created_at.desc()).offset(offset).limit(per_page)
-    )
+    result = await db.execute(base.order_by(Report.created_at.desc()).offset(offset).limit(per_page))
     reports = result.scalars().all()
 
     return ReportListResponse(
@@ -164,9 +155,7 @@ async def get_shared_report(
     db: AsyncSession = Depends(get_db),
 ) -> ReportResponse:
     """Public endpoint — no auth required. Returns report data for customer view."""
-    result = await db.execute(
-        select(Report).where(Report.share_token == token, Report.is_shared.is_(True))
-    )
+    result = await db.execute(select(Report).where(Report.share_token == token, Report.is_shared.is_(True)))
     report = result.scalar_one_or_none()
     if report is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")

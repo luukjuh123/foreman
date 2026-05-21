@@ -28,9 +28,7 @@ async def _load_project(project_id: uuid.UUID, db: AsyncSession) -> Project:
     result = await db.execute(
         select(Project)
         .where(Project.id == project_id)
-        .options(
-            selectinload(Project.phases).selectinload(Phase.tasks).selectinload(Task.dependencies)
-        )
+        .options(selectinload(Project.phases).selectinload(Phase.tasks).selectinload(Task.dependencies))
     )
     project = result.scalar_one_or_none()
     if project is None:
@@ -44,12 +42,14 @@ def _build_cpm_tasks(project: Project) -> list[CpmTask]:
     for phase in project.phases:
         for task in phase.tasks:
             dep_ids = [str(d.depends_on_task_id) for d in task.dependencies]
-            cpm_tasks.append(CpmTask(
-                id=str(task.id),
-                name=task.name,
-                duration_hours=task.estimated_hours,
-                dependencies=dep_ids,
-            ))
+            cpm_tasks.append(
+                CpmTask(
+                    id=str(task.id),
+                    name=task.name,
+                    duration_hours=task.estimated_hours,
+                    dependencies=dep_ids,
+                )
+            )
     return cpm_tasks
 
 

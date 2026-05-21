@@ -89,9 +89,7 @@ class JournalEntryCreate(BaseModel):
         total_debit = sum(line.debit_cents for line in self.lines)
         total_credit = sum(line.credit_cents for line in self.lines)
         if total_debit != total_credit:
-            raise ValueError(
-                f"Debits must equal credits: debit={total_debit} credit={total_credit}"
-            )
+            raise ValueError(f"Debits must equal credits: debit={total_debit} credit={total_credit}")
         if total_debit == 0:
             raise ValueError("Entry must have non-zero amounts")
         return self

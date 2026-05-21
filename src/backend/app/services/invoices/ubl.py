@@ -17,10 +17,7 @@ UBL_INVOICE_NS = "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
 UBL_CAC_NS = "urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
 UBL_CBC_NS = "urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2"
 
-CUSTOMIZATION_ID = (
-    "urn:cen.eu:en16931:2017#compliant#"
-    "urn:fdc:peppol.eu:2017:poacc:billing:3.0"
-)
+CUSTOMIZATION_ID = "urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0"
 PROFILE_ID = "urn:fdc:peppol.eu:2017:poacc:billing:01:1.0"
 
 # UN/ECE Rec 20 unit codes
@@ -76,9 +73,7 @@ def _SubElement(parent: ET.Element, tag: str, text: str | None = None, **attrib:
     return elem
 
 
-def _add_party(
-    parent: ET.Element, party: Mapping[str, Any], *, ns_prefix_cac: str
-) -> None:
+def _add_party(parent: ET.Element, party: Mapping[str, Any], *, ns_prefix_cac: str) -> None:
     party_elem = ET.SubElement(parent, f"{{{UBL_CAC_NS}}}Party")
     name_block = ET.SubElement(party_elem, f"{{{UBL_CAC_NS}}}PartyName")
     _SubElement(name_block, f"{{{UBL_CBC_NS}}}Name", party.get("name", ""))
@@ -91,9 +86,7 @@ def _add_party(
     if party.get("postal_code"):
         _SubElement(addr, f"{{{UBL_CBC_NS}}}PostalZone", party["postal_code"])
     country = ET.SubElement(addr, f"{{{UBL_CAC_NS}}}Country")
-    _SubElement(
-        country, f"{{{UBL_CBC_NS}}}IdentificationCode", party.get("country_code", "NL")
-    )
+    _SubElement(country, f"{{{UBL_CBC_NS}}}IdentificationCode", party.get("country_code", "NL"))
 
     if party.get("vat_number"):
         tax_scheme = ET.SubElement(party_elem, f"{{{UBL_CAC_NS}}}PartyTaxScheme")
@@ -199,14 +192,10 @@ def build_invoice_ubl_xml(
     subtotal = int(invoice["subtotal_cents"])
     vat_total = int(invoice["vat_total_cents"])
     total = int(invoice["total_cents"])
-    _SubElement(lmt, f"{{{UBL_CBC_NS}}}LineExtensionAmount", _euro(subtotal),
-                currencyID=currency)
-    _SubElement(lmt, f"{{{UBL_CBC_NS}}}TaxExclusiveAmount", _euro(subtotal),
-                currencyID=currency)
-    _SubElement(lmt, f"{{{UBL_CBC_NS}}}TaxInclusiveAmount", _euro(subtotal + vat_total),
-                currencyID=currency)
-    _SubElement(lmt, f"{{{UBL_CBC_NS}}}PayableAmount", _euro(total),
-                currencyID=currency)
+    _SubElement(lmt, f"{{{UBL_CBC_NS}}}LineExtensionAmount", _euro(subtotal), currencyID=currency)
+    _SubElement(lmt, f"{{{UBL_CBC_NS}}}TaxExclusiveAmount", _euro(subtotal), currencyID=currency)
+    _SubElement(lmt, f"{{{UBL_CBC_NS}}}TaxInclusiveAmount", _euro(subtotal + vat_total), currencyID=currency)
+    _SubElement(lmt, f"{{{UBL_CBC_NS}}}PayableAmount", _euro(total), currencyID=currency)
 
     # Invoice lines
     for idx, line in enumerate(invoice["lines"], start=1):
@@ -278,13 +267,18 @@ def validate_ubl(xml_bytes: bytes) -> list[str]:
 
     ns = {"cbc": UBL_CBC_NS, "cac": UBL_CAC_NS}
     for name in _REQUIRED_ELEMENTS:
-        prefix = "cac" if name in {
-            "AccountingSupplierParty",
-            "AccountingCustomerParty",
-            "TaxTotal",
-            "LegalMonetaryTotal",
-            "InvoiceLine",
-        } else "cbc"
+        prefix = (
+            "cac"
+            if name
+            in {
+                "AccountingSupplierParty",
+                "AccountingCustomerParty",
+                "TaxTotal",
+                "LegalMonetaryTotal",
+                "InvoiceLine",
+            }
+            else "cbc"
+        )
         found = root.find(f"{prefix}:{name}", ns)
         if found is None:
             errors.append(f"Missing required element: {name}")

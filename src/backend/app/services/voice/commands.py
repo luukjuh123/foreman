@@ -124,8 +124,7 @@ class CommandLLMFallback(ABC):
     """Abstract LLM-backed fallback parser for utterances the rules miss."""
 
     @abstractmethod
-    async def classify(self, utterance: str) -> ParsedCommand:
-        ...
+    async def classify(self, utterance: str) -> ParsedCommand: ...
 
 
 class FakeCommandLLMFallback(CommandLLMFallback):

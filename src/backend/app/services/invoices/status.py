@@ -32,9 +32,7 @@ def is_legal_transition(current: str, target: str) -> bool:
 def apply_transition(invoice: Invoice, target: str, *, now: datetime | None = None) -> None:
     """Mutate `invoice` to the new status, setting sent_at / paid_at as needed."""
     if not is_legal_transition(invoice.status, target):
-        raise ValueError(
-            f"Illegal transition: {invoice.status!r} -> {target!r}"
-        )
+        raise ValueError(f"Illegal transition: {invoice.status!r} -> {target!r}")
     moment = now or datetime.now(UTC)
     invoice.status = target
     if target == "sent" and invoice.sent_at is None:

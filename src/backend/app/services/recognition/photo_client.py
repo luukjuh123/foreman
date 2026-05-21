@@ -91,8 +91,8 @@ class OpenAIPhotoRecognitionClient:
             "You are a construction site supervisor. Identify the construction "
             "process being performed in the photo (e.g. stucen, tegelen, "
             "schilderen, metselen). Estimate completion as an integer 0-100. "
-            "Reply as JSON: {\"process_slug\": str|null, \"completion_pct\": "
-            "int|null, \"reasoning\": str}."
+            'Reply as JSON: {"process_slug": str|null, "completion_pct": '
+            'int|null, "reasoning": str}.'
         )
         # Real network call — never invoked from tests because get_default_client()
         # returns FakePhotoRecognitionClient when key is missing.

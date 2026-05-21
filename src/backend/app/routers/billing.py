@@ -98,18 +98,14 @@ async def mollie_webhook(
     provider: PaymentProvider = Depends(get_payment_provider),
 ) -> dict:
     body = await request.body()
-    if not x_mollie_signature or not provider.verify_webhook_signature(
-        body, x_mollie_signature
-    ):
+    if not x_mollie_signature or not provider.verify_webhook_signature(body, x_mollie_signature):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid webhook signature",
         )
     event = provider.parse_webhook(body)
     result = await db.execute(
-        select(Subscription).where(
-            Subscription.provider_subscription_id == event.provider_subscription_id
-        )
+        select(Subscription).where(Subscription.provider_subscription_id == event.provider_subscription_id)
     )
     sub = result.scalar_one_or_none()
     if sub is None:

@@ -73,15 +73,17 @@ async def aggregate_project_data(
     for phase in sorted(project.phases, key=lambda p: p.order_index):
         phase_tasks = [t for t in phase.tasks if _task_in_period(t, period_start, period_end)]
         selected_tasks.extend(phase_tasks)
-        phases_payload.append({
-            "id": str(phase.id),
-            "name": phase.name,
-            "status": phase.status,
-            "order_index": phase.order_index,
-            "task_count": len(phase_tasks),
-            "start_date": _date_str(phase.start_date),
-            "end_date": _date_str(phase.end_date),
-        })
+        phases_payload.append(
+            {
+                "id": str(phase.id),
+                "name": phase.name,
+                "status": phase.status,
+                "order_index": phase.order_index,
+                "task_count": len(phase_tasks),
+                "start_date": _date_str(phase.start_date),
+                "end_date": _date_str(phase.end_date),
+            }
+        )
 
     completed = [t for t in selected_tasks if t.status == "done"]
     total_hours = sum(float(t.estimated_hours or 0.0) for t in selected_tasks)

@@ -34,14 +34,10 @@ class GoogleBusinessClient(ABC):
     """
 
     @abstractmethod
-    async def list_reviews(self, location_id: str) -> list[GoogleReview]:
-        ...
+    async def list_reviews(self, location_id: str) -> list[GoogleReview]: ...
 
     @abstractmethod
-    async def reply_to_review(
-        self, location_id: str, review_id: str, text: str
-    ) -> None:
-        ...
+    async def reply_to_review(self, location_id: str, review_id: str, text: str) -> None: ...
 
 
 class LiveGoogleBusinessClient(GoogleBusinessClient):
@@ -82,9 +78,7 @@ class LiveGoogleBusinessClient(GoogleBusinessClient):
             out.append(
                 GoogleReview(
                     external_id=str(raw.get("reviewId") or raw.get("name") or ""),
-                    author_name=(raw.get("reviewer") or {}).get(
-                        "displayName", "Anonymous"
-                    ),
+                    author_name=(raw.get("reviewer") or {}).get("displayName", "Anonymous"),
                     rating=int(raw.get("starRating", 0) or 0),
                     comment=raw.get("comment"),
                     created_at_external=raw.get("createTime"),
@@ -92,14 +86,10 @@ class LiveGoogleBusinessClient(GoogleBusinessClient):
             )
         return out
 
-    async def reply_to_review(
-        self, location_id: str, review_id: str, text: str
-    ) -> None:
+    async def reply_to_review(self, location_id: str, review_id: str, text: str) -> None:
         url = f"{self.BASE_URL}/{location_id}/reviews/{review_id}/reply"
         async with httpx.AsyncClient(timeout=self._timeout_s) as client:
-            resp = await client.put(
-                url, headers=self._headers(), json={"comment": text}
-            )
+            resp = await client.put(url, headers=self._headers(), json={"comment": text})
         resp.raise_for_status()
 
 

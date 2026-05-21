@@ -36,9 +36,7 @@ async def _get_owned_staff(staff_id: uuid.UUID, user: User, db: AsyncSession) ->
     return staff
 
 
-@router.post(
-    "/time-entries", response_model=TimeEntryResponse, status_code=status.HTTP_201_CREATED
-)
+@router.post("/time-entries", response_model=TimeEntryResponse, status_code=status.HTTP_201_CREATED)
 async def create_time_entry(
     body: TimeEntryCreate,
     current_user: User = Depends(get_current_user),
@@ -94,14 +92,18 @@ async def payroll_summary(
         )
     await _get_owned_staff(staff_id, current_user, db)
     rows = (
-        await db.execute(
-            select(TimeEntry).where(
-                TimeEntry.staff_id == staff_id,
-                TimeEntry.work_date >= period_start,
-                TimeEntry.work_date <= period_end,
+        (
+            await db.execute(
+                select(TimeEntry).where(
+                    TimeEntry.staff_id == staff_id,
+                    TimeEntry.work_date >= period_start,
+                    TimeEntry.work_date <= period_end,
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     entries = [
         _Entry(
             project_id=r.project_id,
@@ -118,7 +120,6 @@ async def payroll_summary(
         total_hours=total_hours,
         gross_cents=total_gross,
         by_project=[
-            PayrollProjectBreakdown(project_id=pid, hours=h, gross_cents=g)
-            for pid, (h, g) in breakdown.items()
+            PayrollProjectBreakdown(project_id=pid, hours=h, gross_cents=g) for pid, (h, g) in breakdown.items()
         ],
     )

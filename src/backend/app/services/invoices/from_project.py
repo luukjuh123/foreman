@@ -56,9 +56,7 @@ async def build_project_lines(
 
     materials: list[Material] = []
     if include_materials and task_ids:
-        mat_res = await db.execute(
-            select(Material).where(Material.task_id.in_(task_ids))
-        )
+        mat_res = await db.execute(select(Material).where(Material.task_id.in_(task_ids)))
         materials = list(mat_res.scalars().all())
 
     lines: list[DraftLine] = []

@@ -37,13 +37,14 @@ def create_refresh_token(subject: str) -> str:
     )
 
 
-def decode_token(token: str, expected_type: str = "access") -> dict:
+def decode_token(token: str, expected_type: str | None = None) -> dict:
     """Decode and validate a JWT token.
 
     Raises JWTError on invalid/expired token, ValueError on type mismatch.
+    When expected_type is None, no type check is performed.
     """
     payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
-    if payload.get("type") != expected_type:
+    if expected_type is not None and payload.get("type") != expected_type:
         msg = f"Token type mismatch: expected {expected_type}, got {payload.get('type')}"
         raise ValueError(msg)
     return payload

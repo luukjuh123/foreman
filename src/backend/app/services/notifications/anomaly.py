@@ -51,9 +51,7 @@ class FakeReasoner(Reasoner):
     """
 
     def explain(self, *, anomaly_type: str, facts: dict) -> str:
-        return f"[{anomaly_type}] " + ", ".join(
-            f"{k}={facts[k]}" for k in sorted(facts)
-        )
+        return f"[{anomaly_type}] " + ", ".join(f"{k}={facts[k]}" for k in sorted(facts))
 
 
 class OpenAIReasoner(Reasoner):  # pragma: no cover - thin shim, not unit-tested
@@ -105,8 +103,8 @@ class OpenAIReasoner(Reasoner):  # pragma: no cover - thin shim, not unit-tested
 
 @dataclass(frozen=True)
 class Anomaly:
-    type: str           # e.g. "alert.over_budget"
-    severity: str       # "low" | "medium" | "high"
+    type: str  # e.g. "alert.over_budget"
+    severity: str  # "low" | "medium" | "high"
     title: str
     facts: dict
     reasoning: str
@@ -141,9 +139,7 @@ class AnomalyDetector:
 
     # -- rule implementations -------------------------------------------------
 
-    def _over_budget(
-        self, project: Project, ctx: ProjectContext
-    ) -> Anomaly | None:
+    def _over_budget(self, project: Project, ctx: ProjectContext) -> Anomaly | None:
         budget = project.budget_cents or 0
         if budget <= 0:
             return None
@@ -161,14 +157,10 @@ class AnomalyDetector:
             severity="high",
             title=f"{project.name} is over budget",
             facts=facts,
-            reasoning=self.reasoner.explain(
-                anomaly_type="alert.over_budget", facts=facts
-            ),
+            reasoning=self.reasoner.explain(anomaly_type="alert.over_budget", facts=facts),
         )
 
-    def _behind_schedule(
-        self, project: Project, ctx: ProjectContext
-    ) -> Anomaly | None:
+    def _behind_schedule(self, project: Project, ctx: ProjectContext) -> Anomaly | None:
         if project.end_date is None:
             return None
         if project.status in {"completed", "archived"}:
@@ -187,14 +179,10 @@ class AnomalyDetector:
             severity="high" if days_overdue > 14 else "medium",
             title=f"{project.name} is {days_overdue} days behind schedule",
             facts=facts,
-            reasoning=self.reasoner.explain(
-                anomaly_type="alert.behind_schedule", facts=facts
-            ),
+            reasoning=self.reasoner.explain(anomaly_type="alert.behind_schedule", facts=facts),
         )
 
-    def _weather_risk(
-        self, project: Project, ctx: ProjectContext
-    ) -> Anomaly | None:
+    def _weather_risk(self, project: Project, ctx: ProjectContext) -> Anomaly | None:
         forecast = ctx.weather_forecast
         if not forecast:
             return None
@@ -227,16 +215,12 @@ class AnomalyDetector:
             severity="medium",
             title=f"Weather risk for {project.name}",
             facts=facts,
-            reasoning=self.reasoner.explain(
-                anomaly_type="alert.weather_risk", facts=facts
-            ),
+            reasoning=self.reasoner.explain(anomaly_type="alert.weather_risk", facts=facts),
         )
 
     # -- public API -----------------------------------------------------------
 
-    def scan_project(
-        self, project: Project, ctx: ProjectContext
-    ) -> list[Anomaly]:
+    def scan_project(self, project: Project, ctx: ProjectContext) -> list[Anomaly]:
         candidates = [
             self._over_budget(project, ctx),
             self._behind_schedule(project, ctx),
@@ -300,13 +284,17 @@ async def run_scheduled_scan(
     callers (cron job, admin endpoints) can log/inspect outcomes.
     """
     rows = (
-        await db.execute(
-            select(Project).where(
-                Project.deleted_at.is_(None),
-                Project.status == "active",
+        (
+            await db.execute(
+                select(Project).where(
+                    Project.deleted_at.is_(None),
+                    Project.status == "active",
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     summary: list[dict] = []
     for project in rows:

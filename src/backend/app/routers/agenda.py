@@ -77,8 +77,7 @@ async def week_view(
     week_start: date | None = Query(
         None,
         description=(
-            "Date inside the desired week. Defaults to today. "
-            "The agenda always starts on the Monday of that week."
+            "Date inside the desired week. Defaults to today. The agenda always starts on the Monday of that week."
         ),
     ),
     current_user: User = Depends(get_current_user),
@@ -94,11 +93,7 @@ async def week_view(
     days: list[AgendaDay] = []
     for i in range(7):
         day = start + timedelta(days=i)
-        day_tasks = [
-            _to_agenda_task(t, p, proj)
-            for (t, p, proj) in rows
-            if t.start_date <= day <= t.end_date
-        ]
+        day_tasks = [_to_agenda_task(t, p, proj) for (t, p, proj) in rows if t.start_date <= day <= t.end_date]
         days.append(AgendaDay(date=day, tasks=day_tasks))
 
     return AgendaWeekResponse(week_start=start, week_end=end, days=days)
@@ -141,11 +136,7 @@ async def range_view(
     span = (end - start).days
     for i in range(span + 1):
         d = start + timedelta(days=i)
-        day_tasks = [
-            _to_agenda_task(t, p, proj)
-            for (t, p, proj) in rows
-            if t.start_date <= d <= t.end_date
-        ]
+        day_tasks = [_to_agenda_task(t, p, proj) for (t, p, proj) in rows if t.start_date <= d <= t.end_date]
         days.append(AgendaDay(date=d, tasks=day_tasks))
     return days
 
@@ -183,8 +174,6 @@ async def export_ics(
         content=body,
         media_type="text/calendar; charset=utf-8",
         headers={
-            "Content-Disposition": (
-                f'attachment; filename="foreman-agenda-{start.isoformat()}-{end.isoformat()}.ics"'
-            ),
+            "Content-Disposition": (f'attachment; filename="foreman-agenda-{start.isoformat()}-{end.isoformat()}.ics"'),
         },
     )

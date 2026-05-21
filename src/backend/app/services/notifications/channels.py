@@ -94,9 +94,7 @@ class PushChannel(NotificationChannel):
             logger.warning("push_notification_skipped_no_pywebpush")
             return
 
-        result = await self._db.execute(
-            select(PushSubscription).where(PushSubscription.user_id == user.id)
-        )
+        result = await self._db.execute(select(PushSubscription).where(PushSubscription.user_id == user.id))
         subscriptions = result.scalars().all()
 
         payload = json.dumps(

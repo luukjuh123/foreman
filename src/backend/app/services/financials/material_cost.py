@@ -65,9 +65,7 @@ class MaterialCostAggregator:
     def __init__(self, provider: StorePriceProvider) -> None:
         self._provider = provider
 
-    async def aggregate(
-        self, project_id: uuid.UUID, db: AsyncSession
-    ) -> MaterialCostReport:
+    async def aggregate(self, project_id: uuid.UUID, db: AsyncSession) -> MaterialCostReport:
         result = await db.execute(
             select(Material)
             .join(Task, Material.task_id == Task.id)

@@ -69,11 +69,7 @@ async def sync_reviews(
             db.add(existing)
         synced += 1
     await db.commit()
-    return Envelope(
-        data=SyncReviewsData(
-            location_id=body.location_id, synced_count=synced
-        ).model_dump()
-    )
+    return Envelope(data=SyncReviewsData(location_id=body.location_id, synced_count=synced).model_dump())
 
 
 @router.get("", response_model=Envelope)
@@ -84,9 +80,7 @@ async def list_reviews(
 ) -> Envelope:
     """List stored reviews for a location, newest external first."""
     result = await db.execute(
-        select(Review)
-        .where(Review.location_id == location_id)
-        .order_by(Review.created_at_external.desc().nullslast())
+        select(Review).where(Review.location_id == location_id).order_by(Review.created_at_external.desc().nullslast())
     )
     rows = result.scalars().all()
     items = [ReviewResponse.model_validate(r).model_dump(mode="json") for r in rows]
@@ -100,9 +94,7 @@ async def get_review_stats(
     db: AsyncSession = Depends(get_db),
 ) -> Envelope:
     """Aggregate rating stats for a location."""
-    result = await db.execute(
-        select(Review).where(Review.location_id == location_id)
-    )
+    result = await db.execute(select(Review).where(Review.location_id == location_id))
     rows = result.scalars().all()
 
     total_count = len(rows)
@@ -160,9 +152,7 @@ async def draft_reply_for_review(
     result = await db.execute(select(Review).where(Review.id == review_id))
     review = result.scalar_one_or_none()
     if review is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Review not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Review not found")
     draft_text = await ai_draft_reply(
         author_name=review.author_name,
         rating=review.rating,
@@ -183,15 +173,11 @@ async def reply_to_review(
     result = await db.execute(select(Review).where(Review.id == review_id))
     review = result.scalar_one_or_none()
     if review is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Review not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Review not found")
     await google.reply_to_review(review.location_id, review.external_id, body.text)
     review.reply_text = body.text
     review.replied_at = datetime.now(UTC)
     db.add(review)
     await db.commit()
     await db.refresh(review)
-    return Envelope(
-        data=ReviewResponse.model_validate(review).model_dump(mode="json")
-    )
+    return Envelope(data=ReviewResponse.model_validate(review).model_dump(mode="json"))

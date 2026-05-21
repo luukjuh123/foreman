@@ -48,9 +48,7 @@ async def get_preferences(
     prefs = await get_or_create_preferences(db, user_id=current_user.id)
     await db.commit()
     await db.refresh(prefs)
-    return NotificationPreferencesEnvelope(
-        data=NotificationPreferencesResponse.model_validate(prefs)
-    )
+    return NotificationPreferencesEnvelope(data=NotificationPreferencesResponse.model_validate(prefs))
 
 
 @router.put("/preferences", response_model=NotificationPreferencesEnvelope)
@@ -66,9 +64,7 @@ async def update_preferences(
             setattr(prefs, field, new_val)
     await db.commit()
     await db.refresh(prefs)
-    return NotificationPreferencesEnvelope(
-        data=NotificationPreferencesResponse.model_validate(prefs)
-    )
+    return NotificationPreferencesEnvelope(data=NotificationPreferencesResponse.model_validate(prefs))
 
 
 @router.get("/", response_model=NotificationListResponse)
@@ -123,9 +119,7 @@ async def mark_read(
         )
     ).scalar_one_or_none()
     if n is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Notification not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification not found")
     if n.read_at is None:
         n.read_at = datetime.now(UTC)
         await db.commit()
@@ -160,13 +154,9 @@ class ReportReadyRequest(BaseModel):
 
 
 async def _assert_recipient_exists(user_id: uuid.UUID, db: AsyncSession) -> None:
-    exists = (
-        await db.execute(select(User).where(User.id == user_id))
-    ).scalar_one_or_none()
+    exists = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
     if exists is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Recipient user not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recipient user not found")
 
 
 @router.post(
@@ -214,9 +204,7 @@ async def post_invoice_sent(
             amount_cents=body.amount_cents,
         )
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
     return NotificationEnvelope(data=NotificationResponse.model_validate(n))
 
 

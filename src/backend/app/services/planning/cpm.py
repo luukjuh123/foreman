@@ -72,9 +72,7 @@ def compute_critical_path(tasks: list[CpmTask]) -> list[CpmTask]:
         if not task.dependencies:
             task.early_start = 0.0
         else:
-            task.early_start = max(
-                task_map[dep_id].early_finish for dep_id in task.dependencies
-            )
+            task.early_start = max(task_map[dep_id].early_finish for dep_id in task.dependencies)
         task.early_finish = task.early_start + task.duration_hours
 
     # Project duration

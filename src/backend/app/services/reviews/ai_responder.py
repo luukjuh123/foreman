@@ -79,8 +79,6 @@ async def draft_reply(author_name: str, rating: int, comment: str | None) -> str
             ],
             max_tokens=300,
         )
-        return response.choices[0].message.content or _template_reply(
-            author_name, rating, comment
-        )
+        return response.choices[0].message.content or _template_reply(author_name, rating, comment)
     except Exception:
         return _template_reply(author_name, rating, comment)

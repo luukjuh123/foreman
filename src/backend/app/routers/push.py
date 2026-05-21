@@ -33,9 +33,7 @@ async def subscribe(
     db: AsyncSession = Depends(get_db),
 ) -> PushSubscriptionResponse:
     """Save (or update) a Web Push subscription for the authenticated user."""
-    result = await db.execute(
-        select(PushSubscription).where(PushSubscription.endpoint == body.endpoint)
-    )
+    result = await db.execute(select(PushSubscription).where(PushSubscription.endpoint == body.endpoint))
     sub = result.scalar_one_or_none()
 
     if sub is None:

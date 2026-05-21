@@ -86,9 +86,7 @@ def estimate_paint(
         msg = f"coats must be >= 1, got {coats!r}"
         raise ValueError(msg)
     if coverage_m2_per_liter is None:
-        coverage_m2_per_liter = float(
-            DEFAULT_COVERAGE_RATES["paint"]["coverage_m2_per_liter"]
-        )
+        coverage_m2_per_liter = float(DEFAULT_COVERAGE_RATES["paint"]["coverage_m2_per_liter"])
     _require_positive("coverage_m2_per_liter", coverage_m2_per_liter, allow_zero=False)
 
     raw_liters = (area_m2 * coats) / coverage_m2_per_liter
@@ -97,10 +95,7 @@ def estimate_paint(
         material="paint",
         quantity=liters,
         unit="L",
-        notes=(
-            f"{coats} coat(s) @ {coverage_m2_per_liter} m²/L "
-            f"(raw={raw_liters:.3f} L, rounded up)"
-        ),
+        notes=(f"{coats} coat(s) @ {coverage_m2_per_liter} m²/L (raw={raw_liters:.3f} L, rounded up)"),
     )
 
 

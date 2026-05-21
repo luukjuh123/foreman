@@ -49,9 +49,7 @@ async def aggregate_balances(
     beginning of time (used for balance sheet cumulative). For income
     statement use `start_date` and `end_date`. Entries must be posted.
     """
-    acc_result = await db.execute(
-        select(Account).where(Account.owner_id == owner_id)
-    )
+    acc_result = await db.execute(select(Account).where(Account.owner_id == owner_id))
     accounts = list(acc_result.scalars().all())
     aggregates: dict[uuid.UUID, AccountAggregate] = {
         a.id: AccountAggregate(
@@ -130,9 +128,7 @@ class BalanceSheet:
     @property
     def is_balanced(self) -> bool:
         return self.total_assets_cents == (
-            self.total_liabilities_cents
-            + self.total_equity_cents
-            + self.retained_earnings_cents
+            self.total_liabilities_cents + self.total_equity_cents + self.retained_earnings_cents
         )
 
     def to_dict(self) -> dict:
@@ -152,17 +148,13 @@ class BalanceSheet:
             },
             "retained_earnings_cents": self.retained_earnings_cents,
             "total_liabilities_and_equity_cents": (
-                self.total_liabilities_cents
-                + self.total_equity_cents
-                + self.retained_earnings_cents
+                self.total_liabilities_cents + self.total_equity_cents + self.retained_earnings_cents
             ),
             "is_balanced": self.is_balanced,
         }
 
 
-def _build_tree(
-    aggregates: list[AccountAggregate], type_filter: str
-) -> tuple[list[BalanceSheetNode], int]:
+def _build_tree(aggregates: list[AccountAggregate], type_filter: str) -> tuple[list[BalanceSheetNode], int]:
     """Build a hierarchical tree of nodes for accounts of a given type.
 
     Returns (roots, total_cents). Total is the sum of root-level node balances
@@ -328,9 +320,7 @@ class CashFlowStatement:
     def reconciles(self) -> bool:
         """Sum of OCF + ICF + FCF must equal change in cash."""
         return (
-            self.operating_cash_flow_cents
-            + self.investing_cash_flow_cents
-            + self.financing_cash_flow_cents
+            self.operating_cash_flow_cents + self.investing_cash_flow_cents + self.financing_cash_flow_cents
         ) == self.net_change_in_cash_cents
 
     def to_dict(self) -> dict:
@@ -357,15 +347,10 @@ class CashFlowStatement:
         }
 
 
-def _period_change(
-    opening: list[AccountAggregate], closing: list[AccountAggregate]
-) -> dict[uuid.UUID, int]:
+def _period_change(opening: list[AccountAggregate], closing: list[AccountAggregate]) -> dict[uuid.UUID, int]:
     """For each account: closing balance - opening balance (signed)."""
     opening_by_id = {a.account_id: a.balance_cents for a in opening}
-    return {
-        a.account_id: a.balance_cents - opening_by_id.get(a.account_id, 0)
-        for a in closing
-    }
+    return {a.account_id: a.balance_cents - opening_by_id.get(a.account_id, 0) for a in closing}
 
 
 def build_cash_flow_statement(
@@ -389,28 +374,15 @@ def build_cash_flow_statement(
     net_income = sum(
         a.balance_cents
         for a in period_aggregates
-        if a.account_type in ("revenue", "expense")
-        and a.account_type == "revenue"
-    ) - sum(
-        a.balance_cents
-        for a in period_aggregates
-        if a.account_type == "expense"
-    )
+        if a.account_type in ("revenue", "expense") and a.account_type == "revenue"
+    ) - sum(a.balance_cents for a in period_aggregates if a.account_type == "expense")
 
     changes = _period_change(opening_aggregates, closing_aggregates)
 
     # Identify cash accounts and compute opening/closing/net change in cash.
-    cash_ids = {
-        a.account_id
-        for a in closing_aggregates
-        if a.cashflow_category == "cash"
-    }
-    opening_cash = sum(
-        a.balance_cents for a in opening_aggregates if a.account_id in cash_ids
-    )
-    ending_cash = sum(
-        a.balance_cents for a in closing_aggregates if a.account_id in cash_ids
-    )
+    cash_ids = {a.account_id for a in closing_aggregates if a.cashflow_category == "cash"}
+    opening_cash = sum(a.balance_cents for a in opening_aggregates if a.account_id in cash_ids)
+    ending_cash = sum(a.balance_cents for a in closing_aggregates if a.account_id in cash_ids)
     net_change_cash = ending_cash - opening_cash
 
     operating: list[CashFlowLine] = []

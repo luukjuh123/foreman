@@ -17,6 +17,4 @@ from app.services.notifications.engine import NotificationDispatcher
 
 def get_default_dispatcher() -> NotificationDispatcher:
     """Return a dispatcher wired with all three built-in channels."""
-    return NotificationDispatcher(
-        channels=[InAppChannel(), EmailChannel(), PushChannel()]
-    )
+    return NotificationDispatcher(channels=[InAppChannel(), EmailChannel(), PushChannel()])

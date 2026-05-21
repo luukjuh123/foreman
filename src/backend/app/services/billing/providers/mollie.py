@@ -36,9 +36,7 @@ class MollieProvider(PaymentProvider):
         self._redirect_url = redirect_url
 
     # ------------------------------------------------------------------ API
-    def create_subscription(
-        self, *, customer_email: str, tier: str, amount_cents: int
-    ) -> CheckoutResult:
+    def create_subscription(self, *, customer_email: str, tier: str, amount_cents: int) -> CheckoutResult:
         # 1. Create or look up the customer
         headers = {"Authorization": f"Bearer {self._api_key}"}
         with httpx.Client(timeout=10.0) as cli:
@@ -86,9 +84,7 @@ class MollieProvider(PaymentProvider):
     def verify_webhook_signature(self, payload: bytes, signature: str) -> bool:
         if not signature:
             return False
-        expected = hmac.new(
-            self._webhook_secret.encode(), payload, hashlib.sha256
-        ).hexdigest()
+        expected = hmac.new(self._webhook_secret.encode(), payload, hashlib.sha256).hexdigest()
         return hmac.compare_digest(expected, signature)
 
     def parse_webhook(self, payload: bytes) -> WebhookEvent:

@@ -16,16 +16,11 @@ _BP_DENOM = Decimal(10_000)
 
 def _check_rate(vat_rate_bp: int) -> None:
     if vat_rate_bp not in ALLOWED_VAT_RATES_BP:
-        msg = (
-            f"Unsupported VAT rate {vat_rate_bp} bp; "
-            f"allowed: {ALLOWED_VAT_RATES_BP}"
-        )
+        msg = f"Unsupported VAT rate {vat_rate_bp} bp; allowed: {ALLOWED_VAT_RATES_BP}"
         raise ValueError(msg)
 
 
-def compute_line_totals(
-    *, quantity: float, unit_price_cents: int, vat_rate_bp: int
-) -> tuple[int, int]:
+def compute_line_totals(*, quantity: float, unit_price_cents: int, vat_rate_bp: int) -> tuple[int, int]:
     """Return (net_cents, vat_cents) for a single line, using ROUND_HALF_UP."""
 
     _check_rate(vat_rate_bp)
@@ -33,9 +28,7 @@ def compute_line_totals(
     qty = Decimal(str(quantity))
     unit_price = Decimal(unit_price_cents)
     net = (qty * unit_price).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
-    vat = (net * Decimal(vat_rate_bp) / _BP_DENOM).quantize(
-        Decimal("1"), rounding=ROUND_HALF_UP
-    )
+    vat = (net * Decimal(vat_rate_bp) / _BP_DENOM).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
     return int(net), int(vat)
 
 

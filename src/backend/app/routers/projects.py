@@ -36,6 +36,7 @@ router = APIRouter()
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 async def _get_project_or_404(project_id: uuid.UUID, db: AsyncSession) -> Project:
     result = await db.execute(
         select(Project)
@@ -57,6 +58,7 @@ def _assert_owner(project: Project, user: User) -> None:
 # Project endpoints
 # ---------------------------------------------------------------------------
 
+
 @router.get("/", response_model=ProjectListResponse)
 async def list_projects(
     page: int = Query(1, ge=1),
@@ -67,7 +69,9 @@ async def list_projects(
     offset = (page - 1) * per_page
 
     count_result = await db.execute(
-        select(func.count()).select_from(Project).where(
+        select(func.count())
+        .select_from(Project)
+        .where(
             Project.owner_id == current_user.id,
             Project.deleted_at.is_(None),
         )
@@ -114,9 +118,7 @@ async def create_project(
     await db.commit()
     # Load relationships for response
     result = await db.execute(
-        select(Project)
-        .where(Project.id == project.id)
-        .options(selectinload(Project.phases).selectinload(Phase.tasks))
+        select(Project).where(Project.id == project.id).options(selectinload(Project.phases).selectinload(Phase.tasks))
     )
     return ProjectResponse.model_validate(result.scalar_one())
 
@@ -148,9 +150,7 @@ async def update_project(
     await db.commit()
     await db.refresh(project)
     result = await db.execute(
-        select(Project)
-        .where(Project.id == project.id)
-        .options(selectinload(Project.phases).selectinload(Phase.tasks))
+        select(Project).where(Project.id == project.id).options(selectinload(Project.phases).selectinload(Phase.tasks))
     )
     return ProjectResponse.model_validate(result.scalar_one())
 
@@ -171,6 +171,7 @@ async def delete_project(
 # ---------------------------------------------------------------------------
 # Phase endpoints
 # ---------------------------------------------------------------------------
+
 
 @router.post(
     "/{project_id}/phases",
@@ -198,17 +199,13 @@ async def create_phase(
     db.add(phase)
     await db.commit()
     await db.refresh(phase)
-    result = await db.execute(
-        select(Phase).where(Phase.id == phase.id).options(selectinload(Phase.tasks))
-    )
+    result = await db.execute(select(Phase).where(Phase.id == phase.id).options(selectinload(Phase.tasks)))
     return PhaseResponse.model_validate(result.scalar_one())
 
 
 async def _get_phase_or_404(project_id: uuid.UUID, phase_id: uuid.UUID, db: AsyncSession) -> Phase:
     result = await db.execute(
-        select(Phase)
-        .where(Phase.id == phase_id, Phase.project_id == project_id)
-        .options(selectinload(Phase.tasks))
+        select(Phase).where(Phase.id == phase_id, Phase.project_id == project_id).options(selectinload(Phase.tasks))
     )
     phase = result.scalar_one_or_none()
     if phase is None:
@@ -233,9 +230,7 @@ async def update_phase(
 
     await db.commit()
     await db.refresh(phase)
-    result = await db.execute(
-        select(Phase).where(Phase.id == phase.id).options(selectinload(Phase.tasks))
-    )
+    result = await db.execute(select(Phase).where(Phase.id == phase.id).options(selectinload(Phase.tasks)))
     return PhaseResponse.model_validate(result.scalar_one())
 
 
@@ -257,10 +252,9 @@ async def delete_phase(
 # Task endpoints
 # ---------------------------------------------------------------------------
 
+
 async def _get_task_or_404(phase_id: uuid.UUID, task_id: uuid.UUID, db: AsyncSession) -> Task:
-    result = await db.execute(
-        select(Task).where(Task.id == task_id, Task.phase_id == phase_id)
-    )
+    result = await db.execute(select(Task).where(Task.id == task_id, Task.phase_id == phase_id))
     task = result.scalar_one_or_none()
     if task is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
@@ -346,14 +340,11 @@ async def delete_task(
 # Task dependency endpoints
 # ---------------------------------------------------------------------------
 
-async def _get_task_in_project_or_404(
-    project_id: uuid.UUID, task_id: uuid.UUID, db: AsyncSession
-) -> Task:
+
+async def _get_task_in_project_or_404(project_id: uuid.UUID, task_id: uuid.UUID, db: AsyncSession) -> Task:
     """Get a task that belongs to any phase of the given project."""
     result = await db.execute(
-        select(Task)
-        .join(Phase, Task.phase_id == Phase.id)
-        .where(Task.id == task_id, Phase.project_id == project_id)
+        select(Task).join(Phase, Task.phase_id == Phase.id).where(Task.id == task_id, Phase.project_id == project_id)
     )
     task = result.scalar_one_or_none()
     if task is None:

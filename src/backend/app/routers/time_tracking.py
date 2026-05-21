@@ -24,9 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 router = APIRouter()
 
 
-async def _get_project_process_owned(
-    project_process_id: uuid.UUID, user: User, db: AsyncSession
-) -> ProjectProcess:
+async def _get_project_process_owned(project_process_id: uuid.UUID, user: User, db: AsyncSession) -> ProjectProcess:
     """Fetch a ProjectProcess and check the linked project is owned by user."""
     result = await db.execute(
         select(ProjectProcess, Project)
@@ -38,14 +36,10 @@ async def _get_project_process_owned(
     )
     row = result.first()
     if row is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Project process not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project process not found")
     pp, project = row
     if project.owner_id != user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Not your project process"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your project process")
     return pp
 
 
@@ -63,12 +57,14 @@ async def start_time_entry(
     await _get_project_process_owned(project_process_id, user, db)
 
     # Reject if there's already an open entry for this project_process.
-    existing = (await db.execute(
-        select(ProcessTimeEntry).where(
-            ProcessTimeEntry.project_process_id == project_process_id,
-            ProcessTimeEntry.stopped_at.is_(None),
+    existing = (
+        await db.execute(
+            select(ProcessTimeEntry).where(
+                ProcessTimeEntry.project_process_id == project_process_id,
+                ProcessTimeEntry.stopped_at.is_(None),
+            )
         )
-    )).scalar_one_or_none()
+    ).scalar_one_or_none()
     if existing is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -98,12 +94,14 @@ async def stop_time_entry(
 ) -> TimeEntryResponse:
     await _get_project_process_owned(project_process_id, user, db)
 
-    entry = (await db.execute(
-        select(ProcessTimeEntry).where(
-            ProcessTimeEntry.project_process_id == project_process_id,
-            ProcessTimeEntry.stopped_at.is_(None),
+    entry = (
+        await db.execute(
+            select(ProcessTimeEntry).where(
+                ProcessTimeEntry.project_process_id == project_process_id,
+                ProcessTimeEntry.stopped_at.is_(None),
+            )
         )
-    )).scalar_one_or_none()
+    ).scalar_one_or_none()
     if entry is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

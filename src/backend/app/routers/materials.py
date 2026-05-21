@@ -116,18 +116,14 @@ async def estimate_room_materials(payload: RoomEstimateRequest) -> RoomEstimateR
     estimates: list[EstimateItem] = []
     for spec in payload.materials:
         if isinstance(spec, PaintSpec):
-            area = _surface_area_m2(
-                payload.length_m, payload.width_m, payload.height_m, spec.surface
-            )
+            area = _surface_area_m2(payload.length_m, payload.width_m, payload.height_m, spec.surface)
             est = estimate_paint(
                 area_m2=area,
                 coats=spec.coats,
                 coverage_m2_per_liter=spec.coverage_m2_per_liter,
             )
         elif isinstance(spec, TileSpec):
-            area = _surface_area_m2(
-                payload.length_m, payload.width_m, payload.height_m, spec.surface
-            )
+            area = _surface_area_m2(payload.length_m, payload.width_m, payload.height_m, spec.surface)
             est = estimate_tiles(area_m2=area, waste_pct=spec.waste_pct)
         elif isinstance(spec, ConcreteSpec):
             est = estimate_concrete(

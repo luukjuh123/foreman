@@ -68,20 +68,21 @@ def compute_schedule(
             )
         else:
             reasoning = (
-                f"No dependencies - starts on project start date. "
-                f"Duration: {task.duration_hours:.0f}h ({days}d)."
+                f"No dependencies - starts on project start date. Duration: {task.duration_hours:.0f}h ({days}d)."
             )
 
         if task.duration_hours == _DEFAULT_FALLBACK_HOURS and not hist.get(task.name):
             reasoning += " Duration estimated using default fallback (no historical data)."
 
-        proposals.append(TaskScheduleProposal(
-            task_id=task.id,
-            proposed_start_date=task_start,
-            proposed_end_date=task_end,
-            reasoning=reasoning,
-            is_critical=task.is_critical,
-        ))
+        proposals.append(
+            TaskScheduleProposal(
+                task_id=task.id,
+                proposed_start_date=task_start,
+                proposed_end_date=task_end,
+                reasoning=reasoning,
+                is_critical=task.is_critical,
+            )
+        )
 
     return proposals
 

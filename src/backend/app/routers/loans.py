@@ -52,9 +52,7 @@ async def _get_owned_loan(loan_id: uuid.UUID, user: User, db: AsyncSession) -> S
 
 def _to_response(loan: StaffLoan) -> StaffLoanResponse:
     deducted = sum(d.amount_cents for d in loan.deductions)
-    outstanding = compute_outstanding(
-        loan.principal_cents, [d.amount_cents for d in loan.deductions]
-    )
+    outstanding = compute_outstanding(loan.principal_cents, [d.amount_cents for d in loan.deductions])
     resp = StaffLoanResponse.model_validate(loan)
     resp.deducted_cents = deducted
     resp.outstanding_cents = outstanding
@@ -127,13 +125,17 @@ async def staff_balance(
 ) -> StaffOutstandingBalance:
     await _get_owned_staff(staff_id, current_user, db)
     rows = (
-        await db.execute(
-            select(StaffLoan)
-            .where(StaffLoan.staff_id == staff_id)
-            .options(selectinload(StaffLoan.deductions))
-            .order_by(StaffLoan.issued_date.asc())
+        (
+            await db.execute(
+                select(StaffLoan)
+                .where(StaffLoan.staff_id == staff_id)
+                .options(selectinload(StaffLoan.deductions))
+                .order_by(StaffLoan.issued_date.asc())
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     loans = [_to_response(loan) for loan in rows]
     total_principal = sum(loan.principal_cents for loan in loans)
     total_deducted = sum(loan.deducted_cents for loan in loans)

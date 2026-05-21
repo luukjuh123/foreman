@@ -21,9 +21,7 @@ class PaymentProvider(ABC):
     """Interface for payment / subscription providers (Mollie, Stripe, ...)."""
 
     @abstractmethod
-    def create_subscription(
-        self, *, customer_email: str, tier: str, amount_cents: int
-    ) -> CheckoutResult:
+    def create_subscription(self, *, customer_email: str, tier: str, amount_cents: int) -> CheckoutResult:
         """Create a subscription / checkout session and return the redirect URL."""
 
     @abstractmethod

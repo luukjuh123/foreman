@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import tempfile
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Literal
 
 from app.services.voice.commands import (
     CommandLLMFallback,
@@ -13,8 +13,8 @@ from app.services.voice.commands import (
     parse_command_async,
 )
 from app.services.voice.conversation import (
-    ConversationMessage,
     ConversationalAIProvider,
+    ConversationMessage,
     get_conversational_ai_provider,
 )
 from app.services.voice.transcription import TranscriptionProvider, get_transcription_provider
