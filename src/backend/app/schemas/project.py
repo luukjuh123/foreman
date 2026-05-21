@@ -10,6 +10,7 @@ from pydantic import BaseModel
 # Task
 # ---------------------------------------------------------------------------
 
+
 class TaskCreate(BaseModel):
     name: str
     description: str | None = None
@@ -53,6 +54,7 @@ class TaskResponse(BaseModel):
 # Phase
 # ---------------------------------------------------------------------------
 
+
 class PhaseCreate(BaseModel):
     name: str
     description: str | None = None
@@ -90,6 +92,7 @@ class PhaseResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # Project
 # ---------------------------------------------------------------------------
+
 
 class ProjectCreate(BaseModel):
     name: str
@@ -135,6 +138,7 @@ class ProjectListResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # TaskDependency
 # ---------------------------------------------------------------------------
+
 
 class TaskDependencyCreate(BaseModel):
     depends_on_task_id: uuid.UUID

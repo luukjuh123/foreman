@@ -9,10 +9,9 @@ from __future__ import annotations
 
 import uuid
 
+from app.models.notification_preference import NotificationPreference
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.models.notification_preference import NotificationPreference
 
 ALL_CHANNELS: set[str] = {"in_app", "email", "push"}
 
@@ -23,16 +22,10 @@ _FIELD_FOR_CHANNEL = {
 }
 
 
-async def get_or_create_preferences(
-    db: AsyncSession, *, user_id: uuid.UUID
-) -> NotificationPreference:
+async def get_or_create_preferences(db: AsyncSession, *, user_id: uuid.UUID) -> NotificationPreference:
     """Return the prefs row for `user_id`, inserting defaults if missing."""
     existing = (
-        await db.execute(
-            select(NotificationPreference).where(
-                NotificationPreference.user_id == user_id
-            )
-        )
+        await db.execute(select(NotificationPreference).where(NotificationPreference.user_id == user_id))
     ).scalar_one_or_none()
     if existing is not None:
         return existing
@@ -48,9 +41,7 @@ async def get_or_create_preferences(
     return prefs
 
 
-def allowed_channels_for(
-    prefs: NotificationPreference | None, notification_type: str
-) -> set[str]:
+def allowed_channels_for(prefs: NotificationPreference | None, notification_type: str) -> set[str]:
     """Compute which channel names this user accepts for `notification_type`.
 
     Resolution order:

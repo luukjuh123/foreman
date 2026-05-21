@@ -37,6 +37,7 @@ def _ical_status(task_status: str) -> str:
 # Library-backed implementation (preferred)
 # ---------------------------------------------------------------------------
 
+
 def _build_with_library(rows: Iterable[tuple[Task, Phase, Project]]) -> bytes:
     from icalendar import Calendar, Event  # type: ignore[import-not-found]
 
@@ -72,14 +73,10 @@ def _build_with_library(rows: Iterable[tuple[Task, Phase, Project]]) -> bytes:
 # Fallback hand-written implementation (RFC 5545 compliant subset)
 # ---------------------------------------------------------------------------
 
+
 def _escape(value: str) -> str:
     """Escape special characters per RFC 5545 §3.3.11."""
-    return (
-        value.replace("\\", "\\\\")
-        .replace(";", "\\;")
-        .replace(",", "\\,")
-        .replace("\n", "\\n")
-    )
+    return value.replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,").replace("\n", "\\n")
 
 
 def _fold(line: str) -> str:
@@ -137,6 +134,7 @@ def _build_manual(rows: Iterable[tuple[Task, Phase, Project]]) -> bytes:
 # ---------------------------------------------------------------------------
 # Public entrypoint
 # ---------------------------------------------------------------------------
+
 
 def build_ics(rows: Iterable[tuple[Task, Phase, Project]]) -> bytes:
     """Return an RFC 5545 VCALENDAR document for the given task rows."""

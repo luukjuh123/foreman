@@ -4,12 +4,6 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func, select
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
-
 from app.core.database import get_db
 from app.models.process import Process, ProjectProcess
 from app.models.project import Project
@@ -29,6 +23,11 @@ from app.services.process_analytics.analytics import (
     stats_all_processes,
     stats_for_process,
 )
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 router = APIRouter()
 
@@ -37,17 +36,16 @@ router = APIRouter()
 # Process templates
 # ---------------------------------------------------------------------------
 
+
 @router.get("/", response_model=ProcessListResponse)
 async def list_processes(
     _user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ProcessListResponse:
-    count = (await db.execute(
-        select(func.count()).select_from(Process).where(Process.deleted_at.is_(None))
-    )).scalar_one()
-    result = await db.execute(
-        select(Process).where(Process.deleted_at.is_(None)).order_by(Process.slug)
-    )
+    count = (
+        await db.execute(select(func.count()).select_from(Process).where(Process.deleted_at.is_(None)))
+    ).scalar_one()
+    result = await db.execute(select(Process).where(Process.deleted_at.is_(None)).order_by(Process.slug))
     items = result.scalars().all()
     return ProcessListResponse(
         data=[ProcessResponse.model_validate(p) for p in items],
@@ -81,9 +79,7 @@ async def create_process(
 
 
 async def _get_process_or_404(process_id: uuid.UUID, db: AsyncSession) -> Process:
-    result = await db.execute(
-        select(Process).where(Process.id == process_id, Process.deleted_at.is_(None))
-    )
+    result = await db.execute(select(Process).where(Process.id == process_id, Process.deleted_at.is_(None)))
     proc = result.scalar_one_or_none()
     if proc is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Process not found")
@@ -103,9 +99,7 @@ async def list_project_processes(
         .options(selectinload(ProjectProcess.process))
         .order_by(ProjectProcess.created_at)
     )
-    return ProjectProcessListResponse(
-        data=[ProjectProcessResponse.model_validate(pp) for pp in result.scalars().all()]
-    )
+    return ProjectProcessListResponse(data=[ProjectProcessResponse.model_validate(pp) for pp in result.scalars().all()])
 
 
 @router.post(
@@ -121,9 +115,7 @@ async def attach_process_to_project(
 ) -> ProjectProcessResponse:
     await _get_project_owned(project_id, user, db)
     await _get_process_or_404(body.process_id, db)
-    link = ProjectProcess(
-        project_id=project_id, process_id=body.process_id, notes=body.notes
-    )
+    link = ProjectProcess(project_id=project_id, process_id=body.process_id, notes=body.notes)
     db.add(link)
     try:
         await db.commit()
@@ -134,9 +126,7 @@ async def attach_process_to_project(
             detail="Process already attached to project",
         )
     result = await db.execute(
-        select(ProjectProcess)
-        .where(ProjectProcess.id == link.id)
-        .options(selectinload(ProjectProcess.process))
+        select(ProjectProcess).where(ProjectProcess.id == link.id).options(selectinload(ProjectProcess.process))
     )
     return ProjectProcessResponse.model_validate(result.scalar_one())
 
@@ -172,9 +162,7 @@ async def list_process_stats(
 ) -> ProcessStatsListResponse:
     """Average duration per process across all projects — feeds AI planning."""
     items = await stats_all_processes(db)
-    return ProcessStatsListResponse(
-        data=[ProcessStatsResponse(**item.__dict__) for item in items]
-    )
+    return ProcessStatsListResponse(data=[ProcessStatsResponse(**item.__dict__) for item in items])
 
 
 @router.get("/{process_id}/stats", response_model=ProcessStatsResponse)
@@ -215,9 +203,7 @@ async def update_process(
 
 
 async def _get_project_owned(project_id: uuid.UUID, user: User, db: AsyncSession) -> Project:
-    result = await db.execute(
-        select(Project).where(Project.id == project_id, Project.deleted_at.is_(None))
-    )
+    result = await db.execute(select(Project).where(Project.id == project_id, Project.deleted_at.is_(None)))
     project = result.scalar_one_or_none()
     if project is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")

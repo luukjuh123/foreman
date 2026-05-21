@@ -69,7 +69,5 @@ class NotificationPreferencesUpdate(BaseModel):
                 raise ValueError(f"override for {ntype!r} must be a mapping")
             unknown = set(channels) - _ALLOWED_CHANNELS
             if unknown:
-                raise ValueError(
-                    f"unknown channels in override for {ntype!r}: {sorted(unknown)}"
-                )
+                raise ValueError(f"unknown channels in override for {ntype!r}: {sorted(unknown)}")
         return v

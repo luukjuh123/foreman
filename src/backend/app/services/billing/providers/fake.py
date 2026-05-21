@@ -18,9 +18,7 @@ class FakePaymentProvider(PaymentProvider):
         self.subscriptions: dict[str, dict] = {}
         self.cancelled: set[str] = set()
 
-    def create_subscription(
-        self, *, customer_email: str, tier: str, amount_cents: int
-    ) -> CheckoutResult:
+    def create_subscription(self, *, customer_email: str, tier: str, amount_cents: int) -> CheckoutResult:
         sub_id = f"sub_{uuid.uuid4().hex[:12]}"
         cust_id = f"cst_{uuid.uuid4().hex[:12]}"
         self.subscriptions[sub_id] = {
@@ -39,9 +37,7 @@ class FakePaymentProvider(PaymentProvider):
         self.cancelled.add(provider_subscription_id)
 
     def verify_webhook_signature(self, payload: bytes, signature: str) -> bool:
-        expected = hmac.new(
-            self._webhook_secret.encode(), payload, hashlib.sha256
-        ).hexdigest()
+        expected = hmac.new(self._webhook_secret.encode(), payload, hashlib.sha256).hexdigest()
         return hmac.compare_digest(expected, signature)
 
     def parse_webhook(self, payload: bytes) -> WebhookEvent:

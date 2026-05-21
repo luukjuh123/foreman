@@ -5,10 +5,9 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
+from app.core.database import Base
 from sqlalchemy import JSON, DateTime, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
-
-from app.core.database import Base
 
 
 class InboundInquiry(Base):
@@ -25,9 +24,7 @@ class InboundInquiry(Base):
     raw: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     # 'new' | 'acknowledged' | 'closed'
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="new")
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

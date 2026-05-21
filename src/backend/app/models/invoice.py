@@ -9,6 +9,7 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime
 
+from app.core.database import Base
 from sqlalchemy import (
     Date,
     DateTime,
@@ -21,8 +22,6 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from app.core.database import Base
 
 # Allowed Dutch VAT rates in basis points.
 ALLOWED_VAT_RATES_BP: tuple[int, ...] = (0, 900, 2100)
@@ -37,9 +36,7 @@ class Customer(Base):
     __tablename__ = "customers"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    owner_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("users.id"), nullable=False, index=True
-    )
+    owner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     kvk_number: Mapped[str | None] = mapped_column(String(20), nullable=True)
@@ -49,9 +46,7 @@ class Customer(Base):
     postal_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
     city: Mapped[str | None] = mapped_column(String(100), nullable=True)
     country_code: Mapped[str] = mapped_column(String(2), default="NL")
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
@@ -62,20 +57,12 @@ class Invoice(Base):
     """A Dutch e-invoice belonging to a single owner."""
 
     __tablename__ = "invoices"
-    __table_args__ = (
-        UniqueConstraint("owner_id", "invoice_number", name="uq_invoice_owner_number"),
-    )
+    __table_args__ = (UniqueConstraint("owner_id", "invoice_number", name="uq_invoice_owner_number"),)
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    owner_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("users.id"), nullable=False, index=True
-    )
-    customer_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("customers.id"), nullable=False, index=True
-    )
-    project_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("projects.id"), nullable=True, index=True
-    )
+    owner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    customer_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("customers.id"), nullable=False, index=True)
+    project_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("projects.id"), nullable=True, index=True)
 
     invoice_number: Mapped[str] = mapped_column(String(20), nullable=False)
     issue_date: Mapped[date] = mapped_column(Date, nullable=False)
@@ -93,15 +80,13 @@ class Invoice(Base):
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    lines: Mapped[list["InvoiceLine"]] = relationship(
+    lines: Mapped[list[InvoiceLine]] = relationship(
         back_populates="invoice",
         cascade="all, delete-orphan",
         order_by="InvoiceLine.position",
@@ -114,9 +99,7 @@ class InvoiceLine(Base):
     __tablename__ = "invoice_lines"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    invoice_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("invoices.id"), nullable=False, index=True
-    )
+    invoice_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("invoices.id"), nullable=False, index=True)
     position: Mapped[int] = mapped_column(Integer, default=0)
     description: Mapped[str] = mapped_column(String(500), nullable=False)
     quantity: Mapped[float] = mapped_column(Float, default=1.0)
@@ -135,13 +118,9 @@ class InvoiceCounter(Base):
     """Monotonic counter for invoice numbers, scoped per owner per year."""
 
     __tablename__ = "invoice_counters"
-    __table_args__ = (
-        UniqueConstraint("owner_id", "year", name="uq_invoice_counter_owner_year"),
-    )
+    __table_args__ = (UniqueConstraint("owner_id", "year", name="uq_invoice_counter_owner_year"),)
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    owner_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("users.id"), nullable=False, index=True
-    )
+    owner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
     year: Mapped[int] = mapped_column(Integer, nullable=False)
     last_number: Mapped[int] = mapped_column(Integer, default=0)

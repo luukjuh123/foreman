@@ -100,21 +100,7 @@ export default function TimeTrackingPage({ params }: Props) {
       <h1 className="text-2xl font-bold text-foreground">Tijdregistratie</h1>
 
       {/* Process list */}
-      {processes.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          Geen processen gekoppeld. Koppel eerst een proces aan dit project.
-        </p>
-      ) : (
-        <div className="space-y-4">
-          {processes.map((pp) => (
-            <TimeTracker
-              key={pp.id}
-              projectProcessId={pp.id}
-              processName={pp.process.name}
-            />
-          ))}
-        </div>
-      )}
+      {projectId && <TimeTracker projectId={projectId} />}
     </div>
   );
 }

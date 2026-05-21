@@ -2,10 +2,6 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Response, status
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.core.config import settings
 from app.core.database import get_db
 from app.models.push_subscription import PushSubscription
@@ -17,6 +13,9 @@ from app.schemas.push_subscription import (
     PushUnsubscribeRequest,
     VapidKeyResponse,
 )
+from fastapi import APIRouter, Depends, Response, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 
@@ -34,9 +33,7 @@ async def subscribe(
     db: AsyncSession = Depends(get_db),
 ) -> PushSubscriptionResponse:
     """Save (or update) a Web Push subscription for the authenticated user."""
-    result = await db.execute(
-        select(PushSubscription).where(PushSubscription.endpoint == body.endpoint)
-    )
+    result = await db.execute(select(PushSubscription).where(PushSubscription.endpoint == body.endpoint))
     sub = result.scalar_one_or_none()
 
     if sub is None:

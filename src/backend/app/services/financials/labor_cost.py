@@ -13,10 +13,9 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass, field
 
+from app.models.project import Phase, Task
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.models.project import Phase, Task
 
 # Conservative Dutch construction-labor default: €50/hour fully loaded.
 DEFAULT_HOURLY_RATE_CENTS: int = 5000
@@ -51,13 +50,9 @@ class LaborCostEstimator:
     def hourly_rate_cents(self) -> int:
         return self._rate
 
-    async def estimate(
-        self, project_id: uuid.UUID, db: AsyncSession
-    ) -> LaborCostReport:
+    async def estimate(self, project_id: uuid.UUID, db: AsyncSession) -> LaborCostReport:
         result = await db.execute(
-            select(Task)
-            .join(Phase, Task.phase_id == Phase.id)
-            .where(Phase.project_id == project_id)
+            select(Task).join(Phase, Task.phase_id == Phase.id).where(Phase.project_id == project_id)
         )
         tasks = list(result.scalars().all())
 

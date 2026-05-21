@@ -16,17 +16,18 @@ import logging
 import uuid
 from collections.abc import Iterable
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.models.notification import Notification
 from app.models.user import User
 from app.services.notifications.channels import NotificationChannel
 from app.services.notifications.preferences import (
     ALL_CHANNELS as KNOWN_CHANNELS,
+)
+from app.services.notifications.preferences import (
     allowed_channels_for,
     get_or_create_preferences,
 )
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
@@ -56,9 +57,7 @@ class NotificationDispatcher:
         `channels` (optional) restricts which channels are invoked, e.g.
         `["in_app", "email"]`. If `None` all registered channels are tried.
         """
-        user = (
-            await db.execute(select(User).where(User.id == user_id))
-        ).scalar_one_or_none()
+        user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
         if user is None:
             raise ValueError(f"user {user_id} does not exist")
 
@@ -88,7 +87,7 @@ class NotificationDispatcher:
             try:
                 await channel.send(notification, user)
                 dispatched.append(channel.name)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 logger.exception(
                     "notification_channel_failed",
                     extra={

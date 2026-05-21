@@ -12,10 +12,9 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.models.notification import Notification
 from app.services.notifications.engine import NotificationDispatcher
+from sqlalchemy.ext.asyncio import AsyncSession
 
 _CUSTOMER_CHANNELS = ["in_app", "email"]
 
@@ -68,8 +67,7 @@ async def notify_invoice_sent(
         type="customer.invoice_sent",
         title=f"Invoice {invoice_number} is ready",
         body=(
-            f"Your invoice {invoice_number} for {amount} has been sent. "
-            "Please check your email for payment details."
+            f"Your invoice {invoice_number} for {amount} has been sent. Please check your email for payment details."
         ),
         data={
             "invoice_id": str(invoice_id),

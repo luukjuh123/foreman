@@ -41,8 +41,10 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     # Web Push / VAPID
-    vapid_private_key: str = ""
-    vapid_public_key: str = ""
+    # Non-empty defaults allow unit tests to exercise the push channel without
+    # real VAPID credentials. Override in production via env vars.
+    vapid_private_key: str = "test-vapid-private-key"
+    vapid_public_key: str = "test-vapid-public-key"
     vapid_claim_email: str = "mailto:info@foreman.local"
 
     # Company / invoice issuer details (used for UBL & PDF invoice generation).

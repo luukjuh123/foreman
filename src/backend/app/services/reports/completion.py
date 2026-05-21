@@ -9,12 +9,11 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
+from app.models.project import Phase, Project
+from app.services.reports.engine import aggregate_project_data
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-
-from app.models.project import Phase, Project
-from app.services.reports.engine import aggregate_project_data
 
 
 def _duration_days(start: str | None, end: str | None) -> int | None:
@@ -22,6 +21,7 @@ def _duration_days(start: str | None, end: str | None) -> int | None:
     if start is None or end is None:
         return None
     from datetime import date as _date
+
     s = _date.fromisoformat(start)
     e = _date.fromisoformat(end)
     return (e - s).days + 1
@@ -45,12 +45,11 @@ async def generate_completion_report(
     project = result.scalar_one()
 
     # Timeline: planned (project.start_date/end_date) vs actual (min/max task dates).
-    task_starts = [
-        t.start_date for ph in project.phases for t in ph.tasks if t.start_date is not None
-    ]
+    task_starts = [t.start_date for ph in project.phases for t in ph.tasks if t.start_date is not None]
     task_ends = [
         t.end_date or t.start_date
-        for ph in project.phases for t in ph.tasks
+        for ph in project.phases
+        for t in ph.tasks
         if (t.end_date or t.start_date) is not None
     ]
     actual_start = min(task_starts).isoformat() if task_starts else None
@@ -87,15 +86,17 @@ async def generate_completion_report(
     # Phase-level rollup
     phase_summary: list[dict[str, Any]] = []
     for phase in sorted(project.phases, key=lambda p: p.order_index):
-        phase_summary.append({
-            "phase_id": str(phase.id),
-            "phase_name": phase.name,
-            "status": phase.status,
-            "task_count": len(phase.tasks),
-            "completed_task_count": sum(1 for t in phase.tasks if t.status == "done"),
-            "estimated_hours": sum(float(t.estimated_hours or 0.0) for t in phase.tasks),
-            "actual_cost_cents": sum(int(t.labor_cost_cents or 0) for t in phase.tasks),
-        })
+        phase_summary.append(
+            {
+                "phase_id": str(phase.id),
+                "phase_name": phase.name,
+                "status": phase.status,
+                "task_count": len(phase.tasks),
+                "completed_task_count": sum(1 for t in phase.tasks if t.status == "done"),
+                "estimated_hours": sum(float(t.estimated_hours or 0.0) for t in phase.tasks),
+                "actual_cost_cents": sum(int(t.labor_cost_cents or 0) for t in phase.tasks),
+            }
+        )
 
     return {
         "type": "completion",

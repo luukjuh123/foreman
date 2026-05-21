@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus } from "lucide-react";
 import { listProcesses, listProcessStats, createProcess, formatDuration } from "@/lib/processes";
-import type { ProcessResponse, ProcessStatsResponse, ProcessCreate } from "@/lib/types";
+import type { ProcessResponse, ProcessStatsListResponse, ProcessCreate } from "@/lib/types";
+
+type ProcessStatsResponse = ProcessStatsListResponse["data"][number];
 
 // ---------------------------------------------------------------------------
 // Create form

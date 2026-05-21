@@ -1,14 +1,12 @@
 """Report model — persisted generated reports (weekly, completion)."""
 
-import secrets
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, Date, DateTime, String, Text, func
+from app.core.database import Base
+from sqlalchemy import Boolean, Date, DateTime, String, func
 from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.orm import Mapped, mapped_column
-
-from app.core.database import Base
 
 
 class Report(Base):
@@ -26,14 +24,10 @@ class Report(Base):
 
     data: Mapped[dict] = mapped_column(JSON, nullable=False)
 
-    share_token: Mapped[str | None] = mapped_column(
-        String(64), unique=True, index=True, nullable=True
-    )
+    share_token: Mapped[str | None] = mapped_column(String(64), unique=True, index=True, nullable=True)
     is_shared: Mapped[bool] = mapped_column(Boolean, default=False)
 
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

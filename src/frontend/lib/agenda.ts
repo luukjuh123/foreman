@@ -1,5 +1,5 @@
 import { apiFetch } from "@/lib/api";
-import type { AgendaDayResponse } from "@/lib/types";
+import type { AgendaDayResponse, AgendaWeekResponse } from "@/lib/types";
 
 /**
  * Fetch agenda tasks for a single day (YYYY-MM-DD).
@@ -8,6 +8,15 @@ import type { AgendaDayResponse } from "@/lib/types";
 export async function fetchDayAgenda(day?: string): Promise<AgendaDayResponse> {
   const qs = day ? `?day=${day}` : "";
   return apiFetch<AgendaDayResponse>(`/agenda/day${qs}`);
+}
+
+/**
+ * Fetch agenda tasks for the week containing the given date (YYYY-MM-DD).
+ * If weekStart is omitted, the backend defaults to the current week.
+ */
+export async function fetchWeekAgenda(weekStart?: string): Promise<AgendaWeekResponse> {
+  const qs = weekStart ? `?week_start=${weekStart}` : "";
+  return apiFetch<AgendaWeekResponse>(`/agenda/week${qs}`);
 }
 
 /**

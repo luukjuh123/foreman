@@ -4,10 +4,6 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.core.database import get_db
 from app.models.process import Process
 from app.models.process_photo import ProcessPhoto
@@ -23,16 +19,15 @@ from app.services.recognition.photo_client import (
     PhotoRecognitionClient,
     get_default_client,
 )
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 
 
-async def _get_project_owned(
-    project_id: uuid.UUID, user: User, db: AsyncSession
-) -> Project:
-    result = await db.execute(
-        select(Project).where(Project.id == project_id, Project.deleted_at.is_(None))
-    )
+async def _get_project_owned(project_id: uuid.UUID, user: User, db: AsyncSession) -> Project:
+    result = await db.execute(select(Project).where(Project.id == project_id, Project.deleted_at.is_(None)))
     project = result.scalar_one_or_none()
     if project is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
@@ -73,11 +68,9 @@ async def upload_photo(
     recognized_id: uuid.UUID | None = None
     recognized_slug: str | None = None
     if result.process_slug:
-        proc = (await db.execute(
-            select(Process).where(
-                Process.slug == result.process_slug, Process.deleted_at.is_(None)
-            )
-        )).scalar_one_or_none()
+        proc = (
+            await db.execute(select(Process).where(Process.slug == result.process_slug, Process.deleted_at.is_(None)))
+        ).scalar_one_or_none()
         if proc is not None:
             recognized_id = proc.id
             recognized_slug = proc.slug

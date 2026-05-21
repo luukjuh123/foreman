@@ -6,6 +6,13 @@ export function formatReviewDate(iso: string | null): string {
   return d.toLocaleDateString("nl-NL", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
+export interface ReviewStats {
+  average_rating: number;
+  total_count: number;
+  rating_distribution: Record<string, number>;
+  monthly_trend: Array<{ month: string; average_rating: number; count: number }>;
+}
+
 export interface ReviewResponse {
   id: string;
   location_id: string;

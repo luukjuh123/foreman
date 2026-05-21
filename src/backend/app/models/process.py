@@ -10,10 +10,9 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
+from app.core.database import Base
 from sqlalchemy import DateTime, ForeignKey, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from app.core.database import Base
 
 
 class Process(Base):
@@ -27,17 +26,13 @@ class Process(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     # SI-only unit string, e.g. "m2", "m", "kg". Free-form; estimator validates.
     unit: Mapped[str] = mapped_column(String(20), default="m2", nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    project_links: Mapped[list["ProjectProcess"]] = relationship(
-        back_populates="process", cascade="all, delete-orphan"
-    )
+    project_links: Mapped[list[ProjectProcess]] = relationship(back_populates="process", cascade="all, delete-orphan")
 
 
 class ProjectProcess(Base):
@@ -48,9 +43,7 @@ class ProjectProcess(Base):
     """
 
     __tablename__ = "project_processes"
-    __table_args__ = (
-        UniqueConstraint("project_id", "process_id", name="uq_project_process"),
-    )
+    __table_args__ = (UniqueConstraint("project_id", "process_id", name="uq_project_process"),)
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     project_id: Mapped[uuid.UUID] = mapped_column(
@@ -60,8 +53,6 @@ class ProjectProcess(Base):
         ForeignKey("processes.id", ondelete="CASCADE"), nullable=False, index=True
     )
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    process: Mapped["Process"] = relationship(back_populates="project_links")
+    process: Mapped[Process] = relationship(back_populates="project_links")

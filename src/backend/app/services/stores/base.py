@@ -23,7 +23,7 @@ import asyncio
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Generic, TypeVar
+from typing import TypeVar
 
 import httpx
 
@@ -54,7 +54,7 @@ class ProductResult:
             raise ValueError("price_cents must be non-negative")
 
 
-class TTLCache(Generic[K, V]):
+class TTLCache[K, V]:
     """Asyncio-safe in-memory TTL cache.
 
     Drop-in replaceable with a Redis-backed cache that exposes the same
@@ -103,7 +103,7 @@ class RateLimiter:
         self._lock = asyncio.Lock()
         self._next_allowed = 0.0
 
-    async def __aenter__(self) -> "RateLimiter":
+    async def __aenter__(self) -> RateLimiter:
         await self._sem.acquire()
         async with self._lock:
             now = time.monotonic()
@@ -113,7 +113,7 @@ class RateLimiter:
             await asyncio.sleep(wait)
         return self
 
-    async def __aexit__(self, exc_type, exc, tb) -> None:  # noqa: ANN001
+    async def __aexit__(self, exc_type, exc, tb) -> None:
         self._sem.release()
 
 
@@ -147,10 +147,10 @@ class StoreClient(ABC):
     async def aclose(self) -> None:
         await self._client.aclose()
 
-    async def __aenter__(self) -> "StoreClient":
+    async def __aenter__(self) -> StoreClient:
         return self
 
-    async def __aexit__(self, exc_type, exc, tb) -> None:  # noqa: ANN001
+    async def __aexit__(self, exc_type, exc, tb) -> None:
         await self.aclose()
 
     async def _fetch(self, url: str) -> str:

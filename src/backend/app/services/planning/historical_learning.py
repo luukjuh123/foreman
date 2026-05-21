@@ -104,8 +104,7 @@ class HistoricalLearner:
                 confidence=_confidence(len(exact)),
                 sample_size=len(exact),
                 reasoning=(
-                    f"Predicted from {len(exact)} historical record(s) of "
-                    f"'{task_name}' (median of past actuals)."
+                    f"Predicted from {len(exact)} historical record(s) of '{task_name}' (median of past actuals)."
                 ),
             )
 
@@ -153,8 +152,7 @@ class HistoricalLearner:
             raise ValueError(msg)
 
         rows = [
-            r for r in await self._store.all_observations()
-            if r.estimated_duration_s and r.estimated_duration_s > 0
+            r for r in await self._store.all_observations() if r.estimated_duration_s and r.estimated_duration_s > 0
         ]
         if not rows:
             # No estimate/actual pairs — just return the estimate.
@@ -167,15 +165,12 @@ class HistoricalLearner:
 
         ratios = [r.actual_duration_s / r.estimated_duration_s for r in rows]
         bias = statistics.median(ratios)
-        corrected = int(round(estimated_duration_s * bias))
+        corrected = round(estimated_duration_s * bias)
         return Prediction(
             duration_s=corrected,
             confidence=_confidence(len(rows)),
             sample_size=len(rows),
-            reasoning=(
-                f"Applied historical estimate→actual bias of {bias:.2f} "
-                f"(median over {len(rows)} pair(s))."
-            ),
+            reasoning=(f"Applied historical estimate→actual bias of {bias:.2f} (median over {len(rows)} pair(s))."),
         )
 
     async def predict_many(

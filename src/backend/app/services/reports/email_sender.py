@@ -15,9 +15,10 @@ trivially testable.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from email.message import EmailMessage as PyEmailMessage
-from typing import Callable, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 
 @dataclass
@@ -88,6 +89,7 @@ class SMTPEmailSender:
         if self._smtp_factory is not None:
             return self._smtp_factory
         import smtplib  # local import keeps test envs without smtplib happy
+
         return smtplib.SMTP
 
     def _build_mime(self, message: EmailMessage) -> PyEmailMessage:
@@ -100,8 +102,10 @@ class SMTPEmailSender:
         for filename, content, mime_type in message.attachments:
             maintype, _, subtype = mime_type.partition("/")
             mime.add_attachment(
-                content, maintype=maintype or "application",
-                subtype=subtype or "octet-stream", filename=filename,
+                content,
+                maintype=maintype or "application",
+                subtype=subtype or "octet-stream",
+                filename=filename,
             )
         return mime
 

@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { apiFetch } from "@/lib/api";
 import type { InvoiceResponse } from "@/lib/types";
 import { InvoiceSendDialog } from "@/components/invoice-send-dialog";
+import { formatMoney, formatInvoiceDate } from "@/lib/invoice-helpers";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -29,23 +30,6 @@ const STATUS_BADGE_CLASS: Record<string, string> = {
   overdue: "bg-red-100 text-red-700",
 };
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-export function formatMoney(cents: number): string {
-  return new Intl.NumberFormat("nl-NL", {
-    style: "currency",
-    currency: "EUR",
-    minimumFractionDigits: 2,
-  }).format(cents / 100);
-}
-
-export function formatInvoiceDate(iso: string | null): string {
-  if (!iso) return "";
-  const [y, m, d] = iso.split("T")[0].split("-");
-  return `${d}-${m}-${y}`;
-}
 
 function formatVatRate(bp: number): string {
   return `${bp / 100}%`;
@@ -55,11 +39,7 @@ function formatVatRate(bp: number): string {
 // Page
 // ---------------------------------------------------------------------------
 
-interface Props {
-  params?: Promise<{ id: string }>;
-}
-
-export default function InvoicePreviewPage({ params: paramsProp }: Props = {}) {
+export default function InvoicePreviewPage() {
   const routeParams = useParams();
   const [id, setId] = useState<string>(routeParams?.id as string ?? "");
 
@@ -72,12 +52,10 @@ export default function InvoicePreviewPage({ params: paramsProp }: Props = {}) {
   const [customerEmail, setCustomerEmail] = useState<string | null>(null);
 
   useEffect(() => {
-    if (paramsProp) {
-      paramsProp.then(({ id: resolvedId }) => setId(resolvedId));
-    } else if (routeParams?.id) {
+    if (routeParams?.id) {
       setId(routeParams.id as string);
     }
-  }, [paramsProp, routeParams]);
+  }, [routeParams]);
 
   useEffect(() => {
     if (!id) return;

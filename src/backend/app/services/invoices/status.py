@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
-
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import UTC, date, datetime
 
 from app.models.invoice import INVOICE_STATUSES, Invoice
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 # Allowed transitions between invoice statuses.
 # draft   → sent, cancelled
@@ -33,10 +32,8 @@ def is_legal_transition(current: str, target: str) -> bool:
 def apply_transition(invoice: Invoice, target: str, *, now: datetime | None = None) -> None:
     """Mutate `invoice` to the new status, setting sent_at / paid_at as needed."""
     if not is_legal_transition(invoice.status, target):
-        raise ValueError(
-            f"Illegal transition: {invoice.status!r} -> {target!r}"
-        )
-    moment = now or datetime.now(timezone.utc)
+        raise ValueError(f"Illegal transition: {invoice.status!r} -> {target!r}")
+    moment = now or datetime.now(UTC)
     invoice.status = target
     if target == "sent" and invoice.sent_at is None:
         invoice.sent_at = moment

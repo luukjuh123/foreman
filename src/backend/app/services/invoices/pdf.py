@@ -119,33 +119,29 @@ def render_invoice_html(
         for rate, g in sorted(vat_groups.items())
     )
 
-    notes_block = (
-        f"<div class='notes'>{escape(str(invoice['notes']))}</div>"
-        if invoice.get("notes")
-        else ""
-    )
+    notes_block = f"<div class='notes'>{escape(str(invoice['notes']))}</div>" if invoice.get("notes") else ""
 
     return f"""<!DOCTYPE html>
 <html lang="nl">
 <head>
 <meta charset="utf-8">
-<title>Factuur {escape(str(invoice['invoice_number']))}</title>
+<title>Factuur {escape(str(invoice["invoice_number"]))}</title>
 <style>{_BASE_STYLE}</style>
 </head>
 <body>
   <div class="header">
     <div class="brand">
-      <h1>{escape(str(supplier.get('name', '')))}</h1>
+      <h1>{escape(str(supplier.get("name", "")))}</h1>
       <div class="meta">
-        KVK: {escape(str(supplier.get('kvk_number', '')))}<br>
-        BTW: {escape(str(supplier.get('vat_number', '')))}<br>
-        IBAN: {escape(str(supplier.get('iban', '')))}
+        KVK: {escape(str(supplier.get("kvk_number", "")))}<br>
+        BTW: {escape(str(supplier.get("vat_number", "")))}<br>
+        IBAN: {escape(str(supplier.get("iban", "")))}
       </div>
     </div>
     <div>
       <h2 style="margin:0;">FACTUUR</h2>
       <table class="info-table">
-        <tr><td>Nummer:</td><td>{escape(str(invoice['invoice_number']))}</td></tr>
+        <tr><td>Nummer:</td><td>{escape(str(invoice["invoice_number"]))}</td></tr>
         <tr><td>Datum:</td><td>{issue.isoformat()}</td></tr>
         <tr><td>Vervaldatum:</td><td>{due.isoformat()}</td></tr>
       </table>
@@ -160,7 +156,7 @@ def render_invoice_html(
     <div class="box">
       <h3>Geadresseerde</h3>
       {_customer_html(customer)}
-      <br>BTW: {escape(str(customer.get('vat_number', '')))}
+      <br>BTW: {escape(str(customer.get("vat_number", "")))}
     </div>
   </div>
 
@@ -178,17 +174,17 @@ def render_invoice_html(
       </tr>
     </thead>
     <tbody>
-      {''.join(line_rows)}
+      {"".join(line_rows)}
     </tbody>
   </table>
 
   <table class="totals">
     <tr><td>Subtotaal</td>
-        <td class="num">{currency} {_euro(int(invoice['subtotal_cents']))}</td></tr>
+        <td class="num">{currency} {_euro(int(invoice["subtotal_cents"]))}</td></tr>
     <tr><td>BTW</td>
-        <td class="num">{currency} {_euro(int(invoice['vat_total_cents']))}</td></tr>
+        <td class="num">{currency} {_euro(int(invoice["vat_total_cents"]))}</td></tr>
     <tr class="grand"><td>Totaal</td>
-        <td class="num">{currency} {_euro(int(invoice['total_cents']))}</td></tr>
+        <td class="num">{currency} {_euro(int(invoice["total_cents"]))}</td></tr>
   </table>
 
   <table class="vat-summary">
@@ -197,10 +193,10 @@ def render_invoice_html(
   </table>
 
   <div class="footer">
-    Betaling binnen {int(invoice.get('payment_terms_days', 30))} dagen
-    op rekening {escape(str(supplier.get('iban', '')))} t.n.v.
-    {escape(str(supplier.get('name', '')))}, o.v.v. factuurnummer
-    {escape(str(invoice['invoice_number']))}.
+    Betaling binnen {int(invoice.get("payment_terms_days", 30))} dagen
+    op rekening {escape(str(supplier.get("iban", "")))} t.n.v.
+    {escape(str(supplier.get("name", "")))}, o.v.v. factuurnummer
+    {escape(str(invoice["invoice_number"]))}.
   </div>
 </body>
 </html>"""

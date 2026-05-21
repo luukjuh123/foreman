@@ -27,8 +27,8 @@ vi.mock("@/lib/api", () => ({
 
 // Mock TimeTracker so page tests don't depend on its internal API
 vi.mock("@/components/time-tracking/TimeTracker", () => ({
-  default: ({ projectProcessId, processName }: { projectProcessId: string; processName: string }) => (
-    <div data-testid={`tracker-${projectProcessId}`}>{processName}</div>
+  default: ({ projectId }: { projectId: string }) => (
+    <div data-testid={`tracker-${projectId}`}>TimeTracker:{projectId}</div>
   ),
   formatTotalDuration: (seconds: number): string => {
     const h = Math.floor(seconds / 3600);
@@ -120,27 +120,7 @@ describe("TimeTrackingPage", () => {
     expect(screen.getByText(/laden/i)).toBeInTheDocument();
   });
 
-  it("renders a tracker widget for each process", async () => {
-    const { apiFetch } = await import("@/lib/api");
-    vi.mocked(apiFetch).mockResolvedValue({
-      data: [
-        makeProjectProcess({ id: "pp-1", name: "Stucen" }),
-        makeProjectProcess({ id: "pp-2", name: "Tegelen" }),
-      ],
-    });
-
-    const { default: TimeTrackingPage } = await import(
-      "@/app/dashboard/projects/[id]/time-tracking/page"
-    );
-    render(<TimeTrackingPage params={Promise.resolve({ id: "proj-1" })} />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Stucen")).toBeInTheDocument();
-      expect(screen.getByText("Tegelen")).toBeInTheDocument();
-    });
-  });
-
-  it("shows empty state when no processes are linked", async () => {
+  it("renders a tracker widget for the project", async () => {
     const { apiFetch } = await import("@/lib/api");
     vi.mocked(apiFetch).mockResolvedValue({ data: [] });
 
@@ -150,7 +130,21 @@ describe("TimeTrackingPage", () => {
     render(<TimeTrackingPage params={Promise.resolve({ id: "proj-1" })} />);
 
     await waitFor(() => {
-      expect(screen.getByText(/geen processen gekoppeld/i)).toBeInTheDocument();
+      expect(screen.getByTestId("tracker-proj-1")).toBeInTheDocument();
+    });
+  });
+
+  it("shows TimeTracker component when project id is resolved", async () => {
+    const { apiFetch } = await import("@/lib/api");
+    vi.mocked(apiFetch).mockResolvedValue({ data: [] });
+
+    const { default: TimeTrackingPage } = await import(
+      "@/app/dashboard/projects/[id]/time-tracking/page"
+    );
+    render(<TimeTrackingPage params={Promise.resolve({ id: "proj-1" })} />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/TimeTracker:proj-1/i)).toBeInTheDocument();
     });
   });
 

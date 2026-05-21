@@ -100,17 +100,17 @@ async function getApiFetch() {
 
 describe("formatMoney", () => {
   it("formats cents to Dutch euro notation", async () => {
-    const { formatMoney } = await import("@/app/dashboard/invoices/[id]/page");
+    const { formatMoney } = await import("@/lib/invoice-helpers");
     expect(formatMoney(60500)).toBe("€\u00a0605,00");
   });
 
   it("formats large amounts with thousands separator", async () => {
-    const { formatMoney } = await import("@/app/dashboard/invoices/[id]/page");
+    const { formatMoney } = await import("@/lib/invoice-helpers");
     expect(formatMoney(500000_00)).toBe("€\u00a0500.000,00");
   });
 
   it("formats zero correctly", async () => {
-    const { formatMoney } = await import("@/app/dashboard/invoices/[id]/page");
+    const { formatMoney } = await import("@/lib/invoice-helpers");
     expect(formatMoney(0)).toBe("€\u00a00,00");
   });
 });
@@ -121,12 +121,12 @@ describe("formatMoney", () => {
 
 describe("formatInvoiceDate", () => {
   it("formats ISO date to dd-MM-yyyy", async () => {
-    const { formatInvoiceDate } = await import("@/app/dashboard/invoices/[id]/page");
+    const { formatInvoiceDate } = await import("@/lib/invoice-helpers");
     expect(formatInvoiceDate("2024-01-15")).toBe("15-01-2024");
   });
 
   it("returns empty string for null", async () => {
-    const { formatInvoiceDate } = await import("@/app/dashboard/invoices/[id]/page");
+    const { formatInvoiceDate } = await import("@/lib/invoice-helpers");
     expect(formatInvoiceDate(null)).toBe("");
   });
 });

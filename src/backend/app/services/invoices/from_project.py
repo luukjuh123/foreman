@@ -5,12 +5,11 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 
+from app.models.material import Material
+from app.models.project import Phase, Project, Task
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-
-from app.models.material import Material
-from app.models.project import Phase, Project, Task
 
 
 @dataclass
@@ -57,9 +56,7 @@ async def build_project_lines(
 
     materials: list[Material] = []
     if include_materials and task_ids:
-        mat_res = await db.execute(
-            select(Material).where(Material.task_id.in_(task_ids))
-        )
+        mat_res = await db.execute(select(Material).where(Material.task_id.in_(task_ids)))
         materials = list(mat_res.scalars().all())
 
     lines: list[DraftLine] = []

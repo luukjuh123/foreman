@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import uuid
 
+from app.models.invoice import InvoiceCounter
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.models.invoice import InvoiceCounter
 
 
 def format_invoice_number(year: int, number: int) -> str:
@@ -15,9 +14,7 @@ def format_invoice_number(year: int, number: int) -> str:
     return f"{year:04d}-{number:04d}"
 
 
-async def allocate_invoice_number(
-    db: AsyncSession, *, owner_id: uuid.UUID, year: int
-) -> str:
+async def allocate_invoice_number(db: AsyncSession, *, owner_id: uuid.UUID, year: int) -> str:
     """Allocate the next invoice number for the given owner+year.
 
     Increments the persisted counter within the current session and returns
@@ -25,9 +22,7 @@ async def allocate_invoice_number(
     """
 
     result = await db.execute(
-        select(InvoiceCounter).where(
-            InvoiceCounter.owner_id == owner_id, InvoiceCounter.year == year
-        )
+        select(InvoiceCounter).where(InvoiceCounter.owner_id == owner_id, InvoiceCounter.year == year)
     )
     counter = result.scalar_one_or_none()
     if counter is None:

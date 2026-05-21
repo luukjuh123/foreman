@@ -2,12 +2,6 @@
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.core.database import get_db
 from app.core.security import (
     create_access_token,
@@ -17,8 +11,6 @@ from app.core.security import (
     verify_password,
 )
 from app.models.user import User
-from app.services.billing.subscriptions import ensure_free_subscription
-from app.services.billing.usage import get_or_create_counter
 from app.schemas.auth import (
     LoginRequest,
     RefreshRequest,
@@ -26,6 +18,13 @@ from app.schemas.auth import (
     TokenResponse,
     UserResponse,
 )
+from app.services.billing.subscriptions import ensure_free_subscription
+from app.services.billing.usage import get_or_create_counter
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import JWTError
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 bearer_scheme = HTTPBearer()

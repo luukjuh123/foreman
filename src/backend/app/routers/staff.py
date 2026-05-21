@@ -3,11 +3,6 @@
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
-
 from app.core.database import get_db
 from app.models.staff import Staff, StaffAvailability
 from app.models.user import User
@@ -20,13 +15,15 @@ from app.schemas.staff import (
     StaffResponse,
     StaffUpdate,
 )
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 router = APIRouter()
 
 
-async def _get_owned_staff_or_404(
-    staff_id: uuid.UUID, user: User, db: AsyncSession
-) -> Staff:
+async def _get_owned_staff_or_404(staff_id: uuid.UUID, user: User, db: AsyncSession) -> Staff:
     result = await db.execute(
         select(Staff)
         .where(
@@ -52,21 +49,23 @@ async def list_staff(
     offset = (page - 1) * per_page
     count = (
         await db.execute(
-            select(func.count())
-            .select_from(Staff)
-            .where(Staff.owner_id == current_user.id, Staff.deleted_at.is_(None))
+            select(func.count()).select_from(Staff).where(Staff.owner_id == current_user.id, Staff.deleted_at.is_(None))
         )
     ).scalar_one()
     rows = (
-        await db.execute(
-            select(Staff)
-            .where(Staff.owner_id == current_user.id, Staff.deleted_at.is_(None))
-            .options(selectinload(Staff.availability))
-            .order_by(Staff.created_at.asc())
-            .offset(offset)
-            .limit(per_page)
+        (
+            await db.execute(
+                select(Staff)
+                .where(Staff.owner_id == current_user.id, Staff.deleted_at.is_(None))
+                .options(selectinload(Staff.availability))
+                .order_by(Staff.created_at.asc())
+                .offset(offset)
+                .limit(per_page)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     return StaffListResponse(
         data=[StaffResponse.model_validate(s) for s in rows],
         total=count,
@@ -93,9 +92,7 @@ async def create_staff(
     )
     db.add(staff)
     await db.commit()
-    result = await db.execute(
-        select(Staff).where(Staff.id == staff.id).options(selectinload(Staff.availability))
-    )
+    result = await db.execute(select(Staff).where(Staff.id == staff.id).options(selectinload(Staff.availability)))
     return StaffResponse.model_validate(result.scalar_one())
 
 
@@ -120,9 +117,7 @@ async def update_staff(
     for field, value in body.model_dump(exclude_unset=True).items():
         setattr(staff, field, value)
     await db.commit()
-    result = await db.execute(
-        select(Staff).where(Staff.id == staff.id).options(selectinload(Staff.availability))
-    )
+    result = await db.execute(select(Staff).where(Staff.id == staff.id).options(selectinload(Staff.availability)))
     return StaffResponse.model_validate(result.scalar_one())
 
 
@@ -180,8 +175,6 @@ async def remove_availability(
     )
     window = result.scalar_one_or_none()
     if window is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Availability window not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Availability window not found")
     await db.delete(window)
     await db.commit()

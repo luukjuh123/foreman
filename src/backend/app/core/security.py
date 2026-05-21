@@ -3,9 +3,8 @@
 from datetime import UTC, datetime, timedelta
 
 import bcrypt
-from jose import jwt
-
 from app.core.config import settings
+from jose import jwt
 
 
 def hash_password(password: str) -> str:
@@ -42,6 +41,7 @@ def decode_token(token: str, expected_type: str = "access") -> dict:
     """Decode and validate a JWT token.
 
     Raises JWTError on invalid/expired token, ValueError on type mismatch.
+    Pass expected_type="refresh" when decoding refresh tokens.
     """
     payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
     if payload.get("type") != expected_type:

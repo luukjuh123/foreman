@@ -15,10 +15,10 @@ from __future__ import annotations
 import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 
 
-class CommandIntent(str, Enum):
+class CommandIntent(StrEnum):
     CREATE_TASK = "create_task"
     LOG_HOURS = "log_hours"
     CHECK_SCHEDULE = "check_schedule"
@@ -124,8 +124,7 @@ class CommandLLMFallback(ABC):
     """Abstract LLM-backed fallback parser for utterances the rules miss."""
 
     @abstractmethod
-    async def classify(self, utterance: str) -> ParsedCommand:
-        ...
+    async def classify(self, utterance: str) -> ParsedCommand: ...
 
 
 class FakeCommandLLMFallback(CommandLLMFallback):

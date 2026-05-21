@@ -13,9 +13,6 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.models.material import Budget, BudgetItem
 from app.services.financials.labor_cost import (
     DEFAULT_HOURLY_RATE_CENTS,
@@ -26,6 +23,8 @@ from app.services.financials.material_cost import (
     MaterialCostAggregator,
     StorePriceProvider,
 )
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @dataclass
@@ -54,14 +53,10 @@ class TotalCostCalculator:
         price_provider: StorePriceProvider | None = None,
         hourly_rate_cents: int = DEFAULT_HOURLY_RATE_CENTS,
     ) -> None:
-        self._materials = MaterialCostAggregator(
-            price_provider or DefaultStorePriceProvider()
-        )
+        self._materials = MaterialCostAggregator(price_provider or DefaultStorePriceProvider())
         self._labor = LaborCostEstimator(hourly_rate_cents=hourly_rate_cents)
 
-    async def calculate(
-        self, project_id: uuid.UUID, db: AsyncSession
-    ) -> TotalCostReport:
+    async def calculate(self, project_id: uuid.UUID, db: AsyncSession) -> TotalCostReport:
         material_report = await self._materials.aggregate(project_id, db)
         labor_report = await self._labor.estimate(project_id, db)
 
@@ -69,9 +64,7 @@ class TotalCostCalculator:
         # budget items are skipped — those costs come from the aggregators.
         equipment = overhead = other = 0
         result = await db.execute(
-            select(BudgetItem)
-            .join(Budget, BudgetItem.budget_id == Budget.id)
-            .where(Budget.project_id == project_id)
+            select(BudgetItem).join(Budget, BudgetItem.budget_id == Budget.id).where(Budget.project_id == project_id)
         )
         for item in result.scalars().all():
             if item.category == "equipment":

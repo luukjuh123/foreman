@@ -4,19 +4,18 @@ import enum
 import uuid
 from datetime import datetime
 
+from app.core.database import Base
 from sqlalchemy import DateTime, ForeignKey, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.database import Base
 
-
-class SubscriptionTier(str, enum.Enum):
+class SubscriptionTier(enum.StrEnum):
     FREE = "free"
     STARTER = "starter"
     PRO = "pro"
 
 
-class SubscriptionStatus(str, enum.Enum):
+class SubscriptionStatus(enum.StrEnum):
     ACTIVE = "active"
     TRIALING = "trialing"
     PAST_DUE = "past_due"
@@ -35,30 +34,18 @@ class Subscription(Base):
     __tablename__ = "subscriptions"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    owner_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("users.id"), nullable=False, unique=True, index=True
-    )
+    owner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False, unique=True, index=True)
     tier: Mapped[str] = mapped_column(String(50), default=SubscriptionTier.FREE.value)
-    status: Mapped[str] = mapped_column(
-        String(50), default=SubscriptionStatus.ACTIVE.value
-    )
+    status: Mapped[str] = mapped_column(String(50), default=SubscriptionStatus.ACTIVE.value)
     # NULL = unlimited. Limit is set explicitly by service helpers per-tier.
     project_limit: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # External payment-provider references (used by the Mollie integration).
     provider: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    provider_subscription_id: Mapped[str | None] = mapped_column(
-        String(255), nullable=True
-    )
+    provider_subscription_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     provider_customer_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    current_period_end: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    trial_ends_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    current_period_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    trial_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

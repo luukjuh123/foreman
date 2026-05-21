@@ -3,11 +3,10 @@
 import math
 from datetime import date, timedelta
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.schemas.planning import TaskScheduleProposal
 from app.services.planning.cpm import CpmTask, compute_critical_path
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 # Fallback duration when estimated_hours == 0 and no historical data exists.
 _DEFAULT_FALLBACK_HOURS = 8.0
@@ -68,18 +67,22 @@ def compute_schedule(
                 f"Duration: {task.duration_hours:.0f}h ({days}d)."
             )
         else:
-            reasoning = f"No dependencies — starts on project start date. Duration: {task.duration_hours:.0f}h ({days}d)."
+            reasoning = (
+                f"No dependencies - starts on project start date. Duration: {task.duration_hours:.0f}h ({days}d)."
+            )
 
         if task.duration_hours == _DEFAULT_FALLBACK_HOURS and not hist.get(task.name):
             reasoning += " Duration estimated using default fallback (no historical data)."
 
-        proposals.append(TaskScheduleProposal(
-            task_id=task.id,
-            proposed_start_date=task_start,
-            proposed_end_date=task_end,
-            reasoning=reasoning,
-            is_critical=task.is_critical,
-        ))
+        proposals.append(
+            TaskScheduleProposal(
+                task_id=task.id,
+                proposed_start_date=task_start,
+                proposed_end_date=task_end,
+                reasoning=reasoning,
+                is_critical=task.is_critical,
+            )
+        )
 
     return proposals
 

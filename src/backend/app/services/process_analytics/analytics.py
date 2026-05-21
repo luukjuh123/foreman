@@ -11,11 +11,10 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.models.process import Process, ProjectProcess
 from app.models.time_entry import ProcessTimeEntry
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @dataclass(frozen=True)
@@ -29,13 +28,11 @@ class ProcessStats:
     avg_seconds: float | None  # None when entry_count == 0
 
 
-async def stats_for_process(
-    process_id: uuid.UUID, db: AsyncSession
-) -> ProcessStats | None:
+async def stats_for_process(process_id: uuid.UUID, db: AsyncSession) -> ProcessStats | None:
     """Compute stats for a single process. Returns None if the process is unknown."""
-    proc = (await db.execute(
-        select(Process).where(Process.id == process_id, Process.deleted_at.is_(None))
-    )).scalar_one_or_none()
+    proc = (
+        await db.execute(select(Process).where(Process.id == process_id, Process.deleted_at.is_(None)))
+    ).scalar_one_or_none()
     if proc is None:
         return None
 
@@ -71,9 +68,9 @@ async def stats_all_processes(db: AsyncSession) -> list[ProcessStats]:
     Processes without completed entries are returned with ``entry_count = 0``
     and ``avg_seconds = None`` so the AI planner can still see them.
     """
-    procs = (await db.execute(
-        select(Process).where(Process.deleted_at.is_(None)).order_by(Process.slug)
-    )).scalars().all()
+    procs = (
+        (await db.execute(select(Process).where(Process.deleted_at.is_(None)).order_by(Process.slug))).scalars().all()
+    )
 
     out: list[ProcessStats] = []
     for proc in procs:
@@ -95,13 +92,15 @@ async def stats_all_processes(db: AsyncSession) -> list[ProcessStats]:
         )
         entry_count, total_seconds, project_count = result.one()
         avg = (total_seconds / entry_count) if entry_count else None
-        out.append(ProcessStats(
-            process_id=proc.id,
-            process_slug=proc.slug,
-            process_name=proc.name,
-            entry_count=int(entry_count),
-            project_count=int(project_count),
-            total_seconds=int(total_seconds),
-            avg_seconds=avg,
-        ))
+        out.append(
+            ProcessStats(
+                process_id=proc.id,
+                process_slug=proc.slug,
+                process_name=proc.name,
+                entry_count=int(entry_count),
+                project_count=int(project_count),
+                total_seconds=int(total_seconds),
+                avg_seconds=avg,
+            )
+        )
     return out

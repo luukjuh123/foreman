@@ -3,12 +3,8 @@
 from __future__ import annotations
 
 import uuid
+from datetime import date as _date
 from datetime import timedelta
-
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
 from app.core.database import get_db
@@ -25,12 +21,14 @@ from app.schemas.invoice import (
 )
 from app.services.invoices.from_project import build_project_lines
 from app.services.invoices.numbering import allocate_invoice_number
-from app.services.invoices.pdf import render_invoice_pdf
-from app.services.invoices.status import apply_transition, sweep_overdue
+from app.services.invoices.status import apply_transition
 from app.services.invoices.totals import compute_line_totals
 from app.services.invoices.ubl import build_invoice_ubl_xml
-from datetime import date as _date
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 router = APIRouter()
 
@@ -40,9 +38,7 @@ router = APIRouter()
 # ---------------------------------------------------------------------------
 
 
-@router.post(
-    "/customers", response_model=CustomerResponse, status_code=status.HTTP_201_CREATED
-)
+@router.post("/customers", response_model=CustomerResponse, status_code=status.HTTP_201_CREATED)
 async def create_customer(
     body: CustomerCreate,
     current_user: User = Depends(get_current_user),
@@ -61,9 +57,7 @@ async def list_customers(
     db: AsyncSession = Depends(get_db),
 ) -> list[CustomerResponse]:
     result = await db.execute(
-        select(Customer).where(
-            Customer.owner_id == current_user.id, Customer.deleted_at.is_(None)
-        )
+        select(Customer).where(Customer.owner_id == current_user.id, Customer.deleted_at.is_(None))
     )
     return [CustomerResponse.model_validate(c) for c in result.scalars().all()]
 
@@ -73,9 +67,7 @@ async def list_customers(
 # ---------------------------------------------------------------------------
 
 
-async def _load_customer(
-    db: AsyncSession, owner_id: uuid.UUID, customer_id: uuid.UUID
-) -> Customer:
+async def _load_customer(db: AsyncSession, owner_id: uuid.UUID, customer_id: uuid.UUID) -> Customer:
     result = await db.execute(
         select(Customer).where(
             Customer.id == customer_id,
@@ -85,15 +77,11 @@ async def _load_customer(
     )
     customer = result.scalar_one_or_none()
     if customer is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
     return customer
 
 
-async def _load_invoice(
-    db: AsyncSession, owner_id: uuid.UUID, invoice_id: uuid.UUID
-) -> Invoice:
+async def _load_invoice(db: AsyncSession, owner_id: uuid.UUID, invoice_id: uuid.UUID) -> Invoice:
     result = await db.execute(
         select(Invoice)
         .where(
@@ -105,15 +93,11 @@ async def _load_invoice(
     )
     invoice = result.scalar_one_or_none()
     if invoice is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
     return invoice
 
 
-@router.post(
-    "/", response_model=InvoiceResponse, status_code=status.HTTP_201_CREATED
-)
+@router.post("/", response_model=InvoiceResponse, status_code=status.HTTP_201_CREATED)
 async def create_invoice(
     body: InvoiceCreate,
     current_user: User = Depends(get_current_user),
@@ -122,9 +106,7 @@ async def create_invoice(
     await _load_customer(db, current_user.id, body.customer_id)
 
     year = body.issue_date.year
-    invoice_number = await allocate_invoice_number(
-        db, owner_id=current_user.id, year=year
-    )
+    invoice_number = await allocate_invoice_number(db, owner_id=current_user.id, year=year)
 
     invoice = Invoice(
         owner_id=current_user.id,
@@ -180,9 +162,7 @@ async def list_invoices(
     db: AsyncSession = Depends(get_db),
 ) -> InvoiceListResponse:
     offset = (page - 1) * per_page
-    base = select(Invoice).where(
-        Invoice.owner_id == current_user.id, Invoice.deleted_at.is_(None)
-    )
+    base = select(Invoice).where(Invoice.owner_id == current_user.id, Invoice.deleted_at.is_(None))
     if status_filter:
         base = base.where(Invoice.status == status_filter)
 
@@ -190,10 +170,7 @@ async def list_invoices(
     total = (await db.execute(count_q)).scalar_one()
 
     result = await db.execute(
-        base.options(selectinload(Invoice.lines))
-        .order_by(Invoice.created_at.desc())
-        .offset(offset)
-        .limit(per_page)
+        base.options(selectinload(Invoice.lines)).order_by(Invoice.created_at.desc()).offset(offset).limit(per_page)
     )
     invoices = result.scalars().all()
     return InvoiceListResponse(
@@ -340,7 +317,7 @@ async def sweep_overdue_endpoint(
 
     Scoped to the caller's invoices so users can opt-in to a cleanup pass.
     """
-    today = (body.as_of if body and body.as_of else _date.today())
+    today = body.as_of if body and body.as_of else _date.today()
     result = await db.execute(
         select(Invoice).where(
             Invoice.owner_id == current_user.id,
@@ -367,9 +344,7 @@ async def transition_invoice(
     try:
         apply_transition(invoice, body.status)
     except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     await db.commit()
     loaded = await _load_invoice(db, current_user.id, invoice_id)
     return InvoiceResponse.model_validate(loaded)
@@ -413,9 +388,7 @@ async def create_invoice_from_project(
             include_labor=body.include_labor,
         )
     except LookupError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
     if not draft_lines:
         raise HTTPException(
@@ -424,9 +397,7 @@ async def create_invoice_from_project(
         )
 
     issue_date = body.issue_date or _date.today()
-    invoice_number = await allocate_invoice_number(
-        db, owner_id=current_user.id, year=issue_date.year
-    )
+    invoice_number = await allocate_invoice_number(db, owner_id=current_user.id, year=issue_date.year)
 
     invoice = Invoice(
         owner_id=current_user.id,

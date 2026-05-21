@@ -36,8 +36,7 @@ class WeasyPrintRenderer:
             from weasyprint import HTML  # type: ignore[import-not-found]
         except ImportError as exc:
             raise RuntimeError(
-                "PDF rendering requires the 'weasyprint' package. "
-                "Install it with: pip install weasyprint"
+                "PDF rendering requires the 'weasyprint' package. Install it with: pip install weasyprint"
             ) from exc
         return HTML(string=html).write_pdf()  # type: ignore[no-any-return]
 
@@ -45,6 +44,7 @@ class WeasyPrintRenderer:
 # ---------------------------------------------------------------------------
 # Money formatting
 # ---------------------------------------------------------------------------
+
 
 def _format_euros(cents: int | None) -> str:
     """Format an integer-cents amount as ``€X,XXX.XX``."""
@@ -96,17 +96,13 @@ def _header(title: str, project_name: str) -> str:
 
 def _kpis(*items: tuple[str, str]) -> str:
     return "".join(
-        f"<div class='kpi'><span>{_h(label)}</span><strong>{_h(value)}</strong></div>"
-        for label, value in items
+        f"<div class='kpi'><span>{_h(label)}</span><strong>{_h(value)}</strong></div>" for label, value in items
     )
 
 
 def _table(headers: list[str], rows: list[list[str]]) -> str:
     head = "<tr>" + "".join(f"<th>{_h(h)}</th>" for h in headers) + "</tr>"
-    body = "".join(
-        "<tr>" + "".join(f"<td>{_h(c)}</td>" for c in row) + "</tr>"
-        for row in rows
-    )
+    body = "".join("<tr>" + "".join(f"<td>{_h(c)}</td>" for c in row) + "</tr>" for row in rows)
     return f"<table>{head}{body}</table>"
 
 
@@ -129,24 +125,47 @@ def _render_weekly(data: dict[str, Any]) -> str:
         "<h2>Completed this week</h2>",
         _table(
             ["Task", "Phase", "Hours", "Cost"],
-            [[t["name"], t["phase_name"], f"{t['estimated_hours']:.1f}",
-              _format_euros(t["labor_cost_cents"])] for t in completed]
-        ) if completed else "<p class='meta'>No tasks completed this week.</p>",
+            [
+                [t["name"], t["phase_name"], f"{t['estimated_hours']:.1f}", _format_euros(t["labor_cost_cents"])]
+                for t in completed
+            ],
+        )
+        if completed
+        else "<p class='meta'>No tasks completed this week.</p>",
         "<h2>Hours by phase</h2>",
         _table(
             ["Phase", "Tasks", "Hours", "Labor cost"],
-            [[p["phase_name"], str(p["task_count"]), f"{p['estimated_hours']:.1f}",
-              _format_euros(p["labor_cost_cents"])] for p in by_phase]
-        ) if by_phase else "<p class='meta'>No phase activity this week.</p>",
+            [
+                [
+                    p["phase_name"],
+                    str(p["task_count"]),
+                    f"{p['estimated_hours']:.1f}",
+                    _format_euros(p["labor_cost_cents"]),
+                ]
+                for p in by_phase
+            ],
+        )
+        if by_phase
+        else "<p class='meta'>No phase activity this week.</p>",
         f"<h2>Next week plan ({data.get('next_week', {}).get('start', '')} → "
         f"{data.get('next_week', {}).get('end', '')})</h2>",
         _table(
             ["Task", "Phase", "Status", "Start", "End", "Hours", "Cost"],
-            [[t["name"], t["phase_name"], t["status"],
-              t.get("start_date") or "", t.get("end_date") or "",
-              f"{t['estimated_hours']:.1f}",
-              _format_euros(t["labor_cost_cents"])] for t in next_plan]
-        ) if next_plan else "<p class='meta'>No tasks scheduled for next week.</p>",
+            [
+                [
+                    t["name"],
+                    t["phase_name"],
+                    t["status"],
+                    t.get("start_date") or "",
+                    t.get("end_date") or "",
+                    f"{t['estimated_hours']:.1f}",
+                    _format_euros(t["labor_cost_cents"]),
+                ]
+                for t in next_plan
+            ],
+        )
+        if next_plan
+        else "<p class='meta'>No tasks scheduled for next week.</p>",
     ]
     return "".join(sections)
 
@@ -160,8 +179,8 @@ def _render_completion(data: dict[str, Any]) -> str:
 
     variance_class = "over" if cb["over_budget"] else "under"
     variance_str = (
-        f"{_format_euros(cb['variance_cents'])} "
-        f"({cb['variance_pct']:.1f}%)" if cb["variance_pct"] is not None
+        f"{_format_euros(cb['variance_cents'])} ({cb['variance_pct']:.1f}%)"
+        if cb["variance_pct"] is not None
         else _format_euros(cb["variance_cents"])
     )
 
@@ -177,27 +196,38 @@ def _render_completion(data: dict[str, Any]) -> str:
         _table(
             ["", "Start", "End", "Duration (days)"],
             [
-                ["Planned", tl["planned_start"] or "—", tl["planned_end"] or "—",
-                 str(tl["planned_duration_days"] or "—")],
-                ["Actual", tl["actual_start"] or "—", tl["actual_end"] or "—",
-                 str(tl["actual_duration_days"] or "—")],
+                [
+                    "Planned",
+                    tl["planned_start"] or "—",
+                    tl["planned_end"] or "—",
+                    str(tl["planned_duration_days"] or "—"),
+                ],
+                ["Actual", tl["actual_start"] or "—", tl["actual_end"] or "—", str(tl["actual_duration_days"] or "—")],
             ],
         ),
         "<h2>Costs vs Budget</h2>",
         _table(
             ["Budget", "Actual", "Variance"],
-            [[_format_euros(cb["budget_cents"]), _format_euros(cb["actual_cost_cents"]),
-              variance_str]],
+            [[_format_euros(cb["budget_cents"]), _format_euros(cb["actual_cost_cents"]), variance_str]],
         ),
-        f"<p class='{variance_class}'>"
-        f"{'Over budget' if cb['over_budget'] else 'Within budget'}.</p>",
+        f"<p class='{variance_class}'>{'Over budget' if cb['over_budget'] else 'Within budget'}.</p>",
         "<h2>Phase summary</h2>",
         _table(
             ["Phase", "Status", "Tasks", "Completed", "Hours", "Actual cost"],
-            [[p["phase_name"], p["status"], str(p["task_count"]),
-              str(p["completed_task_count"]), f"{p['estimated_hours']:.1f}",
-              _format_euros(p["actual_cost_cents"])] for p in phase_summary]
-        ) if phase_summary else "<p class='meta'>No phases.</p>",
+            [
+                [
+                    p["phase_name"],
+                    p["status"],
+                    str(p["task_count"]),
+                    str(p["completed_task_count"]),
+                    f"{p['estimated_hours']:.1f}",
+                    _format_euros(p["actual_cost_cents"]),
+                ]
+                for p in phase_summary
+            ],
+        )
+        if phase_summary
+        else "<p class='meta'>No phases.</p>",
     ]
     return "".join(sections)
 

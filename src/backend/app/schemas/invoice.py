@@ -5,9 +5,8 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
-
 from app.models.invoice import ALLOWED_VAT_RATES_BP, INVOICE_STATUSES
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
 class CustomerCreate(BaseModel):

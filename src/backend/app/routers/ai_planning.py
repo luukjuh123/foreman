@@ -3,13 +3,8 @@
 import uuid
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
-
 from app.core.database import get_db
-from app.models.project import Phase, Project, Task, TaskDependency
+from app.models.project import Phase, Project, Task
 from app.models.user import User
 from app.routers.auth import get_current_user
 from app.routers.projects import _assert_owner
@@ -21,6 +16,10 @@ from app.schemas.planning import (
 )
 from app.services.planning.autofill import compute_schedule, get_historical_hours
 from app.services.planning.cpm import CpmTask
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 router = APIRouter()
 
@@ -29,9 +28,7 @@ async def _load_project(project_id: uuid.UUID, db: AsyncSession) -> Project:
     result = await db.execute(
         select(Project)
         .where(Project.id == project_id)
-        .options(
-            selectinload(Project.phases).selectinload(Phase.tasks).selectinload(Task.dependencies)
-        )
+        .options(selectinload(Project.phases).selectinload(Phase.tasks).selectinload(Task.dependencies))
     )
     project = result.scalar_one_or_none()
     if project is None:
@@ -45,12 +42,14 @@ def _build_cpm_tasks(project: Project) -> list[CpmTask]:
     for phase in project.phases:
         for task in phase.tasks:
             dep_ids = [str(d.depends_on_task_id) for d in task.dependencies]
-            cpm_tasks.append(CpmTask(
-                id=str(task.id),
-                name=task.name,
-                duration_hours=task.estimated_hours,
-                dependencies=dep_ids,
-            ))
+            cpm_tasks.append(
+                CpmTask(
+                    id=str(task.id),
+                    name=task.name,
+                    duration_hours=task.estimated_hours,
+                    dependencies=dep_ids,
+                )
+            )
     return cpm_tasks
 
 

@@ -23,9 +23,8 @@ from __future__ import annotations
 import re
 from urllib.parse import quote_plus, urljoin
 
-from bs4 import BeautifulSoup
-
 from app.services.stores.base import ProductResult, StoreClient
+from bs4 import BeautifulSoup
 
 
 class GammaClient(StoreClient):
@@ -45,7 +44,7 @@ class GammaClient(StoreClient):
 _PRICE_TEXT = re.compile(r"€\s*(\d+)[,.](\d{2})")
 
 
-def _price_cents(node) -> int | None:  # noqa: ANN001
+def _price_cents(node) -> int | None:
     if node is None:
         return None
     raw = node.get("data-cents")

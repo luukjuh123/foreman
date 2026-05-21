@@ -3,10 +3,9 @@
 import uuid
 from datetime import datetime
 
+from app.core.database import Base
 from sqlalchemy import DateTime, ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from app.core.database import Base
 
 # Categories that drive the project total-cost breakdown.
 BUDGET_ITEM_CATEGORIES = ("materials", "labor", "equipment", "overhead", "other")
@@ -45,9 +44,7 @@ class Budget(Base):
     __tablename__ = "budgets"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    project_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("projects.id"), nullable=False, unique=True, index=True
-    )
+    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id"), nullable=False, unique=True, index=True)
     # All values in euro cents
     total_budget_cents: Mapped[int] = mapped_column(default=0)
     contingency_pct: Mapped[float] = mapped_column(default=10.0)  # percentage
@@ -56,9 +53,7 @@ class Budget(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
-    items: Mapped[list["BudgetItem"]] = relationship(
-        back_populates="budget", cascade="all, delete-orphan"
-    )
+    items: Mapped[list["BudgetItem"]] = relationship(back_populates="budget", cascade="all, delete-orphan")
 
 
 class BudgetItem(Base):
@@ -71,9 +66,7 @@ class BudgetItem(Base):
     __tablename__ = "budget_items"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    budget_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("budgets.id"), nullable=False, index=True
-    )
+    budget_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("budgets.id"), nullable=False, index=True)
     category: Mapped[str] = mapped_column(String(50), nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -14,18 +14,17 @@ import json
 import logging
 from abc import ABC, abstractmethod
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.core.config import settings
 from app.models.notification import Notification
 from app.models.push_subscription import PushSubscription
 from app.models.user import User
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
 try:
-    from pywebpush import webpush, WebPushException  # type: ignore[import-untyped]
+    from pywebpush import WebPushException, webpush  # type: ignore[import-untyped]
 except ImportError:  # pragma: no cover
     webpush = None  # type: ignore[assignment]
     WebPushException = Exception  # type: ignore[assignment,misc]
@@ -47,7 +46,7 @@ class InAppChannel(NotificationChannel):
 
     name = "in_app"
 
-    async def send(self, notification: Notification, user: User) -> None:  # noqa: ARG002
+    async def send(self, notification: Notification, user: User) -> None:
         return None
 
 
@@ -95,9 +94,7 @@ class PushChannel(NotificationChannel):
             logger.warning("push_notification_skipped_no_pywebpush")
             return
 
-        result = await self._db.execute(
-            select(PushSubscription).where(PushSubscription.user_id == user.id)
-        )
+        result = await self._db.execute(select(PushSubscription).where(PushSubscription.user_id == user.id))
         subscriptions = result.scalars().all()
 
         payload = json.dumps(

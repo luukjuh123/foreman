@@ -1,10 +1,5 @@
 """Billing router — subscription views, checkout, and provider webhooks."""
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
-from pydantic import BaseModel
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.core.database import get_db
 from app.models.subscription import (
     TIER_PROJECT_LIMIT,
@@ -18,6 +13,10 @@ from app.schemas.billing import SubscriptionResponse, UsageResponse
 from app.services.billing.providers import PaymentProvider, get_payment_provider
 from app.services.billing.subscriptions import ensure_free_subscription
 from app.services.billing.usage import get_or_create_counter
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 
@@ -99,18 +98,14 @@ async def mollie_webhook(
     provider: PaymentProvider = Depends(get_payment_provider),
 ) -> dict:
     body = await request.body()
-    if not x_mollie_signature or not provider.verify_webhook_signature(
-        body, x_mollie_signature
-    ):
+    if not x_mollie_signature or not provider.verify_webhook_signature(body, x_mollie_signature):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid webhook signature",
         )
     event = provider.parse_webhook(body)
     result = await db.execute(
-        select(Subscription).where(
-            Subscription.provider_subscription_id == event.provider_subscription_id
-        )
+        select(Subscription).where(Subscription.provider_subscription_id == event.provider_subscription_id)
     )
     sub = result.scalar_one_or_none()
     if sub is None:

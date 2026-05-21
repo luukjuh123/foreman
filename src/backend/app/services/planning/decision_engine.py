@@ -59,8 +59,8 @@ class DecisionEngine:
 
     # Weighting knobs — kept conservative; tuning is easy if needed later.
     CRITICAL_BONUS = 1000.0
-    FLOAT_PENALTY = 1.0           # per hour of total_float
-    DURATION_PENALTY = 0.1        # per hour — prefer shorter tasks slightly
+    FLOAT_PENALTY = 1.0  # per hour of total_float
+    DURATION_PENALTY = 0.1  # per hour — prefer shorter tasks slightly
 
     def decide(self, rows: list[DecisionInput], *, top_n: int | None = None) -> DecisionPlan:
         if not rows:
@@ -71,8 +71,9 @@ class DecisionEngine:
         # effectively. Simpler: include everything; the relative ordering of
         # ready tasks by criticality is what we need.
         cpm_tasks = [
-            CpmTask(id=r.task_id, name=r.name, duration_hours=max(r.duration_hours, 0.0),
-                    dependencies=list(r.dependencies))
+            CpmTask(
+                id=r.task_id, name=r.name, duration_hours=max(r.duration_hours, 0.0), dependencies=list(r.dependencies)
+            )
             for r in rows
         ]
         compute_critical_path(cpm_tasks)
@@ -91,30 +92,42 @@ class DecisionEngine:
             unmet = [d for d in r.dependencies if d not in done_ids]
 
             if r.status == "in_progress":
-                in_progress.append(Decision(
-                    task_id=r.task_id, name=r.name, score=0.0,
-                    reasoning=f"Task '{r.name}' is currently in progress.",
-                    factors=["in_progress"],
-                ))
+                in_progress.append(
+                    Decision(
+                        task_id=r.task_id,
+                        name=r.name,
+                        score=0.0,
+                        reasoning=f"Task '{r.name}' is currently in progress.",
+                        factors=["in_progress"],
+                    )
+                )
                 continue
 
             if r.status == "blocked":
-                blocked.append(Decision(
-                    task_id=r.task_id, name=r.name, score=0.0,
-                    reasoning=f"Task '{r.name}' is marked blocked.",
-                    factors=["status=blocked"],
-                ))
+                blocked.append(
+                    Decision(
+                        task_id=r.task_id,
+                        name=r.name,
+                        score=0.0,
+                        reasoning=f"Task '{r.name}' is marked blocked.",
+                        factors=["status=blocked"],
+                    )
+                )
                 continue
 
             if unmet:
-                blocked.append(Decision(
-                    task_id=r.task_id, name=r.name, score=0.0,
-                    reasoning=(
-                        f"Waiting on unfinished dependencies: "
-                        f"{', '.join(row_by_id[d].name for d in unmet if d in row_by_id)}"
-                    ),
-                    factors=[f"depends_on={','.join(unmet)}"],
-                ))
+                blocked.append(
+                    Decision(
+                        task_id=r.task_id,
+                        name=r.name,
+                        score=0.0,
+                        reasoning=(
+                            f"Waiting on unfinished dependencies: "
+                            f"{', '.join(row_by_id[d].name for d in unmet if d in row_by_id)}"
+                        ),
+                        factors=[f"depends_on={','.join(unmet)}"],
+                    )
+                )
                 continue
 
             # Ready task — score it.
@@ -131,11 +144,15 @@ class DecisionEngine:
             factors.append(f"duration={cpm.duration_hours:.1f}h")
 
             reasoning_bits = ["Ready to start — " + "; ".join(factors)]
-            priorities.append(Decision(
-                task_id=r.task_id, name=r.name, score=score,
-                reasoning=" ".join(reasoning_bits),
-                factors=factors,
-            ))
+            priorities.append(
+                Decision(
+                    task_id=r.task_id,
+                    name=r.name,
+                    score=score,
+                    reasoning=" ".join(reasoning_bits),
+                    factors=factors,
+                )
+            )
 
         priorities.sort(key=lambda d: (-d.score, d.task_id))
         if top_n is not None:

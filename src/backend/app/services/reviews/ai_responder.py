@@ -14,7 +14,7 @@ def _first_name(author_name: str) -> str:
     return author_name.strip().split()[0] if author_name.strip() else author_name
 
 
-def _template_reply(author_name: str, rating: int, comment: str | None) -> str:  # noqa: ARG001
+def _template_reply(author_name: str, rating: int, comment: str | None) -> str:
     """Return a polite Dutch template reply based on the star rating."""
     name = _first_name(author_name)
     if rating >= 4:
@@ -79,8 +79,6 @@ async def draft_reply(author_name: str, rating: int, comment: str | None) -> str
             ],
             max_tokens=300,
         )
-        return response.choices[0].message.content or _template_reply(
-            author_name, rating, comment
-        )
-    except Exception:  # noqa: BLE001
+        return response.choices[0].message.content or _template_reply(author_name, rating, comment)
+    except Exception:
         return _template_reply(author_name, rating, comment)

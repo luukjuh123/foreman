@@ -2,11 +2,6 @@
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
-
 from app.core.database import get_db
 from app.models.loan import LoanDeduction, StaffLoan
 from app.models.staff import Staff
@@ -20,6 +15,10 @@ from app.schemas.loan import (
     StaffOutstandingBalance,
 )
 from app.services.payroll.loans import compute_outstanding
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 router = APIRouter()
 
@@ -53,9 +52,7 @@ async def _get_owned_loan(loan_id: uuid.UUID, user: User, db: AsyncSession) -> S
 
 def _to_response(loan: StaffLoan) -> StaffLoanResponse:
     deducted = sum(d.amount_cents for d in loan.deductions)
-    outstanding = compute_outstanding(
-        loan.principal_cents, [d.amount_cents for d in loan.deductions]
-    )
+    outstanding = compute_outstanding(loan.principal_cents, [d.amount_cents for d in loan.deductions])
     resp = StaffLoanResponse.model_validate(loan)
     resp.deducted_cents = deducted
     resp.outstanding_cents = outstanding
@@ -128,13 +125,17 @@ async def staff_balance(
 ) -> StaffOutstandingBalance:
     await _get_owned_staff(staff_id, current_user, db)
     rows = (
-        await db.execute(
-            select(StaffLoan)
-            .where(StaffLoan.staff_id == staff_id)
-            .options(selectinload(StaffLoan.deductions))
-            .order_by(StaffLoan.issued_date.asc())
+        (
+            await db.execute(
+                select(StaffLoan)
+                .where(StaffLoan.staff_id == staff_id)
+                .options(selectinload(StaffLoan.deductions))
+                .order_by(StaffLoan.issued_date.asc())
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     loans = [_to_response(loan) for loan in rows]
     total_principal = sum(loan.principal_cents for loan in loans)
     total_deducted = sum(loan.deducted_cents for loan in loans)
