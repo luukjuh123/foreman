@@ -178,5 +178,18 @@
 - [x] E2E tests for critical flows: auth, project creation, AI plan generation, material search — PR #158
 - [x] E2E tests for billing flows: signup, free trial, upgrade, invoice generation — PR #160
 
+## Priority: Medium (Phase 19 — Business Operations)
+
+- [x] Backend: Customer/client management — CRUD endpoints, owner-scoped, soft delete (extends existing invoice Customer model with contact_name, phone, notes)
+- [x] Backend: Equipment tracking — model + CRUD + project assignment/unassignment, category/status filters
+- [x] Backend: Weather integration — Open-Meteo 7-day forecast with work-risk assessment (good/moderate/poor), risk-summary endpoint
+- [x] Backend: Project templates — save/load reusable project structures (phases + tasks as JSON), create-from-project, instantiate-from-template
+- [x] Backend: Incident/damage reports — CRUD + severity/category/status filters + stats endpoint (Arbowet compliance)
+- [ ] Frontend: Customer management page — list, create, edit, delete customers
+- [ ] Frontend: Equipment tracking page — list with filters, assign to projects
+- [ ] Frontend: Weather dashboard widget — 7-day risk forecast
+- [ ] Frontend: Project templates page — browse, create from project, instantiate
+- [ ] Frontend: Incident reports page — log, filter, stats dashboard
+
 ## Completed
 <!-- [x] Task description — PR #N -->
