@@ -77,7 +77,7 @@ class TestDecodeToken:
 
     def test_decodes_valid_refresh_token(self):
         token = create_refresh_token("decode-refresh")
-        payload = decode_token(token)
+        payload = decode_token(token, expected_type="refresh")
         assert payload["sub"] == "decode-refresh"
         assert payload["type"] == "refresh"
 
