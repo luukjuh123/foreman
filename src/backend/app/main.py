@@ -24,6 +24,7 @@ from app.routers import (
     staff,
     time_tracking,
     voice,
+    webhooks,
 )
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -71,6 +72,7 @@ def create_app() -> FastAPI:
     app.include_router(reports.router, prefix="/api/v1/reports", tags=["reports"])
     app.include_router(staff.router, prefix="/api/v1/staff", tags=["staff"])
     app.include_router(voice.router, prefix="/api/v1/voice", tags=["voice"])
+    app.include_router(webhooks.router, prefix="/api/v1/webhooks", tags=["webhooks"])
 
     @app.get("/healthz", tags=["health"])
     async def health_check() -> dict:
