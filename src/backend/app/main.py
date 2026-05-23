@@ -2,6 +2,7 @@
 
 from app.core.config import settings
 from app.core.logging import RequestLoggingMiddleware, configure_logging
+from app.core.rate_limit_middleware import RateLimitMiddleware
 from app.routers import (
     agenda,
     ai_planning,
@@ -41,6 +42,7 @@ def create_app() -> FastAPI:
         openapi_url="/api/openapi.json",
     )
 
+    app.add_middleware(RateLimitMiddleware)
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(
         CORSMiddleware,
