@@ -173,7 +173,7 @@
 ## Priority: Low (Phase 18 — Production Readiness)
 
 - [x] Docker multi-stage build — backend (Python/uvicorn) + frontend (Next.js standalone) — PR #157
-- [ ] Helm chart values.yaml for k8s deployment
+- [x] Helm chart values.yaml for k8s deployment — PR #164
 - [x] Nginx reverse proxy config (frontend serves static, /api/* proxies to backend) — PR #159
 - [x] E2E tests for critical flows: auth, project creation, AI plan generation, material search — PR #158
 - [x] E2E tests for billing flows: signup, free trial, upgrade, invoice generation — PR #160
