@@ -178,5 +178,15 @@
 - [x] E2E tests for critical flows: auth, project creation, AI plan generation, material search — PR #158
 - [x] E2E tests for billing flows: signup, free trial, upgrade, invoice generation — PR #160
 
+## Priority: Medium (Phase 19 — Polish & Advanced Features)
+
+- [x] Backend: Customer portal — read-only project view for clients with progress photos, timeline, and invoice status
+- [ ] Frontend: Dashboard analytics — key metrics cards (active projects, overdue tasks, monthly revenue, staff utilization rate)
+- [ ] Frontend: Bulk material import — CSV upload for material lists with auto-matching to hardware store products
+- [ ] Backend: Document management — upload/download contracts, permits, drawings per project with versioning
+- [ ] Frontend: Multi-project Gantt view — combined timeline of all active projects for cross-project resource planning
+- [ ] Backend: Audit log — track all user actions (create/update/delete) with timestamp, actor, and diff
+- [ ] Frontend: Onboarding wizard — first-time user flow explaining key features with interactive sample project
+
 ## Completed
 <!-- [x] Task description — PR #N -->
