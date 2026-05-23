@@ -110,6 +110,8 @@ async def create_project(
         start_date=body.start_date,
         end_date=body.end_date,
         budget_cents=body.budget_cents,
+        location_lat=body.location_lat,
+        location_lon=body.location_lon,
     )
     db.add(project)
     await db.commit()
