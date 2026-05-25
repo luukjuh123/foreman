@@ -22,6 +22,7 @@ from app.routers import (
     reports,
     reviews,
     staff,
+    templates,
     time_tracking,
     voice,
 )
@@ -70,6 +71,7 @@ def create_app() -> FastAPI:
     app.include_router(payroll.router, prefix="/api/v1/payroll", tags=["payroll"])
     app.include_router(reports.router, prefix="/api/v1/reports", tags=["reports"])
     app.include_router(staff.router, prefix="/api/v1/staff", tags=["staff"])
+    app.include_router(templates.router, prefix="/api/v1/templates", tags=["templates"])
     app.include_router(voice.router, prefix="/api/v1/voice", tags=["voice"])
 
     @app.get("/healthz", tags=["health"])
