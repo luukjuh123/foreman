@@ -25,9 +25,9 @@ async def _get_or_404(customer_id: uuid.UUID, db: AsyncSession) -> Customer:
 async def create_customer(
     body: CustomerCreate,
     db: AsyncSession = Depends(get_db),
-    _: object = Depends(get_current_user),
+    current_user: object = Depends(get_current_user),
 ) -> Customer:
-    customer = Customer(**body.model_dump())
+    customer = Customer(owner_id=current_user.id, **body.model_dump())
     db.add(customer)
     await db.commit()
     await db.refresh(customer)
