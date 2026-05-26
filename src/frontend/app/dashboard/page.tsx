@@ -1,11 +1,14 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FolderKanban, AlertCircle, TrendingUp, Receipt } from "lucide-react";
 import { listProjects, formatBudget } from "@/lib/projects";
 import { apiFetch } from "@/lib/api";
 import type { ProjectResponse } from "@/lib/types";
+
+const ONBOARDING_KEY = "foreman_onboarding_done";
 
 interface InvoiceSummary {
   id: string;
@@ -58,9 +61,20 @@ function computeStats(projects: ProjectResponse[], invoices: InvoiceSummary[]): 
 }
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Redirect first-time visitors to onboarding
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const done = localStorage.getItem(ONBOARDING_KEY);
+      if (!done) {
+        router.push("/dashboard/onboarding");
+      }
+    }
+  }, [router]);
 
   useEffect(() => {
     let cancelled = false;
