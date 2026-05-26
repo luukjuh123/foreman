@@ -178,9 +178,7 @@ async def generate_share_token(
     db: AsyncSession = Depends(get_db),
 ) -> ShareTokenResponse:
     """Generate a shareable token for a project.  Auth required; only owner can generate."""
-    result = await db.execute(
-        select(Project).where(Project.id == project_id, Project.deleted_at.is_(None))
-    )
+    result = await db.execute(select(Project).where(Project.id == project_id, Project.deleted_at.is_(None)))
     project = result.scalar_one_or_none()
     if project is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
@@ -259,9 +257,7 @@ async def portal_photos(
     share = await _resolve_token(token, db)
 
     result = await db.execute(
-        select(ProcessPhoto)
-        .where(ProcessPhoto.project_id == share.project_id)
-        .order_by(ProcessPhoto.created_at)
+        select(ProcessPhoto).where(ProcessPhoto.project_id == share.project_id).order_by(ProcessPhoto.created_at)
     )
     photos = result.scalars().all()
 
