@@ -41,15 +41,34 @@ const mockProjectList = {
   per_page: 100,
 };
 
-// Assignment for staff-1 on a Monday (2026-05-18)
+/** Compute Monday of the week containing today, matching the component's getMondayOf logic. */
+function getCurrentWeekMonday(): Date {
+  const d = new Date();
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function toISODate(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+// Compute assignment dates at runtime so they always fall in the current week,
+// preventing stale-date failures as time passes.
+const _monday = getCurrentWeekMonday();
+const _tuesday = new Date(_monday);
+_tuesday.setDate(_monday.getDate() + 1);
+
 const mockAssignmentsStaff1 = [
   {
     id: "asgn-1",
     staff_id: "staff-1",
     project_id: "proj-1",
     task_id: null,
-    start_at: "2026-05-18T08:00:00",
-    end_at: "2026-05-18T16:00:00",
+    start_at: `${toISODate(_monday)}T08:00:00`,
+    end_at: `${toISODate(_monday)}T16:00:00`,
     notes: null,
     created_at: "2026-05-01T00:00:00",
   },
@@ -61,8 +80,8 @@ const mockAssignmentsStaff2 = [
     staff_id: "staff-2",
     project_id: "proj-2",
     task_id: null,
-    start_at: "2026-05-19T08:00:00", // Tuesday
-    end_at: "2026-05-19T16:00:00",
+    start_at: `${toISODate(_tuesday)}T08:00:00`,
+    end_at: `${toISODate(_tuesday)}T16:00:00`,
     notes: null,
     created_at: "2026-05-01T00:00:00",
   },

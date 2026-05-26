@@ -29,7 +29,6 @@ from app.routers import (
     templates,
     time_tracking,
     voice,
-    weather,
 )
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware

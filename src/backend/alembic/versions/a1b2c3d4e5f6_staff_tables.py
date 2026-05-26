@@ -6,24 +6,22 @@ Create Date: 2026-05-19 09:00:00.000000
 
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
 
 revision: str = "a1b2c3d4e5f6"
-down_revision: Union[str, Sequence[str], None] = "30246b22cf35"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = "30246b22cf35"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
     op.create_table(
         "staff",
         sa.Column("id", sa.Uuid(), primary_key=True),
-        sa.Column(
-            "owner_id", sa.Uuid(), sa.ForeignKey("users.id"), nullable=False, index=True
-        ),
+        sa.Column("owner_id", sa.Uuid(), sa.ForeignKey("users.id"), nullable=False, index=True),
         sa.Column("full_name", sa.String(255), nullable=False),
         sa.Column("role", sa.String(100), nullable=False),
         sa.Column("email", sa.String(255), nullable=True),
@@ -51,9 +49,7 @@ def upgrade() -> None:
         sa.Column("start_time", sa.Time(), nullable=False),
         sa.Column("end_time", sa.Time(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
-        sa.CheckConstraint(
-            "day_of_week >= 0 AND day_of_week <= 6", name="ck_staff_avail_dow_range"
-        ),
+        sa.CheckConstraint("day_of_week >= 0 AND day_of_week <= 6", name="ck_staff_avail_dow_range"),
         sa.CheckConstraint("end_time > start_time", name="ck_staff_avail_time_order"),
     )
 
