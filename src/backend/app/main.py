@@ -25,6 +25,7 @@ from app.routers import (
     staff,
     time_tracking,
     voice,
+    weather,
 )
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -73,6 +74,7 @@ def create_app() -> FastAPI:
     app.include_router(incidents.router, prefix="/api/v1/incidents", tags=["incidents"])
     app.include_router(staff.router, prefix="/api/v1/staff", tags=["staff"])
     app.include_router(voice.router, prefix="/api/v1/voice", tags=["voice"])
+    app.include_router(weather.router, prefix="/api/v1/weather", tags=["weather"])
 
     @app.get("/healthz", tags=["health"])
     async def health_check() -> dict:
