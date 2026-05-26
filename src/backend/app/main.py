@@ -9,6 +9,7 @@ from app.routers import (
     assignments,
     auth,
     billing,
+    equipment,
     financials,
     inbound,
     incidents,
@@ -77,7 +78,7 @@ def create_app() -> FastAPI:
     app.include_router(incidents.router, prefix="/api/v1/incidents", tags=["incidents"])
     app.include_router(staff.router, prefix="/api/v1/staff", tags=["staff"])
     app.include_router(voice.router, prefix="/api/v1/voice", tags=["voice"])
-    app.include_router(subcontractors.router, prefix="/api/v1/subcontractors", tags=["subcontractors"])
+    app.include_router(equipment.router, prefix="/api/v1/equipment", tags=["equipment"])
 
     @app.get("/healthz", tags=["health"])
     async def health_check() -> dict:
