@@ -188,10 +188,10 @@
 
 ## Priority: Medium (Phase 20 — Subcontractor Management)
 
-- [ ] Backend: Subcontractor model — company name, KVK number, specialties, hourly/fixed rates, certifications (VCA, BRL), rating
-- [ ] Backend: CRUD endpoints for subcontractors with search/filter by specialty and availability
-- [ ] Backend: Assign subcontractors to project phases/tasks — track their hours and costs separately from staff
-- [ ] Backend: Subcontractor invoice linking — match incoming invoices to project costs, auto-reconcile with bookkeeping
+- [x] Backend: Subcontractor model — company name, KVK number, specialties, hourly/fixed rates, certifications (VCA, BRL), rating — PR feat/subcontractor-management
+- [x] Backend: CRUD endpoints for subcontractors with search/filter by specialty and availability — PR feat/subcontractor-management
+- [x] Backend: Assign subcontractors to project phases/tasks — track their hours and costs separately from staff — PR feat/subcontractor-management
+- [x] Backend: Subcontractor invoice linking — match incoming invoices to project costs, auto-reconcile with bookkeeping — PR feat/subcontractor-management
 - [x] Frontend: Subcontractor directory — list, add, edit with certification expiry warnings — PR #188
 - [x] Frontend: Subcontractor assignment UI on project phase cards — pick from directory, set rates — PR #188
 - [x] Frontend: Subcontractor cost dashboard — spending per project, per subcontractor, margin analysis — PR #188
