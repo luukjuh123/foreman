@@ -10,6 +10,7 @@ from app.routers import (
     auth,
     billing,
     customers,
+    documents,
     financials,
     inbound,
     incidents,
@@ -17,6 +18,7 @@ from app.routers import (
     loans,
     materials,
     notifications,
+    offertes,
     payroll,
     photos,
     portal,
@@ -73,6 +75,7 @@ def create_app() -> FastAPI:
     app.include_router(customers.router, tags=["customers"])
     app.include_router(inbound.router, prefix="/api/inbound", tags=["inbound"])
     app.include_router(invoices.router, prefix="/api/v1/invoices", tags=["invoices"])
+    app.include_router(offertes.router, prefix="/api/v1/offertes", tags=["offertes"])
     app.include_router(loans.router, prefix="/api/v1/loans", tags=["loans"])
     app.include_router(notifications.router, prefix="/api/v1/notifications", tags=["notifications"])
     app.include_router(payroll.router, prefix="/api/v1/payroll", tags=["payroll"])
@@ -82,6 +85,12 @@ def create_app() -> FastAPI:
     app.include_router(templates.router, prefix="/api/v1/templates", tags=["templates"])
     app.include_router(voice.router, prefix="/api/v1/voice", tags=["voice"])
     app.include_router(portal.router, prefix="/api/v1", tags=["portal"])
+    app.include_router(
+        documents.projects_router, prefix="/api/v1/projects", tags=["documents"]
+    )
+    app.include_router(
+        documents.documents_router, prefix="/api/v1/documents", tags=["documents"]
+    )
 
     @app.get("/healthz", tags=["health"])
     async def health_check() -> dict:
