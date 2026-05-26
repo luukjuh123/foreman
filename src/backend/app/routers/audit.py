@@ -32,9 +32,7 @@ async def list_audit_logs(
     if user_id is not None:
         filters.append(AuditLog.user_id == user_id)
 
-    count = (
-        await db.execute(select(func.count()).select_from(AuditLog).where(*filters))
-    ).scalar_one()
+    count = (await db.execute(select(func.count()).select_from(AuditLog).where(*filters))).scalar_one()
 
     rows = (
         (
