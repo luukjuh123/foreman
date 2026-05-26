@@ -1,7 +1,9 @@
 """Agenda router — weekly / daily / range views of scheduled tasks across all projects."""
 
+import logging
 from datetime import date, timedelta
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.models.project import Phase, Project, Task
 from app.models.user import User
@@ -13,11 +15,42 @@ from app.schemas.agenda import (
     AgendaWeekResponse,
 )
 from app.services.calendar import build_ics
+from app.services.weather.client import WeatherDay, weather_service
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+log = logging.getLogger(__name__)
+
 router = APIRouter()
+
+
+async def _fetch_weather_risk_map(start: date, end: date) -> dict[str, str | None]:
+    """Return {date_iso: work_risk} for the given date range using the weather service.
+
+    Silently returns an empty dict on any error so callers can degrade gracefully.
+    """
+    try:
+        forecast: list[WeatherDay] = await weather_service.get_forecast(
+            lat=settings.weather_default_latitude,
+            lon=settings.weather_default_longitude,
+        )
+        risk_map: dict[str, str | None] = {}
+        for day in forecast:
+            risk_map[day.date] = _day_to_work_risk(day)
+        return risk_map
+    except Exception:
+        log.warning("Weather fetch failed; agenda will be returned without weather risk data")
+        return {}
+
+
+def _day_to_work_risk(day: WeatherDay) -> str:
+    """Classify a WeatherDay into good / moderate / poor using construction thresholds."""
+    if day.precipitation_mm > 10.0 or day.wind_speed_kmh > 60.0 or day.temp_min < -2.0:
+        return "poor"
+    if day.precipitation_mm >= 2.0 or day.wind_speed_kmh >= 40.0:
+        return "moderate"
+    return "good"
 
 
 async def _fetch_tasks_in_range(
@@ -89,12 +122,13 @@ async def week_view(
     end = start + timedelta(days=6)
 
     rows = await _fetch_tasks_in_range(current_user, start, end, db)
+    risk_map = await _fetch_weather_risk_map(start, end)
 
     days: list[AgendaDay] = []
     for i in range(7):
         day = start + timedelta(days=i)
         day_tasks = [_to_agenda_task(t, p, proj) for (t, p, proj) in rows if t.start_date <= day <= t.end_date]
-        days.append(AgendaDay(date=day, tasks=day_tasks))
+        days.append(AgendaDay(date=day, tasks=day_tasks, weather_risk=risk_map.get(day.isoformat())))
 
     return AgendaWeekResponse(week_start=start, week_end=end, days=days)
 
@@ -109,7 +143,8 @@ async def day_view(
     target = day or date.today()
     rows = await _fetch_tasks_in_range(current_user, target, target, db)
     tasks = [_to_agenda_task(t, p, proj) for (t, p, proj) in rows]
-    return AgendaDayResponse(date=target, tasks=tasks)
+    risk_map = await _fetch_weather_risk_map(target, target)
+    return AgendaDayResponse(date=target, tasks=tasks, weather_risk=risk_map.get(target.isoformat()))
 
 
 @router.get("/range", response_model=list[AgendaDay])
@@ -132,12 +167,13 @@ async def range_view(
         )
 
     rows = await _fetch_tasks_in_range(current_user, start, end, db)
+    risk_map = await _fetch_weather_risk_map(start, end)
     days: list[AgendaDay] = []
     span = (end - start).days
     for i in range(span + 1):
         d = start + timedelta(days=i)
         day_tasks = [_to_agenda_task(t, p, proj) for (t, p, proj) in rows if t.start_date <= d <= t.end_date]
-        days.append(AgendaDay(date=d, tasks=day_tasks))
+        days.append(AgendaDay(date=d, tasks=day_tasks, weather_risk=risk_map.get(d.isoformat())))
     return days
 
 
