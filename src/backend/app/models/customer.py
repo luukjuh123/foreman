@@ -1,27 +1,8 @@
-"""Customer model."""
+"""Customer model — re-exported from invoice domain for backwards compatibility."""
 
-import uuid
-from datetime import datetime
+# The canonical Customer model (scoped by owner_id, Dutch invoice fields) lives in
+# invoice.py and was defined there first. Importing it here so app.routers.customers
+# can reference the same class without a duplicate table definition.
+from app.models.invoice import Customer  # noqa: F401
 
-from app.core.database import Base
-from sqlalchemy import DateTime, String, Text, func
-from sqlalchemy.orm import Mapped, mapped_column
-
-
-class Customer(Base):
-    __tablename__ = "customers"
-
-    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    name: Mapped[str] = mapped_column(String(255), nullable=False)
-    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    address: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    city: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    postal_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    kvk_number: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    btw_number: Mapped[str | None] = mapped_column(String(30), nullable=True)
-    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
-    )
+__all__ = ["Customer"]
