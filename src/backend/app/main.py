@@ -26,7 +26,7 @@ from app.routers import (
     reports,
     reviews,
     staff,
-    subcontractors,
+    templates,
     time_tracking,
     voice,
     weather,
@@ -78,6 +78,7 @@ def create_app() -> FastAPI:
     app.include_router(reports.router, prefix="/api/v1/reports", tags=["reports"])
     app.include_router(incidents.router, prefix="/api/v1/incidents", tags=["incidents"])
     app.include_router(staff.router, prefix="/api/v1/staff", tags=["staff"])
+    app.include_router(templates.router, prefix="/api/v1/templates", tags=["templates"])
     app.include_router(voice.router, prefix="/api/v1/voice", tags=["voice"])
     app.include_router(portal.router, prefix="/api/v1", tags=["portal"])
 
