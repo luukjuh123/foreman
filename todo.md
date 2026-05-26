@@ -182,8 +182,8 @@
 
 - [ ] Backend: API rate limiting middleware — per-user throttle (100 req/15min general, 10 req/15min auth) using slowapi
 - [ ] Backend: Webhook system — notify external systems on project/invoice/report events via configurable HTTP callbacks
-- [x] Frontend: Dashboard KPI widgets — active projects count, overdue tasks, monthly revenue, outstanding invoices as stat cards
-- [ ] Frontend: Dark/light theme toggle with persistent preference (localStorage + cookie for SSR)
+- [ ] Frontend: Dashboard KPI widgets — active projects count, overdue tasks, monthly revenue, outstanding invoices as stat cards
+- [x] Frontend: Dark/light theme toggle with persistent preference (localStorage + cookie for SSR)
 - [ ] Backend: Data export API — full project archive as ZIP (project JSON + photos + invoices + reports)
 
 ## Completed
