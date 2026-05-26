@@ -1,10 +1,16 @@
 """Projects router — CRUD for projects, phases, tasks, and task dependencies."""
 
+import io
+import json
 import uuid
+import zipfile
 from datetime import UTC, datetime
 
 from app.core.database import get_db
+from app.models.invoice import Invoice
+from app.models.process_photo import ProcessPhoto
 from app.models.project import Phase, Project, Task, TaskDependency
+from app.models.report import Report
 from app.models.user import User
 from app.routers.auth import get_current_user
 from app.schemas.project import (
@@ -25,6 +31,7 @@ from app.services.billing.subscriptions import enforce_project_limit
 from app.services.billing.usage import increment_projects
 from app.services.planning.cpm import detect_cycle
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -410,3 +417,108 @@ async def remove_dependency(
 
     await db.delete(dep)
     await db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Data export
+# ---------------------------------------------------------------------------
+
+
+def _default(obj: object) -> str:
+    """JSON serializer for uuid.UUID and datetime objects."""
+    if isinstance(obj, (uuid.UUID, datetime)):
+        return str(obj)
+    raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
+
+
+@router.get("/{project_id}/export")
+async def export_project(
+    project_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> StreamingResponse:
+    """Stream a ZIP archive of the project's JSON data, invoices, reports, and photo metadata."""
+    project = await _get_project_or_404(project_id, db)
+    _assert_owner(project, current_user)
+
+    # Fetch invoices linked to project (FK stored on Invoice.project_id)
+    inv_result = await db.execute(select(Invoice).where(Invoice.project_id == project_id))
+    invoices = inv_result.scalars().all()
+
+    # Fetch reports
+    rep_result = await db.execute(select(Report).where(Report.project_id == project_id))
+    reports = rep_result.scalars().all()
+
+    # Fetch process photos
+    photo_result = await db.execute(select(ProcessPhoto).where(ProcessPhoto.project_id == project_id))
+    photos = photo_result.scalars().all()
+
+    # Build project dict with nested phases + tasks
+    project_dict: dict = {
+        "id": project.id,
+        "name": project.name,
+        "description": project.description,
+        "status": project.status,
+        "start_date": project.start_date,
+        "end_date": project.end_date,
+        "budget_cents": project.budget_cents,
+        "created_at": project.created_at,
+        "phases": [
+            {
+                "id": ph.id,
+                "name": ph.name,
+                "description": ph.description,
+                "order_index": ph.order_index,
+                "status": ph.status,
+                "start_date": ph.start_date,
+                "end_date": ph.end_date,
+                "tasks": [
+                    {
+                        "id": t.id,
+                        "name": t.name,
+                        "description": t.description,
+                        "status": t.status,
+                        "priority": t.priority,
+                        "estimated_hours": t.estimated_hours,
+                        "labor_cost_cents": t.labor_cost_cents,
+                        "start_date": t.start_date,
+                        "end_date": t.end_date,
+                    }
+                    for t in ph.tasks
+                ],
+            }
+            for ph in project.phases
+        ],
+    }
+
+    invoices_list = [
+        {"id": inv.id, "status": inv.status, "total_cents": inv.total_cents, "created_at": inv.created_at}
+        for inv in invoices
+    ]
+
+    reports_list = [
+        {"id": r.id, "type": r.type, "title": r.title, "created_at": r.created_at}
+        for r in reports
+    ]
+
+    photos_list = [
+        {"id": p.id, "image_url": p.image_url, "completion_pct": p.completion_pct, "created_at": p.created_at}
+        for p in photos
+    ]
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("project.json", json.dumps(project_dict, default=_default, indent=2))
+        zf.writestr("invoices.json", json.dumps(invoices_list, default=_default, indent=2))
+        zf.writestr("reports.json", json.dumps(reports_list, default=_default, indent=2))
+        zf.writestr("photos.json", json.dumps(photos_list, default=_default, indent=2))
+
+    buf.seek(0)
+    safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in project.name)
+    filename = f"{safe_name}_{project_id}.zip"
+
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
