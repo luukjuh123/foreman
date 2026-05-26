@@ -1,13 +1,5 @@
 """Shared pytest fixtures for foreman backend tests."""
 
-import pytest_asyncio
-from httpx import ASGITransport, AsyncClient
-
-from app.main import app
-
-
-@pytest_asyncio.fixture
-async def client() -> AsyncClient:
-    """Async test client for the FastAPI app."""
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-        yield ac
+# Note: do NOT import app at module level — SQLAlchemy 2.x registers tables
+# eagerly and will conflict with per-test create_app() calls. Each test file
+# that needs a real DB defines its own app_with_db + client fixtures.

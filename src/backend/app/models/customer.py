@@ -10,6 +10,9 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 class Customer(Base):
     __tablename__ = "customers"
+    # extend_existing avoids a duplicate-table error when app.models.invoice
+    # also defines a Customer class on the same table (legacy — see that module).
+    __table_args__ = {"extend_existing": True}
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(255), nullable=False)

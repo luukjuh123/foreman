@@ -31,9 +31,16 @@ INVOICE_STATUSES: tuple[str, ...] = ("draft", "sent", "paid", "overdue", "cancel
 
 
 class Customer(Base):
-    """Billing party for invoices, scoped per owner."""
+    """Billing party for invoices, scoped per owner.
+
+    NOTE: The canonical Customer model lives in app.models.customer.  This
+    class keeps the invoice-specific columns (owner_id, deleted_at, etc.) that
+    predate the dedicated customers module.  extend_existing=True prevents a
+    SQLAlchemy duplicate-table error when both modules are loaded together.
+    """
 
     __tablename__ = "customers"
+    __table_args__ = {"extend_existing": True}
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     owner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
