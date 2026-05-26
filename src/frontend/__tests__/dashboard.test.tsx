@@ -243,6 +243,9 @@ describe("DashboardPage", () => {
       formatBudget: (cents: number) =>
         new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", minimumFractionDigits: 2 }).format(cents / 100),
     }));
+    vi.doMock("@/lib/api", () => ({
+      apiFetch: vi.fn().mockResolvedValue({ data: { data: [], total: 0 }, error: null }),
+    }));
 
     const { default: DashboardPage } = await import("@/app/dashboard/page");
 
@@ -259,6 +262,9 @@ describe("DashboardPage", () => {
       formatBudget: (cents: number) =>
         new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", minimumFractionDigits: 2 }).format(cents / 100),
     }));
+    vi.doMock("@/lib/api", () => ({
+      apiFetch: vi.fn().mockReturnValue(new Promise(() => {})),
+    }));
 
     const { default: DashboardPage } = await import("@/app/dashboard/page");
 
@@ -273,6 +279,9 @@ describe("DashboardPage", () => {
       formatBudget: (cents: number) =>
         new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", minimumFractionDigits: 2 }).format(cents / 100),
     }));
+    vi.doMock("@/lib/api", () => ({
+      apiFetch: vi.fn().mockRejectedValue(new Error("network error")),
+    }));
 
     const { default: DashboardPage } = await import("@/app/dashboard/page");
 
@@ -283,11 +292,14 @@ describe("DashboardPage", () => {
     expect(screen.getByTestId("dashboard-error")).toBeInTheDocument();
   });
 
-  it("renders all four stat cards after loading", async () => {
+  it("renders all four KPI stat cards after loading", async () => {
     vi.doMock("@/lib/projects", () => ({
       listProjects: vi.fn().mockResolvedValue({ data: [], total: 0, page: 1, per_page: 20 }),
       formatBudget: (cents: number) =>
         new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", minimumFractionDigits: 2 }).format(cents / 100),
+    }));
+    vi.doMock("@/lib/api", () => ({
+      apiFetch: vi.fn().mockResolvedValue({ data: { data: [], total: 0 }, error: null }),
     }));
 
     const { default: DashboardPage } = await import("@/app/dashboard/page");
@@ -297,9 +309,9 @@ describe("DashboardPage", () => {
     });
 
     expect(screen.getByText(/actieve projecten/i)).toBeInTheDocument();
-    expect(screen.getByText(/taken vandaag/i)).toBeInTheDocument();
-    expect(screen.getByText(/totaal budget/i)).toBeInTheDocument();
-    expect(screen.getByText(/personeel actief/i)).toBeInTheDocument();
+    expect(screen.getByText(/verlopen taken/i)).toBeInTheDocument();
+    expect(screen.getByText(/maandelijkse omzet/i)).toBeInTheDocument();
+    expect(screen.getByText(/openstaande facturen/i)).toBeInTheDocument();
   });
 
   it("displays active project count from API data", async () => {
@@ -314,6 +326,9 @@ describe("DashboardPage", () => {
       formatBudget: (cents: number) =>
         new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", minimumFractionDigits: 2 }).format(cents / 100),
     }));
+    vi.doMock("@/lib/api", () => ({
+      apiFetch: vi.fn().mockResolvedValue({ data: { data: [], total: 0 }, error: null }),
+    }));
 
     const { default: DashboardPage } = await import("@/app/dashboard/page");
 
@@ -321,10 +336,11 @@ describe("DashboardPage", () => {
       render(<DashboardPage />);
     });
 
-    expect(screen.getByTestId("stat-actieve-projecten")).toHaveTextContent("2");
+    expect(screen.getByTestId("kpi-active-projects")).toHaveTextContent("2");
   });
 
-  it("displays active task count (todo + in_progress) from project phases", async () => {
+  it("displays overdue task count from project phases", async () => {
+    const pastDate = "2020-01-01";
     const projects = [
       {
         id: "1", name: "A", description: null, status: "active",
@@ -335,9 +351,9 @@ describe("DashboardPage", () => {
             description: null, order_index: 0, status: "active",
             start_date: null, end_date: null,
             tasks: [
-              { id: "t1", phase_id: "p1", name: "T1", status: "todo", priority: 0, estimated_hours: null },
-              { id: "t2", phase_id: "p1", name: "T2", status: "in_progress", priority: 0, estimated_hours: null },
-              { id: "t3", phase_id: "p1", name: "T3", status: "done", priority: 0, estimated_hours: null },
+              { id: "t1", phase_id: "p1", name: "T1", status: "todo", priority: 0, estimated_hours: null, end_date: pastDate },
+              { id: "t2", phase_id: "p1", name: "T2", status: "in_progress", priority: 0, estimated_hours: null, end_date: pastDate },
+              { id: "t3", phase_id: "p1", name: "T3", status: "done", priority: 0, estimated_hours: null, end_date: pastDate },
             ],
           },
         ],
@@ -349,26 +365,8 @@ describe("DashboardPage", () => {
       formatBudget: (cents: number) =>
         new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", minimumFractionDigits: 2 }).format(cents / 100),
     }));
-
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
-
-    await act(async () => {
-      render(<DashboardPage />);
-    });
-
-    expect(screen.getByTestId("stat-taken-vandaag")).toHaveTextContent("2");
-  });
-
-  it("displays total budget in Dutch locale format", async () => {
-    const projects = [
-      { id: "1", name: "A", description: null, status: "active", start_date: null, end_date: null, budget_cents: 123456, phases: [] },
-      { id: "2", name: "B", description: null, status: "active", start_date: null, end_date: null, budget_cents: 100000, phases: [] },
-    ];
-
-    vi.doMock("@/lib/projects", () => ({
-      listProjects: vi.fn().mockResolvedValue({ data: projects, total: 2, page: 1, per_page: 20 }),
-      formatBudget: (cents: number) =>
-        new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", minimumFractionDigits: 2 }).format(cents / 100),
+    vi.doMock("@/lib/api", () => ({
+      apiFetch: vi.fn().mockResolvedValue({ data: { data: [], total: 0 }, error: null }),
     }));
 
     const { default: DashboardPage } = await import("@/app/dashboard/page");
@@ -377,20 +375,18 @@ describe("DashboardPage", () => {
       render(<DashboardPage />);
     });
 
-    // 123456 + 100000 = 223456 cents = €2.234,56
-    const budgetCard = screen.getByTestId("stat-totaal-budget");
-    expect(budgetCard).toHaveTextContent("€");
-    expect(budgetCard).toHaveTextContent("2.234");
+    // todo + in_progress with past end_date = 2 overdue
+    expect(screen.getByTestId("kpi-overdue-tasks")).toHaveTextContent("2");
   });
 
-  it("shows zero budget when no projects have budget set", async () => {
+  it("shows zero monthly revenue when no paid invoices this month", async () => {
     vi.doMock("@/lib/projects", () => ({
-      listProjects: vi.fn().mockResolvedValue({
-        data: [{ id: "1", name: "P", description: null, status: "active", start_date: null, end_date: null, budget_cents: null, phases: [] }],
-        total: 1, page: 1, per_page: 20,
-      }),
+      listProjects: vi.fn().mockResolvedValue({ data: [], total: 0, page: 1, per_page: 20 }),
       formatBudget: (cents: number) =>
         new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", minimumFractionDigits: 2 }).format(cents / 100),
+    }));
+    vi.doMock("@/lib/api", () => ({
+      apiFetch: vi.fn().mockResolvedValue({ data: { data: [], total: 0 }, error: null }),
     }));
 
     const { default: DashboardPage } = await import("@/app/dashboard/page");
@@ -399,7 +395,7 @@ describe("DashboardPage", () => {
       render(<DashboardPage />);
     });
 
-    expect(screen.getByTestId("stat-totaal-budget")).toHaveTextContent("0,00");
+    expect(screen.getByTestId("kpi-monthly-revenue")).toHaveTextContent("0");
   });
 });
 
