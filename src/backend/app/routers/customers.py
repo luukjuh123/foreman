@@ -40,11 +40,7 @@ async def list_customers(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[Customer]:
-    result = await db.execute(
-        select(Customer)
-        .where(Customer.owner_id == current_user.id)
-        .order_by(Customer.name)
-    )
+    result = await db.execute(select(Customer).where(Customer.owner_id == current_user.id).order_by(Customer.name))
     return list(result.scalars().all())
 
 

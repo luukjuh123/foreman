@@ -52,9 +52,7 @@ async def delete_webhook(
     db: AsyncSession = Depends(get_db),
 ) -> None:
     """Delete a webhook owned by the authenticated user."""
-    result = await db.execute(
-        select(Webhook).where(Webhook.id == webhook_id, Webhook.owner_id == current_user.id)
-    )
+    result = await db.execute(select(Webhook).where(Webhook.id == webhook_id, Webhook.owner_id == current_user.id))
     webhook = result.scalar_one_or_none()
     if webhook is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Webhook not found")

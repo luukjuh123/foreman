@@ -63,8 +63,7 @@ async def get_dashboard_analytics(
 
     monthly_revenue_cents: int = (
         await db.execute(
-            select(func.coalesce(func.sum(Invoice.total_cents), 0))
-            .where(
+            select(func.coalesce(func.sum(Invoice.total_cents), 0)).where(
                 Invoice.owner_id == owner_id,
                 Invoice.status == "paid",
                 Invoice.paid_at >= month_start,
