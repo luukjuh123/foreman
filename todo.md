@@ -178,7 +178,15 @@
 - [x] E2E tests for critical flows: auth, project creation, AI plan generation, material search — PR #158
 - [x] E2E tests for billing flows: signup, free trial, upgrade, invoice generation — PR #160
 
-## Priority: Medium (Phase 19 — Subcontractor Management)
+## Priority: Medium (Phase 19 — Polish & Hardening)
+
+- [ ] Backend: API rate limiting middleware — per-user throttle (100 req/15min general, 10 req/15min auth) using slowapi
+- [ ] Backend: Webhook system — notify external systems on project/invoice/report events via configurable HTTP callbacks
+- [x] Frontend: Dashboard KPI widgets — active projects count, overdue tasks, monthly revenue, outstanding invoices as stat cards
+- [x] Frontend: Dark/light theme toggle with persistent preference (localStorage + cookie for SSR)
+- [x] Backend: Data export API — full project archive as ZIP (project JSON + photos + invoices + reports)
+
+## Priority: Medium (Phase 20 — Subcontractor Management)
 
 - [ ] Backend: Subcontractor model — company name, KVK number, specialties, hourly/fixed rates, certifications (VCA, BRL), rating
 - [ ] Backend: CRUD endpoints for subcontractors with search/filter by specialty and availability

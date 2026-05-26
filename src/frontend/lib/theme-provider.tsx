@@ -15,6 +15,22 @@ const ThemeContext = createContext<ThemeContextValue>({
 });
 
 const STORAGE_KEY = "foreman_theme";
+const COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1 year
+
+function readStoredTheme(): Theme {
+  if (typeof window === "undefined") return "system";
+  // localStorage takes precedence; fall back to cookie (set by SSR)
+  const ls = localStorage.getItem(STORAGE_KEY) as Theme | null;
+  if (ls) return ls;
+  const match = document.cookie.match(/(?:^|;\s*)foreman_theme=([^;]+)/);
+  return (match?.[1] as Theme) ?? "system";
+}
+
+function persistTheme(theme: Theme): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(STORAGE_KEY, theme);
+  document.cookie = `foreman_theme=${theme}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
+}
 
 function applyTheme(theme: Theme) {
   if (typeof document === "undefined") return;
@@ -33,8 +49,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>("system");
 
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY) as Theme | null;
-    const initial = stored ?? "system";
+    const initial = readStoredTheme();
     setThemeState(initial);
     applyTheme(initial);
   }, []);
@@ -49,7 +64,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   function setTheme(next: Theme) {
     setThemeState(next);
-    localStorage.setItem(STORAGE_KEY, next);
+    persistTheme(next);
     applyTheme(next);
   }
 
