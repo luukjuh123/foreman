@@ -33,6 +33,7 @@ class AgendaDay(BaseModel):
 
     date: date
     tasks: list[AgendaTask]
+    weather_risk: str | None = None  # "good" | "moderate" | "poor" | None (unavailable)
 
 
 class AgendaWeekResponse(BaseModel):
@@ -48,3 +49,4 @@ class AgendaDayResponse(BaseModel):
 
     date: date
     tasks: list[AgendaTask]
+    weather_risk: str | None = None  # "good" | "moderate" | "poor" | None (unavailable)
