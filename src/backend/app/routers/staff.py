@@ -26,7 +26,7 @@ router = APIRouter()
 
 
 class StaffUtilizationResponse(BaseModel):
-    utilization_rate: float  # 0–100 percent (capped at 100)
+    utilization_rate: float  # 0-100 percent (capped at 100)
     assigned_hours: float
     available_hours: float
 

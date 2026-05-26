@@ -38,17 +38,51 @@ router = APIRouter()
 # ---------------------------------------------------------------------------
 
 
+def _invoice_customer_to_model(body_data: dict, owner_id: uuid.UUID) -> dict:
+    """Map invoice CustomerCreate fields to the Customer model field names."""
+    return {
+        "owner_id": owner_id,
+        "name": body_data.get("name"),
+        "email": body_data.get("email"),
+        "kvk_number": body_data.get("kvk_number"),
+        # invoice schema uses vat_number; model uses btw_number
+        "btw_number": body_data.get("vat_number"),
+        # invoice schema uses address_line1; model uses address
+        "address": body_data.get("address_line1"),
+        "postal_code": body_data.get("postal_code"),
+        "city": body_data.get("city"),
+    }
+
+
+def _customer_to_invoice_response(customer: Customer) -> dict:
+    """Map Customer model fields to the invoice CustomerResponse schema fields."""
+    return {
+        "id": customer.id,
+        "name": customer.name,
+        "email": customer.email,
+        "kvk_number": customer.kvk_number,
+        # model uses btw_number; invoice schema uses vat_number
+        "vat_number": customer.btw_number,
+        # model uses address; invoice schema uses address_line1
+        "address_line1": customer.address,
+        "address_line2": None,
+        "postal_code": customer.postal_code,
+        "city": customer.city,
+        "country_code": "NL",
+    }
+
+
 @router.post("/customers", response_model=CustomerResponse, status_code=status.HTTP_201_CREATED)
 async def create_customer(
     body: CustomerCreate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> CustomerResponse:
-    customer = Customer(owner_id=current_user.id, **body.model_dump())
+    customer = Customer(**_invoice_customer_to_model(body.model_dump(), current_user.id))
     db.add(customer)
     await db.commit()
     await db.refresh(customer)
-    return CustomerResponse.model_validate(customer)
+    return CustomerResponse(**_customer_to_invoice_response(customer))
 
 
 @router.get("/customers", response_model=list[CustomerResponse])
@@ -59,7 +93,7 @@ async def list_customers(
     result = await db.execute(
         select(Customer).where(Customer.owner_id == current_user.id, Customer.deleted_at.is_(None))
     )
-    return [CustomerResponse.model_validate(c) for c in result.scalars().all()]
+    return [CustomerResponse(**_customer_to_invoice_response(c)) for c in result.scalars().all()]
 
 
 # ---------------------------------------------------------------------------
