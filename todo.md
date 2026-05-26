@@ -192,9 +192,9 @@
 - [ ] Backend: CRUD endpoints for subcontractors with search/filter by specialty and availability
 - [ ] Backend: Assign subcontractors to project phases/tasks — track their hours and costs separately from staff
 - [ ] Backend: Subcontractor invoice linking — match incoming invoices to project costs, auto-reconcile with bookkeeping
-- [x] Frontend: Subcontractor directory — list, add, edit with certification expiry warnings — PR #TBD
-- [x] Frontend: Subcontractor assignment UI on project phase cards — pick from directory, set rates — PR #TBD
-- [x] Frontend: Subcontractor cost dashboard — spending per project, per subcontractor, margin analysis — PR #TBD
+- [x] Frontend: Subcontractor directory — list, add, edit with certification expiry warnings — PR #188
+- [x] Frontend: Subcontractor assignment UI on project phase cards — pick from directory, set rates — PR #188
+- [x] Frontend: Subcontractor cost dashboard — spending per project, per subcontractor, margin analysis — PR #188
 
 ## Completed
 <!-- [x] Task description — PR #N -->
