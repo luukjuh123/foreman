@@ -180,10 +180,7 @@
 
 ## Priority: Medium (Phase 19 — Polish & Advanced Features)
 
-- [x] Backend: Subcontractor management — invite external contractors, share limited project access, track their hours and invoices separately — PR #177
-- [x] Backend: Equipment/tool tracking — register company tools, assign to projects, track usage history and maintenance schedule — PR #178
-- [x] Backend: Weather API integration — fetch 7-day forecast per project location, surface weather risks on agenda and Gantt views — PR #179
-- [ ] Backend: Customer portal — read-only project view for clients with progress photos, timeline, and invoice status
+- [x] Backend: Customer portal — read-only project view for clients with progress photos, timeline, and invoice status
 - [ ] Frontend: Dashboard analytics — key metrics cards (active projects, overdue tasks, monthly revenue, staff utilization rate)
 - [ ] Frontend: Bulk material import — CSV upload for material lists with auto-matching to hardware store products
 - [ ] Backend: Document management — upload/download contracts, permits, drawings per project with versioning
