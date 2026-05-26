@@ -4,6 +4,7 @@ import uuid
 
 from app.core.database import get_db
 from app.models.customer import Customer
+from app.models.user import User
 from app.routers.auth import get_current_user
 from app.schemas.customer import CustomerCreate, CustomerResponse, CustomerUpdate
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -25,9 +26,9 @@ async def _get_or_404(customer_id: uuid.UUID, db: AsyncSession) -> Customer:
 async def create_customer(
     body: CustomerCreate,
     db: AsyncSession = Depends(get_db),
-    _: object = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ) -> Customer:
-    customer = Customer(**body.model_dump())
+    customer = Customer(owner_id=current_user.id, **body.model_dump())
     db.add(customer)
     await db.commit()
     await db.refresh(customer)
