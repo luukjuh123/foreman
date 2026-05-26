@@ -178,5 +178,15 @@
 - [x] E2E tests for critical flows: auth, project creation, AI plan generation, material search — PR #158
 - [x] E2E tests for billing flows: signup, free trial, upgrade, invoice generation — PR #160
 
+## Priority: Medium (Phase 19 — Subcontractor Management)
+
+- [ ] Backend: Subcontractor model — company name, KVK number, specialties, hourly/fixed rates, certifications (VCA, BRL), rating
+- [ ] Backend: CRUD endpoints for subcontractors with search/filter by specialty and availability
+- [ ] Backend: Assign subcontractors to project phases/tasks — track their hours and costs separately from staff
+- [ ] Backend: Subcontractor invoice linking — match incoming invoices to project costs, auto-reconcile with bookkeeping
+- [x] Frontend: Subcontractor directory — list, add, edit with certification expiry warnings — PR #TBD
+- [x] Frontend: Subcontractor assignment UI on project phase cards — pick from directory, set rates — PR #TBD
+- [x] Frontend: Subcontractor cost dashboard — spending per project, per subcontractor, margin analysis — PR #TBD
+
 ## Completed
 <!-- [x] Task description — PR #N -->
