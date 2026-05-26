@@ -3,6 +3,6 @@
 # The canonical Customer model (scoped by owner_id, Dutch invoice fields) lives in
 # invoice.py and was defined there first. Importing it here so app.routers.customers
 # can reference the same class without a duplicate table definition.
-from app.models.invoice import Customer  # noqa: F401
+from app.models.invoice import Customer
 
 __all__ = ["Customer"]

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import React from "react";
 
@@ -84,6 +84,14 @@ function setupMocks(
 describe("StaffSchedulePage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Pin only Date (not timers) to 2026-05-19 — in the week of Mon 2026-05-18 —
+    // so weekStart resolves to 2026-05-18, matching the mock assignment dates.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-05-19T10:00:00"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("shows loading state while fetching", () => {
