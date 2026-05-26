@@ -21,6 +21,11 @@ vi.mock("next/link", () => ({
   ),
 }));
 
+// Agenda is fetched on the dashboard page; mock it to return empty week by default.
+vi.mock("@/lib/agenda", () => ({
+  fetchWeekAgenda: vi.fn().mockResolvedValue({ week_start: "2026-05-26", week_end: "2026-06-01", days: [] }),
+}));
+
 // Helper to build project fixture with phases + tasks
 function makeProject(opts: {
   id: string;
