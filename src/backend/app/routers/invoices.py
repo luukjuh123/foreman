@@ -256,12 +256,13 @@ def _customer_to_dict(customer: Customer) -> dict:
     return {
         "name": customer.name,
         "email": customer.email,
-        "vat_number": customer.vat_number,
+        "vat_number": customer.btw_number,
         "kvk_number": customer.kvk_number,
-        "address_line1": customer.address_line1,
+        # model uses address; PDF schema uses address_line1
+        "address_line1": customer.address,
         "postal_code": customer.postal_code,
         "city": customer.city,
-        "country_code": customer.country_code,
+        "country_code": "NL",
     }
 
 
