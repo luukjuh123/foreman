@@ -1,4 +1,4 @@
-"""Pydantic schemas for Equipment and EquipmentAssignment."""
+"""Pydantic schemas for Equipment, EquipmentAssignment, and EquipmentMaintenance."""
 
 import uuid
 from datetime import date, datetime
@@ -10,13 +10,17 @@ from pydantic import BaseModel
 # EquipmentAssignment
 # ---------------------------------------------------------------------------
 
-EquipmentCategory = Literal["tool", "machine", "vehicle", "scaffold", "other"]
 EquipmentStatus = Literal["available", "in_use", "maintenance", "retired"]
 
 
 class EquipmentAssignmentCreate(BaseModel):
     project_id: uuid.UUID
     assigned_date: date
+    returned_date: date | None = None
+    notes: str | None = None
+
+
+class EquipmentAssignmentUpdate(BaseModel):
     returned_date: date | None = None
     notes: str | None = None
 
@@ -40,7 +44,7 @@ class EquipmentAssignmentResponse(BaseModel):
 
 class EquipmentCreate(BaseModel):
     name: str
-    category: EquipmentCategory
+    category: str = "tool"
     status: EquipmentStatus = "available"
     serial_number: str | None = None
     purchase_date: date | None = None
@@ -51,7 +55,7 @@ class EquipmentCreate(BaseModel):
 
 class EquipmentUpdate(BaseModel):
     name: str | None = None
-    category: EquipmentCategory | None = None
+    category: str | None = None
     status: EquipmentStatus | None = None
     serial_number: str | None = None
     purchase_date: date | None = None
@@ -83,3 +87,29 @@ class EquipmentListResponse(BaseModel):
     total: int
     page: int
     per_page: int
+
+
+# ---------------------------------------------------------------------------
+# EquipmentMaintenance
+# ---------------------------------------------------------------------------
+
+
+class MaintenanceCreate(BaseModel):
+    maintenance_date: date
+    description: str
+    cost_cents: int = 0
+    next_due_date: date | None = None
+    performed_by: str | None = None
+
+
+class MaintenanceResponse(BaseModel):
+    id: uuid.UUID
+    equipment_id: uuid.UUID
+    maintenance_date: date
+    description: str
+    cost_cents: int
+    next_due_date: date | None
+    performed_by: str | None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}

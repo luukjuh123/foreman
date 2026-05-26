@@ -1,19 +1,23 @@
-"""Equipment router — CRUD + project assignment."""
+"""Equipment router — CRUD + project assignment + maintenance."""
 
 import uuid
+from datetime import date
 
 from app.core.database import get_db
-from app.models.equipment import Equipment, EquipmentAssignment
+from app.models.equipment import Equipment, EquipmentAssignment, EquipmentMaintenance
 from app.models.project import Project
 from app.models.user import User
 from app.routers.auth import get_current_user
 from app.schemas.equipment import (
     EquipmentAssignmentCreate,
     EquipmentAssignmentResponse,
+    EquipmentAssignmentUpdate,
     EquipmentCreate,
     EquipmentListResponse,
     EquipmentResponse,
     EquipmentUpdate,
+    MaintenanceCreate,
+    MaintenanceResponse,
 )
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
@@ -70,18 +74,12 @@ async def list_equipment(
     if category is not None:
         filters.append(Equipment.category == category)
 
-    count_result = await db.execute(
-        select(func.count()).select_from(Equipment).where(*filters)
-    )
+    count_result = await db.execute(select(func.count()).select_from(Equipment).where(*filters))
     total = count_result.scalar_one()
 
     offset = (page - 1) * per_page
     result = await db.execute(
-        select(Equipment)
-        .where(*filters)
-        .options(selectinload(Equipment.assignments))
-        .offset(offset)
-        .limit(per_page)
+        select(Equipment).where(*filters).options(selectinload(Equipment.assignments)).offset(offset).limit(per_page)
     )
     items = result.scalars().all()
 
@@ -117,6 +115,34 @@ async def create_equipment(
         select(Equipment).where(Equipment.id == equipment.id).options(selectinload(Equipment.assignments))
     )
     return EquipmentResponse.model_validate(result.scalar_one())
+
+
+# NOTE: /maintenance/upcoming must come BEFORE /{equipment_id} to prevent
+# "upcoming" from being interpreted as a UUID path parameter.
+@router.get("/maintenance/upcoming", response_model=list[MaintenanceResponse])
+async def list_upcoming_maintenance(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[MaintenanceResponse]:
+    """Return maintenance records with a next_due_date in the future."""
+    today = date.today()
+    rows = (
+        (
+            await db.execute(
+                select(EquipmentMaintenance)
+                .join(Equipment, EquipmentMaintenance.equipment_id == Equipment.id)
+                .where(
+                    Equipment.owner_id == current_user.id,
+                    EquipmentMaintenance.next_due_date.is_not(None),
+                    EquipmentMaintenance.next_due_date > today,
+                )
+                .order_by(EquipmentMaintenance.next_due_date.asc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return [MaintenanceResponse.model_validate(r) for r in rows]
 
 
 @router.get("/{equipment_id}", response_model=EquipmentResponse)
@@ -192,6 +218,47 @@ async def assign_equipment(
     return EquipmentAssignmentResponse.model_validate(assignment)
 
 
+@router.get("/{equipment_id}/assignments", response_model=list[EquipmentAssignmentResponse])
+async def list_assignments(
+    equipment_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[EquipmentAssignmentResponse]:
+    await _get_equipment_or_404(equipment_id, current_user.id, db)
+    result = await db.execute(
+        select(EquipmentAssignment)
+        .where(EquipmentAssignment.equipment_id == equipment_id)
+        .order_by(EquipmentAssignment.assigned_date.asc())
+    )
+    rows = result.scalars().all()
+    return [EquipmentAssignmentResponse.model_validate(r) for r in rows]
+
+
+@router.patch("/{equipment_id}/assignments/{assignment_id}", response_model=EquipmentAssignmentResponse)
+async def update_assignment(
+    equipment_id: uuid.UUID,
+    assignment_id: uuid.UUID,
+    body: EquipmentAssignmentUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> EquipmentAssignmentResponse:
+    await _get_equipment_or_404(equipment_id, current_user.id, db)
+    result = await db.execute(
+        select(EquipmentAssignment).where(
+            EquipmentAssignment.id == assignment_id,
+            EquipmentAssignment.equipment_id == equipment_id,
+        )
+    )
+    assignment = result.scalar_one_or_none()
+    if assignment is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assignment not found")
+    for field, value in body.model_dump(exclude_unset=True).items():
+        setattr(assignment, field, value)
+    await db.commit()
+    await db.refresh(assignment)
+    return EquipmentAssignmentResponse.model_validate(assignment)
+
+
 @router.delete(
     "/{equipment_id}/assignments/{assignment_id}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -202,7 +269,6 @@ async def unassign_equipment(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    # Verify equipment ownership first
     await _get_equipment_or_404(equipment_id, current_user.id, db)
 
     result = await db.execute(
@@ -217,3 +283,50 @@ async def unassign_equipment(
 
     await db.delete(assignment)
     await db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Maintenance endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/{equipment_id}/maintenance",
+    response_model=MaintenanceResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def log_maintenance(
+    equipment_id: uuid.UUID,
+    body: MaintenanceCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MaintenanceResponse:
+    await _get_equipment_or_404(equipment_id, current_user.id, db)
+    record = EquipmentMaintenance(
+        equipment_id=equipment_id,
+        maintenance_date=body.maintenance_date,
+        description=body.description,
+        cost_cents=body.cost_cents,
+        next_due_date=body.next_due_date,
+        performed_by=body.performed_by,
+    )
+    db.add(record)
+    await db.commit()
+    await db.refresh(record)
+    return MaintenanceResponse.model_validate(record)
+
+
+@router.get("/{equipment_id}/maintenance", response_model=list[MaintenanceResponse])
+async def list_maintenance(
+    equipment_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[MaintenanceResponse]:
+    await _get_equipment_or_404(equipment_id, current_user.id, db)
+    result = await db.execute(
+        select(EquipmentMaintenance)
+        .where(EquipmentMaintenance.equipment_id == equipment_id)
+        .order_by(EquipmentMaintenance.maintenance_date.asc())
+    )
+    rows = result.scalars().all()
+    return [MaintenanceResponse.model_validate(r) for r in rows]

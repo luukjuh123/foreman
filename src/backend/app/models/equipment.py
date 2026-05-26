@@ -1,10 +1,10 @@
-"""Equipment and EquipmentAssignment models."""
+"""Equipment, EquipmentAssignment, and EquipmentMaintenance models."""
 
 import uuid
 from datetime import date, datetime
 
 from app.core.database import Base
-from sqlalchemy import Date, DateTime, ForeignKey, String, Text, func
+from sqlalchemy import Date, DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 
@@ -29,6 +29,9 @@ class Equipment(Base):
     assignments: Mapped[list["EquipmentAssignment"]] = relationship(
         back_populates="equipment", cascade="all, delete-orphan"
     )
+    maintenance_records: Mapped[list["EquipmentMaintenance"]] = relationship(
+        back_populates="equipment", cascade="all, delete-orphan"
+    )
 
 
 class EquipmentAssignment(Base):
@@ -43,3 +46,18 @@ class EquipmentAssignment(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     equipment: Mapped["Equipment"] = relationship(back_populates="assignments")
+
+
+class EquipmentMaintenance(Base):
+    __tablename__ = "equipment_maintenance"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    equipment_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("equipment.id"), nullable=False, index=True)
+    maintenance_date: Mapped[date] = mapped_column(Date, nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    cost_cents: Mapped[int] = mapped_column(Integer, default=0)
+    next_due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    performed_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    equipment: Mapped["Equipment"] = relationship(back_populates="maintenance_records")
