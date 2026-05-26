@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     # Trial period (days granted on free-tier signup)
     trial_period_days: int = 14
 
+    # Weather (Open-Meteo — free, no API key needed)
+    weather_api_base_url: str = "https://api.open-meteo.com/v1"
+    weather_default_latitude: float = 52.3676  # Amsterdam
+    weather_default_longitude: float = 4.9041
+
     # App
     debug: bool = False
     log_level: str = "INFO"

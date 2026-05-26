@@ -2,20 +2,24 @@
 
 from app.core.config import settings
 from app.core.logging import RequestLoggingMiddleware, configure_logging
+from app.core.rate_limit_middleware import RateLimitMiddleware
 from app.routers import (
     agenda,
     ai_planning,
     assignments,
     auth,
     billing,
+    equipment,
     financials,
     inbound,
+    incidents,
     invoices,
     loans,
     materials,
     notifications,
     payroll,
     photos,
+    portal,
     processes,
     projects,
     push,
@@ -25,6 +29,7 @@ from app.routers import (
     templates,
     time_tracking,
     voice,
+    weather,
 )
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -42,6 +47,7 @@ def create_app() -> FastAPI:
         openapi_url="/api/openapi.json",
     )
 
+    app.add_middleware(RateLimitMiddleware)
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(
         CORSMiddleware,
@@ -70,9 +76,11 @@ def create_app() -> FastAPI:
     app.include_router(notifications.router, prefix="/api/v1/notifications", tags=["notifications"])
     app.include_router(payroll.router, prefix="/api/v1/payroll", tags=["payroll"])
     app.include_router(reports.router, prefix="/api/v1/reports", tags=["reports"])
+    app.include_router(incidents.router, prefix="/api/v1/incidents", tags=["incidents"])
     app.include_router(staff.router, prefix="/api/v1/staff", tags=["staff"])
     app.include_router(templates.router, prefix="/api/v1/templates", tags=["templates"])
     app.include_router(voice.router, prefix="/api/v1/voice", tags=["voice"])
+    app.include_router(portal.router, prefix="/api/v1", tags=["portal"])
 
     @app.get("/healthz", tags=["health"])
     async def health_check() -> dict:

@@ -101,6 +101,8 @@ class ProjectCreate(BaseModel):
     start_date: date | None = None
     end_date: date | None = None
     budget_cents: int = 0
+    location_lat: float | None = None
+    location_lon: float | None = None
 
 
 class ProjectUpdate(BaseModel):
@@ -110,6 +112,8 @@ class ProjectUpdate(BaseModel):
     start_date: date | None = None
     end_date: date | None = None
     budget_cents: int | None = None
+    location_lat: float | None = None
+    location_lon: float | None = None
 
 
 class ProjectResponse(BaseModel):
@@ -121,6 +125,8 @@ class ProjectResponse(BaseModel):
     start_date: date | None
     end_date: date | None
     budget_cents: int
+    location_lat: float | None = None
+    location_lon: float | None = None
     created_at: datetime
     updated_at: datetime
     phases: list[PhaseResponse] = []

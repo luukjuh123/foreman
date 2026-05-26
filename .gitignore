@@ -12,3 +12,7 @@ __pycache__/
 
 # Logs
 *.log
+
+# in foreman/.gitignore
+.env
+**/.env
