@@ -1,3 +1,6 @@
+# Uploaded documents (local dev storage)
+uploads/
+
 # Python
 __pycache__/
 *.py[cod]

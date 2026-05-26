@@ -52,6 +52,9 @@ class Settings(BaseSettings):
     vapid_public_key: str = "test-vapid-public-key"
     vapid_claim_email: str = "mailto:info@foreman.local"
 
+    # Document storage
+    document_storage_path: str = "./uploads/documents"
+
     # Company / invoice issuer details (used for UBL & PDF invoice generation).
     company_name: str = "Foreman Bouw B.V."
     company_kvk: str = "00000000"
