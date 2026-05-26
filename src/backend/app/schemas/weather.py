@@ -1,31 +1,20 @@
-"""Schemas for weather forecast data."""
-
-from __future__ import annotations
-
-from datetime import date, datetime
-from typing import Literal
+"""Pydantic schemas for Weather API responses."""
 
 from pydantic import BaseModel
 
 
-class WeatherDay(BaseModel):
-    date: date
-    temp_max_c: float
-    temp_min_c: float
+class WeatherDayResponse(BaseModel):
+    date: str
+    temp_min: float
+    temp_max: float
     precipitation_mm: float
-    wind_speed_max_kmh: float
+    wind_speed_kmh: float
     weather_code: int
-    weather_description: str
-    work_risk: Literal["good", "moderate", "poor"]
+    description: str
 
 
-class WeatherForecastResponse(BaseModel):
-    latitude: float
-    longitude: float
-    days: list[WeatherDay]
-    fetched_at: datetime
-
-
-class RiskSummaryDay(BaseModel):
-    date: date
-    work_risk: Literal["good", "moderate", "poor"]
+class WeatherRiskResponse(BaseModel):
+    date: str
+    risk_type: str  # rain | wind | frost
+    severity: str  # warning | danger
+    details: str

@@ -1,14 +1,17 @@
-"""Tests for weather service and router.
+"""Tests for Weather API integration — Phase 19.
 
-Tests risk assessment as unit tests (no external calls).
-Router tests mock the httpx call to Open-Meteo.
+Covers:
+- Fetch 7-day forecast for a project location
+- Weather risk assessment (identifies rain/wind/frost days)
+- Forecast cached to avoid hammering external API
+- GET /api/v1/weather/forecast?lat=...&lon=... — raw forecast
+- GET /api/v1/weather/forecast?project_id=... — forecast for project location
+- GET /api/v1/weather/risks?project_id=... — risk summary for agenda/Gantt
+- WeatherService unit tests with mocked HTTP
 """
 
-from __future__ import annotations
-
-import json
-from datetime import date, datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+import uuid
+from unittest.mock import AsyncMock, patch
 
 import pytest
 import pytest_asyncio
@@ -18,13 +21,12 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.database import Base, get_db
 from app.main import create_app
-from app.services.weather import WeatherService, assess_work_risk
+from app.services.weather.client import WeatherService, WeatherDay, WeatherRisk
 
 TEST_DB_URL = "sqlite+aiosqlite://"
 
-
 # ---------------------------------------------------------------------------
-# Fixtures — identical pattern to test_staff.py
+# Fixtures
 # ---------------------------------------------------------------------------
 
 
@@ -58,231 +60,222 @@ async def _auth(client: AsyncClient, email: str = "boss@example.com") -> dict:
         "/api/v1/auth/register",
         json={"email": email, "name": "Boss", "password": "supersecret"},
     )
+    assert resp.status_code == 201, resp.text
     token = resp.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
 
 
-# ---------------------------------------------------------------------------
-# Unit tests — risk assessment logic (no I/O)
-# ---------------------------------------------------------------------------
-
-
-def test_risk_good_clear_day():
-    risk = assess_work_risk(precipitation_mm=0.0, wind_speed_kmh=20.0, temp_min_c=5.0)
-    assert risk == "good"
-
-
-def test_risk_poor_heavy_rain():
-    risk = assess_work_risk(precipitation_mm=15.0, wind_speed_kmh=20.0, temp_min_c=5.0)
-    assert risk == "poor"
-
-
-def test_risk_poor_exact_threshold_rain():
-    # > 10mm is poor; exactly 10 is NOT poor — boundary test
-    risk = assess_work_risk(precipitation_mm=10.0, wind_speed_kmh=20.0, temp_min_c=5.0)
-    assert risk == "moderate"
-
-
-def test_risk_poor_strong_wind():
-    risk = assess_work_risk(precipitation_mm=0.0, wind_speed_kmh=65.0, temp_min_c=5.0)
-    assert risk == "poor"
-
-
-def test_risk_poor_frost():
-    risk = assess_work_risk(precipitation_mm=0.0, wind_speed_kmh=10.0, temp_min_c=-5.0)
-    assert risk == "poor"
-
-
-def test_risk_poor_exact_frost_threshold():
-    # < -2C is poor; exactly -2 is NOT poor
-    risk = assess_work_risk(precipitation_mm=0.0, wind_speed_kmh=10.0, temp_min_c=-2.0)
-    assert risk == "good"
-
-
-def test_risk_moderate_light_rain():
-    risk = assess_work_risk(precipitation_mm=5.0, wind_speed_kmh=20.0, temp_min_c=5.0)
-    assert risk == "moderate"
-
-
-def test_risk_moderate_wind():
-    risk = assess_work_risk(precipitation_mm=0.0, wind_speed_kmh=50.0, temp_min_c=5.0)
-    assert risk == "moderate"
-
-
-def test_risk_moderate_exact_lower_precip_bound():
-    # >= 2mm and <= 10mm is moderate (if not poor)
-    risk = assess_work_risk(precipitation_mm=2.0, wind_speed_kmh=20.0, temp_min_c=5.0)
-    assert risk == "moderate"
-
-
-def test_risk_good_just_below_moderate_precip():
-    # < 2mm is good (no other issues)
-    risk = assess_work_risk(precipitation_mm=1.9, wind_speed_kmh=20.0, temp_min_c=5.0)
-    assert risk == "good"
-
-
-def test_risk_poor_beats_moderate():
-    # both poor wind and moderate rain → poor wins
-    risk = assess_work_risk(precipitation_mm=5.0, wind_speed_kmh=70.0, temp_min_c=5.0)
-    assert risk == "poor"
-
-
-# ---------------------------------------------------------------------------
-# Helpers — build a fake Open-Meteo response
-# ---------------------------------------------------------------------------
-
-
-def _fake_open_meteo_response(days: int = 7) -> dict:
-    base_date = date(2026, 5, 21)
-    dates = [(base_date.replace(day=base_date.day + i)).isoformat() for i in range(days)]
-    return {
-        "latitude": 52.3676,
-        "longitude": 4.9041,
-        "daily": {
-            "time": dates,
-            "temperature_2m_max": [18.0] * days,
-            "temperature_2m_min": [10.0] * days,
-            "precipitation_sum": [0.5] * days,
-            "windspeed_10m_max": [25.0] * days,
-            "weathercode": [1] * days,
+async def _create_project_with_location(client: AsyncClient, headers: dict) -> str:
+    resp = await client.post(
+        "/api/v1/projects/",
+        json={
+            "name": "Locatie Project",
+            "description": "desc",
+            "location_lat": 52.3676,
+            "location_lon": 4.9041,
         },
-    }
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+    return resp.json()["id"]
+
+
+# Stub forecast data returned by the mocked WeatherService
+STUB_FORECAST = [
+    WeatherDay(
+        date="2024-06-01",
+        temp_min=12.0,
+        temp_max=18.0,
+        precipitation_mm=0.0,
+        wind_speed_kmh=15.0,
+        weather_code=0,
+        description="Clear sky",
+    ),
+    WeatherDay(
+        date="2024-06-02",
+        temp_min=8.0,
+        temp_max=14.0,
+        precipitation_mm=12.0,
+        wind_speed_kmh=45.0,
+        weather_code=65,
+        description="Heavy rain",
+    ),
+]
 
 
 # ---------------------------------------------------------------------------
-# Router integration tests (mocked HTTP)
+# WeatherService unit tests (no HTTP)
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_forecast_returns_7_days(client: AsyncClient) -> None:
-    headers = await _auth(client)
-    fake_response = _fake_open_meteo_response(7)
-
-    mock_resp = MagicMock()
-    mock_resp.raise_for_status = MagicMock()
-    mock_resp.json.return_value = fake_response
-
-    with patch("app.services.weather.httpx.AsyncClient") as mock_client_cls:
-        mock_instance = AsyncMock()
-        mock_instance.get = AsyncMock(return_value=mock_resp)
-        mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_instance)
-        mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=False)
-
-        resp = await client.get("/api/v1/weather/forecast", headers=headers)
-
-    assert resp.status_code == 200, resp.text
-    body = resp.json()
-    assert len(body["days"]) == 7
-    assert body["latitude"] == 52.3676
-    assert body["longitude"] == 4.9041
-    assert "fetched_at" in body
+async def test_weather_service_returns_week_forecast() -> None:
+    """WeatherService.get_forecast returns a list of WeatherDay objects."""
+    svc = WeatherService()
+    with patch.object(svc, "_fetch_open_meteo", new=AsyncMock(return_value=STUB_FORECAST)):
+        result = await svc.get_forecast(lat=52.37, lon=4.90)
+    assert len(result) == 2
+    assert result[0].date == "2024-06-01"
+    assert result[0].precipitation_mm == 0.0
 
 
 @pytest.mark.asyncio
-async def test_forecast_uses_custom_coords(client: AsyncClient) -> None:
+async def test_weather_service_identify_rain_risk() -> None:
+    """Days with precipitation >= threshold flagged as rain risk."""
+    svc = WeatherService()
+    risks = svc.assess_risks(STUB_FORECAST)
+    rain_risks = [r for r in risks if r.risk_type == "rain"]
+    assert len(rain_risks) == 1
+    assert rain_risks[0].date == "2024-06-02"
+
+
+@pytest.mark.asyncio
+async def test_weather_service_identify_wind_risk() -> None:
+    """Days with wind speed >= 40 km/h flagged as wind risk."""
+    svc = WeatherService()
+    risks = svc.assess_risks(STUB_FORECAST)
+    wind_risks = [r for r in risks if r.risk_type == "wind"]
+    assert len(wind_risks) == 1
+    assert wind_risks[0].date == "2024-06-02"
+
+
+@pytest.mark.asyncio
+async def test_weather_service_identify_frost_risk() -> None:
+    """Days with temp_min <= 0 flagged as frost risk."""
+    frost_day = WeatherDay(
+        date="2024-01-15",
+        temp_min=-3.0,
+        temp_max=2.0,
+        precipitation_mm=0.0,
+        wind_speed_kmh=10.0,
+        weather_code=71,
+        description="Snow",
+    )
+    svc = WeatherService()
+    risks = svc.assess_risks([frost_day])
+    frost_risks = [r for r in risks if r.risk_type == "frost"]
+    assert len(frost_risks) == 1
+    assert frost_risks[0].date == "2024-01-15"
+
+
+@pytest.mark.asyncio
+async def test_weather_service_no_risk_clear_day() -> None:
+    svc = WeatherService()
+    clear_day = WeatherDay(
+        date="2024-06-10",
+        temp_min=14.0,
+        temp_max=22.0,
+        precipitation_mm=0.0,
+        wind_speed_kmh=10.0,
+        weather_code=0,
+        description="Clear sky",
+    )
+    risks = svc.assess_risks([clear_day])
+    assert risks == []
+
+
+@pytest.mark.asyncio
+async def test_weather_service_caches_result() -> None:
+    """Second call with same lat/lon uses cache, not a second HTTP request."""
+    svc = WeatherService()
+    fetch_mock = AsyncMock(return_value=STUB_FORECAST)
+    with patch.object(svc, "_fetch_open_meteo", new=fetch_mock):
+        await svc.get_forecast(lat=52.37, lon=4.90)
+        await svc.get_forecast(lat=52.37, lon=4.90)
+    # Only called once due to cache
+    assert fetch_mock.call_count == 1
+
+
+# ---------------------------------------------------------------------------
+# API endpoint tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_forecast_by_coords(client: AsyncClient) -> None:
     headers = await _auth(client)
-    fake_response = _fake_open_meteo_response(7)
-    fake_response["latitude"] = 51.9225
-    fake_response["longitude"] = 4.4792
-
-    mock_resp = MagicMock()
-    mock_resp.raise_for_status = MagicMock()
-    mock_resp.json.return_value = fake_response
-
-    with patch("app.services.weather.httpx.AsyncClient") as mock_client_cls:
-        mock_instance = AsyncMock()
-        mock_instance.get = AsyncMock(return_value=mock_resp)
-        mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_instance)
-        mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=False)
-
+    with patch(
+        "app.routers.weather.weather_service.get_forecast",
+        new=AsyncMock(return_value=STUB_FORECAST),
+    ):
         resp = await client.get(
-            "/api/v1/weather/forecast?latitude=51.9225&longitude=4.4792",
+            "/api/v1/weather/forecast?lat=52.37&lon=4.90",
             headers=headers,
         )
-
-    assert resp.status_code == 200, resp.text
-
-
-@pytest.mark.asyncio
-async def test_forecast_day_has_good_risk_for_calm_weather(client: AsyncClient) -> None:
-    headers = await _auth(client)
-    fake_response = _fake_open_meteo_response(7)
-    # Calm, no rain, warm
-
-    mock_resp = MagicMock()
-    mock_resp.raise_for_status = MagicMock()
-    mock_resp.json.return_value = fake_response
-
-    with patch("app.services.weather.httpx.AsyncClient") as mock_client_cls:
-        mock_instance = AsyncMock()
-        mock_instance.get = AsyncMock(return_value=mock_resp)
-        mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_instance)
-        mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=False)
-
-        resp = await client.get("/api/v1/weather/forecast", headers=headers)
-
-    days = resp.json()["days"]
-    assert all(d["work_risk"] == "good" for d in days)
-
-
-@pytest.mark.asyncio
-async def test_forecast_day_has_poor_risk_for_heavy_rain(client: AsyncClient) -> None:
-    headers = await _auth(client)
-    fake_response = _fake_open_meteo_response(7)
-    fake_response["daily"]["precipitation_sum"] = [15.0] * 7
-
-    mock_resp = MagicMock()
-    mock_resp.raise_for_status = MagicMock()
-    mock_resp.json.return_value = fake_response
-
-    with patch("app.services.weather.httpx.AsyncClient") as mock_client_cls:
-        mock_instance = AsyncMock()
-        mock_instance.get = AsyncMock(return_value=mock_resp)
-        mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_instance)
-        mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=False)
-
-        resp = await client.get("/api/v1/weather/forecast", headers=headers)
-
-    days = resp.json()["days"]
-    assert all(d["work_risk"] == "poor" for d in days)
-
-
-@pytest.mark.asyncio
-async def test_risk_summary_endpoint(client: AsyncClient) -> None:
-    headers = await _auth(client)
-    fake_response = _fake_open_meteo_response(7)
-
-    mock_resp = MagicMock()
-    mock_resp.raise_for_status = MagicMock()
-    mock_resp.json.return_value = fake_response
-
-    with patch("app.services.weather.httpx.AsyncClient") as mock_client_cls:
-        mock_instance = AsyncMock()
-        mock_instance.get = AsyncMock(return_value=mock_resp)
-        mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_instance)
-        mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=False)
-
-        resp = await client.get("/api/v1/weather/forecast/risk-summary", headers=headers)
-
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert isinstance(body, list)
-    assert len(body) == 7
-    first = body[0]
-    assert "date" in first
-    assert "work_risk" in first
-    # Only these two keys in summary
-    assert set(first.keys()) == {"date", "work_risk"}
+    assert len(body) == 2
+    assert body[0]["date"] == "2024-06-01"
+    assert "precipitation_mm" in body[0]
+    assert "wind_speed_kmh" in body[0]
 
 
 @pytest.mark.asyncio
-async def test_forecast_unauthenticated_rejected(client: AsyncClient) -> None:
-    resp = await client.get("/api/v1/weather/forecast")
-    assert resp.status_code in (401, 403)
+async def test_get_forecast_missing_coords(client: AsyncClient) -> None:
+    headers = await _auth(client)
+    resp = await client.get("/api/v1/weather/forecast", headers=headers)
+    assert resp.status_code == 422  # lat/lon required
 
 
 @pytest.mark.asyncio
-async def test_risk_summary_unauthenticated_rejected(client: AsyncClient) -> None:
-    resp = await client.get("/api/v1/weather/forecast/risk-summary")
-    assert resp.status_code in (401, 403)
+async def test_get_weather_risks(client: AsyncClient) -> None:
+    headers = await _auth(client)
+    with patch(
+        "app.routers.weather.weather_service.get_forecast",
+        new=AsyncMock(return_value=STUB_FORECAST),
+    ):
+        resp = await client.get(
+            "/api/v1/weather/risks?lat=52.37&lon=4.90",
+            headers=headers,
+        )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert isinstance(body, list)
+    risk_types = {r["risk_type"] for r in body}
+    assert "rain" in risk_types
+    assert "wind" in risk_types
+
+
+@pytest.mark.asyncio
+async def test_get_forecast_by_project(client: AsyncClient) -> None:
+    headers = await _auth(client)
+    project_id = await _create_project_with_location(client, headers)
+    with patch(
+        "app.routers.weather.weather_service.get_forecast",
+        new=AsyncMock(return_value=STUB_FORECAST),
+    ):
+        resp = await client.get(
+            f"/api/v1/weather/forecast?project_id={project_id}",
+            headers=headers,
+        )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert len(body) == 2
+
+
+@pytest.mark.asyncio
+async def test_get_forecast_project_no_location(client: AsyncClient) -> None:
+    """Project without lat/lon returns 422."""
+    headers = await _auth(client)
+    resp = await client.post(
+        "/api/v1/projects/",
+        json={"name": "No Location", "description": "desc"},
+        headers=headers,
+    )
+    project_id = resp.json()["id"]
+    result = await client.get(
+        f"/api/v1/weather/forecast?project_id={project_id}",
+        headers=headers,
+    )
+    assert result.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_get_forecast_project_not_found(client: AsyncClient) -> None:
+    headers = await _auth(client)
+    resp = await client.get(
+        f"/api/v1/weather/forecast?project_id={uuid.uuid4()}",
+        headers=headers,
+    )
+    assert resp.status_code == 404

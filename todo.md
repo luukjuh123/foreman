@@ -178,13 +178,18 @@
 - [x] E2E tests for critical flows: auth, project creation, AI plan generation, material search — PR #158
 - [x] E2E tests for billing flows: signup, free trial, upgrade, invoice generation — PR #160
 
-## Priority: Medium (Phase 19 — Polish & Hardening)
+## Priority: Medium (Phase 19 — Polish & Advanced Features)
 
-- [ ] Backend: API rate limiting middleware — per-user throttle (100 req/15min general, 10 req/15min auth) using slowapi
-- [ ] Backend: Webhook system — notify external systems on project/invoice/report events via configurable HTTP callbacks
-- [ ] Frontend: Dashboard KPI widgets — active projects count, overdue tasks, monthly revenue, outstanding invoices as stat cards
-- [ ] Frontend: Dark/light theme toggle with persistent preference (localStorage + cookie for SSR)
-- [x] Backend: Data export API — full project archive as ZIP (project JSON + photos + invoices + reports)
+- [x] Backend: Subcontractor management — invite external contractors, share limited project access, track their hours and invoices separately — PR #177
+- [x] Backend: Equipment/tool tracking — register company tools, assign to projects, track usage history and maintenance schedule — PR #178
+- [x] Backend: Weather API integration — fetch 7-day forecast per project location, surface weather risks on agenda and Gantt views — PR #179
+- [ ] Backend: Customer portal — read-only project view for clients with progress photos, timeline, and invoice status
+- [ ] Frontend: Dashboard analytics — key metrics cards (active projects, overdue tasks, monthly revenue, staff utilization rate)
+- [ ] Frontend: Bulk material import — CSV upload for material lists with auto-matching to hardware store products
+- [ ] Backend: Document management — upload/download contracts, permits, drawings per project with versioning
+- [ ] Frontend: Multi-project Gantt view — combined timeline of all active projects for cross-project resource planning
+- [ ] Backend: Audit log — track all user actions (create/update/delete) with timestamp, actor, and diff
+- [ ] Frontend: Onboarding wizard — first-time user flow explaining key features with interactive sample project
 
 ## Completed
 <!-- [x] Task description — PR #N -->
