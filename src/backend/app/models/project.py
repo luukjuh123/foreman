@@ -20,6 +20,9 @@ class Project(Base):
     end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     # Budget in euro cents
     budget_cents: Mapped[int] = mapped_column(default=0)
+    # Optional GPS coordinates for weather integration
+    location_lat: Mapped[float | None] = mapped_column(nullable=True)
+    location_lon: Mapped[float | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

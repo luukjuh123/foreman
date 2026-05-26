@@ -2,30 +2,59 @@
 
 import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FolderKanban, CheckSquare, DollarSign, Users } from "lucide-react";
+import { FolderKanban, AlertCircle, TrendingUp, Receipt } from "lucide-react";
 import { listProjects, formatBudget } from "@/lib/projects";
+import { apiFetch } from "@/lib/api";
 import type { ProjectResponse } from "@/lib/types";
+
+interface InvoiceSummary {
+  id: string;
+  status: "draft" | "sent" | "paid" | "overdue";
+  total_cents: number;
+  paid_at: string | null;
+}
+
+interface InvoiceListData {
+  data: InvoiceSummary[];
+  total: number;
+}
 
 interface DashboardStats {
   activeProjects: number;
-  activeTasks: number;
-  totalBudgetCents: number;
+  overdueTasks: number;
+  monthlyRevenueCents: number;
+  outstandingCents: number;
 }
 
-function computeStats(projects: ProjectResponse[]): DashboardStats {
+function isOverdue(task: { status: string; end_date?: string | null }): boolean {
+  if (task.status === "done") return false;
+  if (!task.end_date) return false;
+  return new Date(task.end_date) < new Date();
+}
+
+function computeStats(projects: ProjectResponse[], invoices: InvoiceSummary[]): DashboardStats {
   const activeProjects = projects.filter((p) => p.status === "active").length;
 
-  const activeTasks = projects
+  const overdueTasks = projects
     .flatMap((p) => p.phases ?? [])
     .flatMap((ph) => ph.tasks ?? [])
-    .filter((t) => t.status === "todo" || t.status === "in_progress").length;
+    .filter(isOverdue).length;
 
-  const totalBudgetCents = projects.reduce(
-    (sum, p) => sum + (p.budget_cents ?? 0),
-    0
-  );
+  const thisMonth = new Date().toISOString().slice(0, 7); // "YYYY-MM"
+  const monthlyRevenueCents = invoices
+    .filter(
+      (inv) =>
+        inv.status === "paid" &&
+        inv.paid_at != null &&
+        inv.paid_at.slice(0, 7) === thisMonth
+    )
+    .reduce((sum, inv) => sum + (inv.total_cents ?? 0), 0);
 
-  return { activeProjects, activeTasks, totalBudgetCents };
+  const outstandingCents = invoices
+    .filter((inv) => inv.status === "sent" || inv.status === "overdue")
+    .reduce((sum, inv) => sum + (inv.total_cents ?? 0), 0);
+
+  return { activeProjects, overdueTasks, monthlyRevenueCents, outstandingCents };
 }
 
 export default function DashboardPage() {
@@ -38,10 +67,14 @@ export default function DashboardPage() {
     setLoading(true);
     setError(null);
 
-    listProjects(1, 100)
-      .then((res) => {
+    Promise.all([
+      listProjects(1, 100),
+      apiFetch<InvoiceListData>("/invoices/?per_page=200"),
+    ])
+      .then(([projectsRes, invoicesRes]) => {
         if (!cancelled) {
-          setStats(computeStats(res.data));
+          const invoices: InvoiceSummary[] = (invoicesRes as { data?: { data?: InvoiceSummary[] } })?.data?.data ?? [];
+          setStats(computeStats(projectsRes.data, invoices));
           setLoading(false);
         }
       })
@@ -101,7 +134,7 @@ export default function DashboardPage() {
                 <FolderKanban className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-bold" data-testid="stat-actieve-projecten">
+                <p className="text-2xl font-bold" data-testid="kpi-active-projects">
                   {stats.activeProjects}
                 </p>
               </CardContent>
@@ -110,13 +143,17 @@ export default function DashboardPage() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Taken Vandaag
+                  Verlopen Taken
                 </CardTitle>
-                <CheckSquare className="h-4 w-4 text-muted-foreground" />
+                <AlertCircle className="h-4 w-4 text-destructive" />
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-bold" data-testid="stat-taken-vandaag">
-                  {stats.activeTasks}
+                <p
+                  className="text-2xl font-bold"
+                  data-testid="kpi-overdue-tasks"
+                  style={stats.overdueTasks > 0 ? { color: "var(--destructive)" } : undefined}
+                >
+                  {stats.overdueTasks}
                 </p>
               </CardContent>
             </Card>
@@ -124,13 +161,13 @@ export default function DashboardPage() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Totaal Budget
+                  Maandelijkse Omzet
                 </CardTitle>
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
+                <TrendingUp className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-bold" data-testid="stat-totaal-budget">
-                  {formatBudget(stats.totalBudgetCents)}
+                <p className="text-2xl font-bold" data-testid="kpi-monthly-revenue">
+                  {formatBudget(stats.monthlyRevenueCents)}
                 </p>
               </CardContent>
             </Card>
@@ -138,13 +175,13 @@ export default function DashboardPage() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Personeel Actief
+                  Openstaande Facturen
                 </CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
+                <Receipt className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-bold" data-testid="stat-personeel-actief">
-                  0
+                <p className="text-2xl font-bold" data-testid="kpi-outstanding-invoices">
+                  {formatBudget(stats.outstandingCents)}
                 </p>
               </CardContent>
             </Card>
