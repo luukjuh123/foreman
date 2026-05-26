@@ -2,10 +2,10 @@
 
 import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FolderKanban, AlertCircle, TrendingUp, Receipt } from "lucide-react";
-import { listProjects, formatBudget } from "@/lib/projects";
+import { listProjects } from "@/lib/projects";
 import { apiFetch } from "@/lib/api";
 import type { ProjectResponse } from "@/lib/types";
+import { KpiCards, computeStaffUtilization, type DashboardStats } from "@/components/dashboard/kpi-cards";
 
 interface InvoiceSummary {
   id: string;
@@ -19,11 +19,16 @@ interface InvoiceListData {
   total: number;
 }
 
-interface DashboardStats {
-  activeProjects: number;
-  overdueTasks: number;
-  monthlyRevenueCents: number;
-  outstandingCents: number;
+interface StaffMember {
+  id: string;
+  weekly_hours_target: number | null;
+  active: boolean;
+}
+
+interface Assignment {
+  staff_id: string;
+  start_at: string;
+  end_at: string;
 }
 
 function isOverdue(task: { status: string; end_date?: string | null }): boolean {
@@ -32,7 +37,12 @@ function isOverdue(task: { status: string; end_date?: string | null }): boolean 
   return new Date(task.end_date) < new Date();
 }
 
-function computeStats(projects: ProjectResponse[], invoices: InvoiceSummary[]): DashboardStats {
+function computeStats(
+  projects: ProjectResponse[],
+  invoices: InvoiceSummary[],
+  staff: StaffMember[],
+  assignments: Assignment[]
+): DashboardStats {
   const activeProjects = projects.filter((p) => p.status === "active").length;
 
   const overdueTasks = projects
@@ -50,11 +60,9 @@ function computeStats(projects: ProjectResponse[], invoices: InvoiceSummary[]): 
     )
     .reduce((sum, inv) => sum + (inv.total_cents ?? 0), 0);
 
-  const outstandingCents = invoices
-    .filter((inv) => inv.status === "sent" || inv.status === "overdue")
-    .reduce((sum, inv) => sum + (inv.total_cents ?? 0), 0);
+  const staffUtilizationPct = computeStaffUtilization(staff, assignments, thisMonth);
 
-  return { activeProjects, overdueTasks, monthlyRevenueCents, outstandingCents };
+  return { activeProjects, overdueTasks, monthlyRevenueCents, staffUtilizationPct };
 }
 
 export default function DashboardPage() {
@@ -70,11 +78,19 @@ export default function DashboardPage() {
     Promise.all([
       listProjects(1, 100),
       apiFetch<InvoiceListData>("/invoices/?per_page=200"),
+      apiFetch<{ data: StaffMember[] }>("/staff/?per_page=200"),
+      apiFetch<Assignment[]>("/assignments/?per_page=500"),
     ])
-      .then(([projectsRes, invoicesRes]) => {
+      .then(([projectsRes, invoicesRes, staffRes, assignmentsRes]) => {
         if (!cancelled) {
-          const invoices: InvoiceSummary[] = (invoicesRes as { data?: { data?: InvoiceSummary[] } })?.data?.data ?? [];
-          setStats(computeStats(projectsRes.data, invoices));
+          const invoices: InvoiceSummary[] =
+            (invoicesRes as { data?: { data?: InvoiceSummary[] } })?.data?.data ?? [];
+          const rawStaff = (staffRes as { data?: unknown })?.data;
+          const staff: StaffMember[] = Array.isArray(rawStaff) ? (rawStaff as StaffMember[]) : [];
+          const assignments: Assignment[] = Array.isArray(assignmentsRes)
+            ? (assignmentsRes as Assignment[])
+            : [];
+          setStats(computeStats(projectsRes.data, invoices, staff, assignments));
           setLoading(false);
         }
       })
@@ -100,17 +116,8 @@ export default function DashboardPage() {
       </div>
 
       {loading && (
-        <div data-testid="dashboard-loading" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {[0, 1, 2, 3].map((i) => (
-            <Card key={i}>
-              <CardHeader className="pb-2">
-                <div className="h-4 w-24 animate-pulse rounded bg-muted" />
-              </CardHeader>
-              <CardContent>
-                <div className="h-8 w-16 animate-pulse rounded bg-muted" />
-              </CardContent>
-            </Card>
-          ))}
+        <div data-testid="dashboard-loading">
+          <KpiCards stats={null} loading={true} error={null} />
         </div>
       )}
 
@@ -125,67 +132,7 @@ export default function DashboardPage() {
 
       {!loading && !error && stats && (
         <>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Actieve Projecten
-                </CardTitle>
-                <FolderKanban className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold" data-testid="kpi-active-projects">
-                  {stats.activeProjects}
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Verlopen Taken
-                </CardTitle>
-                <AlertCircle className="h-4 w-4 text-destructive" />
-              </CardHeader>
-              <CardContent>
-                <p
-                  className="text-2xl font-bold"
-                  data-testid="kpi-overdue-tasks"
-                  style={stats.overdueTasks > 0 ? { color: "var(--destructive)" } : undefined}
-                >
-                  {stats.overdueTasks}
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Maandelijkse Omzet
-                </CardTitle>
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold" data-testid="kpi-monthly-revenue">
-                  {formatBudget(stats.monthlyRevenueCents)}
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Openstaande Facturen
-                </CardTitle>
-                <Receipt className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold" data-testid="kpi-outstanding-invoices">
-                  {formatBudget(stats.outstandingCents)}
-                </p>
-              </CardContent>
-            </Card>
-          </div>
+          <KpiCards stats={stats} loading={false} error={null} />
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <Card>

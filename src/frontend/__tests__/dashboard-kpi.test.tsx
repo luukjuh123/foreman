@@ -185,35 +185,23 @@ describe("Dashboard KPI — monthly revenue", () => {
   });
 });
 
-describe("Dashboard KPI — outstanding invoices", () => {
+describe("Dashboard KPI — staff utilization rate", () => {
   beforeEach(() => vi.resetModules());
   afterEach(() => vi.resetModules());
 
-  it("sums total_cents of sent and overdue invoices", async () => {
+  it("renders staff utilization percentage card", async () => {
     vi.doMock("@/lib/projects", () => ({
       listProjects: vi.fn().mockResolvedValue({ data: [], total: 0, page: 1, per_page: 20 }),
       formatBudget: (c: number) => `€${(c / 100).toFixed(2)}`,
     }));
     vi.doMock("@/lib/api", () => ({
-      apiFetch: vi.fn().mockResolvedValue({
-        data: {
-          data: [
-            { id: "inv1", status: "sent", total_cents: 40000, paid_at: null },
-            { id: "inv2", status: "overdue", total_cents: 25000, paid_at: null },
-            { id: "inv3", status: "paid", total_cents: 10000, paid_at: "2024-01-01T00:00:00Z" }, // exclude
-            { id: "inv4", status: "draft", total_cents: 5000, paid_at: null }, // exclude
-          ],
-          total: 4,
-        },
-        error: null,
-      }),
+      apiFetch: vi.fn().mockResolvedValue({ data: { data: [], total: 0 }, error: null }),
     }));
 
     const { default: DashboardPage } = await import("@/app/dashboard/page");
     await act(async () => { render(<DashboardPage />); });
 
-    // 40000 + 25000 = 65000 cents = €650.00
-    const kpi = screen.getByTestId("kpi-outstanding-invoices");
-    expect(kpi).toHaveTextContent("650");
+    const kpi = screen.getByTestId("kpi-staff-utilization");
+    expect(kpi).toHaveTextContent("%");
   });
 });

@@ -311,7 +311,7 @@ describe("DashboardPage", () => {
     expect(screen.getByText(/actieve projecten/i)).toBeInTheDocument();
     expect(screen.getByText(/verlopen taken/i)).toBeInTheDocument();
     expect(screen.getByText(/maandelijkse omzet/i)).toBeInTheDocument();
-    expect(screen.getByText(/openstaande facturen/i)).toBeInTheDocument();
+    expect(screen.getByText(/personeel bezettingsgraad/i)).toBeInTheDocument();
   });
 
   it("displays active project count from API data", async () => {
