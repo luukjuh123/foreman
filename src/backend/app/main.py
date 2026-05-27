@@ -22,6 +22,7 @@ from app.routers import (
     portal,
     processes,
     projects,
+    punch_items,
     push,
     reports,
     reviews,
@@ -82,6 +83,7 @@ def create_app() -> FastAPI:
     app.include_router(templates.router, prefix="/api/v1/templates", tags=["templates"])
     app.include_router(voice.router, prefix="/api/v1/voice", tags=["voice"])
     app.include_router(portal.router, prefix="/api/v1", tags=["portal"])
+    app.include_router(punch_items.router, prefix="/api/v1/projects", tags=["punch-items"])
 
     @app.get("/healthz", tags=["health"])
     async def health_check() -> dict:
