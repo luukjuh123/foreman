@@ -17,7 +17,7 @@ import app.models.material  # noqa: F401
 import app.models.subscription  # noqa: F401
 import app.models.usage  # noqa: F401
 import app.models.push_subscription  # noqa: F401
-import app.models.incident  # noqa: F401
+import app.models.share_token  # noqa: F401
 
 config = context.config
 

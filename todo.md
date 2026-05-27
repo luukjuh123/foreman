@@ -173,12 +173,12 @@
 ## Priority: Low (Phase 18 — Production Readiness)
 
 - [x] Docker multi-stage build — backend (Python/uvicorn) + frontend (Next.js standalone) — PR #157
-- [ ] Helm chart values.yaml for k8s deployment
+- [x] Helm chart values.yaml for k8s deployment — PR #164
 - [x] Nginx reverse proxy config (frontend serves static, /api/* proxies to backend) — PR #159
 - [x] E2E tests for critical flows: auth, project creation, AI plan generation, material search — PR #158
 - [x] E2E tests for billing flows: signup, free trial, upgrade, invoice generation — PR #160
 
-## Priority: Medium (Phase 19 — Polish & Hardening)
+## Priority: Medium (Phase 19 — Polish & Advanced Features)
 
 - [ ] Backend: API rate limiting middleware — per-user throttle (100 req/15min general, 10 req/15min auth) using slowapi
 - [ ] Backend: Webhook system — notify external systems on project/invoice/report events via configurable HTTP callbacks

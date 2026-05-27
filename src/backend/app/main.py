@@ -6,9 +6,11 @@ from app.core.rate_limit_middleware import RateLimitMiddleware
 from app.routers import (
     agenda,
     ai_planning,
+    analytics,
     assignments,
     auth,
     billing,
+    customers,
     financials,
     inbound,
     incidents,
@@ -18,6 +20,7 @@ from app.routers import (
     notifications,
     payroll,
     photos,
+    portal,
     processes,
     projects,
     push,
@@ -27,7 +30,7 @@ from app.routers import (
     subcontractors,
     time_tracking,
     voice,
-    webhooks,
+    weather,
 )
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -68,6 +71,7 @@ def create_app() -> FastAPI:
     app.include_router(reviews.router, prefix="/api/v1/reviews", tags=["reviews"])
     app.include_router(agenda.router, prefix="/api/agenda", tags=["agenda"])
     app.include_router(assignments.router, prefix="/api/v1/assignments", tags=["assignments"])
+    app.include_router(customers.router, tags=["customers"])
     app.include_router(inbound.router, prefix="/api/inbound", tags=["inbound"])
     app.include_router(invoices.router, prefix="/api/v1/invoices", tags=["invoices"])
     app.include_router(loans.router, prefix="/api/v1/loans", tags=["loans"])
@@ -76,6 +80,7 @@ def create_app() -> FastAPI:
     app.include_router(reports.router, prefix="/api/v1/reports", tags=["reports"])
     app.include_router(incidents.router, prefix="/api/v1/incidents", tags=["incidents"])
     app.include_router(staff.router, prefix="/api/v1/staff", tags=["staff"])
+    app.include_router(templates.router, prefix="/api/v1/templates", tags=["templates"])
     app.include_router(voice.router, prefix="/api/v1/voice", tags=["voice"])
     app.include_router(subcontractors.router, prefix="/api/v1/subcontractors", tags=["subcontractors"])
 
