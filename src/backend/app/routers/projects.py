@@ -4,15 +4,18 @@ import io
 import json
 import uuid
 import zipfile
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 from app.core.database import get_db
 from app.models.invoice import Invoice
+from app.models.process import ProjectProcess
 from app.models.process_photo import ProcessPhoto
 from app.models.project import Phase, Project, Task, TaskDependency
 from app.models.report import Report
+from app.models.time_entry import ProcessTimeEntry
 from app.models.user import User
 from app.routers.auth import get_current_user
+from app.schemas.health_score import HealthFactorsResponse, HealthScoreResponse
 from app.schemas.project import (
     PhaseCreate,
     PhaseResponse,
@@ -29,6 +32,9 @@ from app.schemas.project import (
 )
 from app.services.billing.subscriptions import enforce_project_limit
 from app.services.billing.usage import increment_projects
+from app.services.health_score.calculator import ProjectHealthCalculator, compute_health_score
+from app.services.notifications.dispatcher_dep import get_default_dispatcher
+from app.services.notifications.engine import NotificationDispatcher
 from app.services.planning.cpm import detect_cycle
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
@@ -417,6 +423,96 @@ async def remove_dependency(
 
     await db.delete(dep)
     await db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Health score
+# ---------------------------------------------------------------------------
+
+_DEFAULT_HEALTH_THRESHOLD = 50
+
+
+@router.get("/{project_id}/health-score", response_model=HealthScoreResponse)
+async def get_health_score(
+    project_id: uuid.UUID,
+    threshold: int = Query(default=_DEFAULT_HEALTH_THRESHOLD, ge=0, le=100),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    dispatcher: NotificationDispatcher = Depends(get_default_dispatcher),
+) -> HealthScoreResponse:
+    """Return a 0-100 health score for the project.
+
+    Combines four factors (schedule variance, budget burn rate, time accuracy,
+    task completion rate) into a single score and a green/amber/red grade.
+
+    When the computed score falls below `threshold` (default 50), a
+    `alert.health_score_low` notification is dispatched to the project owner.
+    """
+    project = await _get_project_or_404(project_id, db)
+    _assert_owner(project, current_user)
+
+    # Collect all tasks across all phases
+    tasks_result = await db.execute(
+        select(Task).join(Phase, Task.phase_id == Phase.id).where(Phase.project_id == project_id)
+    )
+    tasks = list(tasks_result.scalars().all())
+
+    # Actual spend: sum of task labor costs as a proxy for actual spend
+    # (full financial integration would query budget item actuals; tasks are the
+    # primary tracked cost here)
+    actual_spend_cents = sum(t.labor_cost_cents for t in tasks)
+
+    # Actual hours: sum of completed time entries for all project processes
+    hours_result = await db.execute(
+        select(func.coalesce(func.sum(ProcessTimeEntry.duration_seconds), 0))
+        .join(ProjectProcess, ProcessTimeEntry.project_process_id == ProjectProcess.id)
+        .where(
+            ProjectProcess.project_id == project_id,
+            ProcessTimeEntry.duration_seconds.is_not(None),
+        )
+    )
+    total_seconds: int = hours_result.scalar_one() or 0
+    actual_hours = total_seconds / 3600.0
+
+    calculator = ProjectHealthCalculator(
+        tasks=tasks,
+        today=date.today(),
+        budget_cents=project.budget_cents,
+        actual_spend_cents=actual_spend_cents,
+        actual_hours_total=actual_hours,
+    )
+    factors = calculator.compute_factors()
+    result = compute_health_score(factors)
+
+    if result.score < threshold:
+        await dispatcher.dispatch(
+            db,
+            user_id=current_user.id,
+            type="alert.health_score_low",
+            title=f"Projectgezondheid laag: {project.name}",
+            body=(
+                f"Projectscore {result.score}/100 ({result.grade.value}) ligt onder "
+                f"de drempelwaarde van {threshold}."
+            ),
+            data={
+                "project_id": str(project_id),
+                "score": result.score,
+                "grade": result.grade.value,
+                "threshold": threshold,
+            },
+        )
+
+    return HealthScoreResponse(
+        score=result.score,
+        grade=result.grade.value,
+        threshold=threshold,
+        factors=HealthFactorsResponse(
+            schedule_variance=result.factors.schedule_variance,
+            budget_burn_rate=result.factors.budget_burn_rate,
+            time_accuracy=result.factors.time_accuracy,
+            task_completion_rate=result.factors.task_completion_rate,
+        ),
+    )
 
 
 # ---------------------------------------------------------------------------
