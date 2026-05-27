@@ -13,6 +13,7 @@ import {
   Wrench,
   Users,
   BarChart3,
+  BarChart2,
   BookOpen,
   Star,
   Settings,
@@ -25,6 +26,7 @@ import { cn } from "@/lib/utils";
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Projecten", href: "/dashboard/projects", icon: FolderKanban },
+  { label: "Gantt overzicht", href: "/dashboard/projects/gantt", icon: BarChart2 },
   { label: "Agenda", href: "/dashboard/agenda", icon: Calendar },
   { label: "Facturen", href: "/dashboard/invoices", icon: FileText },
   { label: "Financiën", href: "/dashboard/financials", icon: TrendingUp },
