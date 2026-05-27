@@ -1,7 +1,9 @@
-"""Customer model."""
+"""Customer model — re-exported from invoice domain for backwards compatibility."""
 
-import uuid
-from datetime import datetime
+# The canonical Customer model (scoped by owner_id, Dutch invoice fields) lives in
+# invoice.py and was defined there first. Importing it here so app.routers.customers
+# can reference the same class without a duplicate table definition.
+from app.models.invoice import Customer
 
 from app.core.database import Base
 from sqlalchemy import DateTime, ForeignKey, String, Text, func
