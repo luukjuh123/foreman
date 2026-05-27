@@ -8,6 +8,7 @@ from app.core.database import get_db
 from app.models.process import Process
 from app.models.process_photo import ProcessPhoto
 from app.models.project import Project
+from app.models.punch_item import PunchItem
 from app.models.user import User
 from app.routers.auth import get_current_user
 from app.schemas.process_photo import (
@@ -84,6 +85,18 @@ async def upload_photo(
         raw_analysis=result.raw,
     )
     db.add(photo)
+
+    # Auto-create punch item when recognition finds incomplete work (<100%)
+    if result.completion_pct is not None and result.completion_pct < 100:
+        process_label = recognized_slug or "onbekend proces"
+        punch = PunchItem(
+            project_id=project_id,
+            description=f"Foto-herkenning: {process_label} slechts {result.completion_pct}% voltooid",
+            status="open",
+            photo_before_url=body.image_url,
+        )
+        db.add(punch)
+
     await db.commit()
     await db.refresh(photo)
     return _to_response(photo, recognized_slug)

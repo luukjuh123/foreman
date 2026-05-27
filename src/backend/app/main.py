@@ -26,6 +26,7 @@ from app.routers import (
     portal,
     processes,
     projects,
+    punch_items,
     push,
     reports,
     reviews,
@@ -94,8 +95,7 @@ def create_app() -> FastAPI:
     app.include_router(webhooks.router, prefix="/api/v1/webhooks", tags=["webhooks"])
     app.include_router(subcontractors.router, prefix="/api/v1/subcontractors", tags=["subcontractors"])
     app.include_router(portal.router, prefix="/api/v1", tags=["portal"])
-    app.include_router(weather.router, prefix="/api/v1/weather", tags=["weather"])
-    app.include_router(audit_log.router, prefix="/api/v1/audit-log", tags=["audit-log"])
+    app.include_router(punch_items.router, prefix="/api/v1/projects", tags=["punch-items"])
 
     @app.get("/healthz", tags=["health"])
     async def health_check() -> dict:

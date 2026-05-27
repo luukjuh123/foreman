@@ -9,8 +9,7 @@ import { cn } from "@/lib/utils";
 import { getProject, calcPhaseProgress, formatBudget, formatDate } from "@/lib/projects";
 import type { ProjectResponse, PhaseResponse, TaskResponse } from "@/lib/types";
 import TimeTracker from "@/components/time-tracking/TimeTracker";
-import { apiFetch } from "@/lib/api";
-import type { SubcontractorResponse, SubcontractorListResponse } from "@/lib/subcontractors";
+import PunchListTab from "@/components/punch-list/PunchListTab";
 
 // ---------------------------------------------------------------------------
 // Status helpers
@@ -355,6 +354,12 @@ export default function ProjectDetailPage({ params }: Props) {
         <Link href={`/dashboard/projects/${project.id}/timeline`}>
           <Button variant="outline" size="sm">Tijdlijn</Button>
         </Link>
+      </div>
+
+      {/* Punch list */}
+      <div className="space-y-3">
+        <h2 className="text-lg font-semibold">Nakijklijst</h2>
+        <PunchListTab projectId={project.id} />
       </div>
 
       {/* Phases */}
