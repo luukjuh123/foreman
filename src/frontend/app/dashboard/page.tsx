@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FolderKanban, AlertCircle, TrendingUp, Receipt } from "lucide-react";
+import { FolderKanban, AlertCircle, TrendingUp, Receipt, Users } from "lucide-react";
 import { listProjects, formatBudget } from "@/lib/projects";
 import { apiFetch } from "@/lib/api";
 import type { ProjectResponse } from "@/lib/types";
@@ -19,11 +19,18 @@ interface InvoiceListData {
   total: number;
 }
 
+interface StaffUtilization {
+  utilization_percent: number;
+  assigned_hours: number;
+  available_hours: number;
+}
+
 interface DashboardStats {
   activeProjects: number;
   overdueTasks: number;
   monthlyRevenueCents: number;
   outstandingCents: number;
+  staffUtilization: StaffUtilization;
 }
 
 function isOverdue(task: { status: string; end_date?: string | null }): boolean {
@@ -32,7 +39,11 @@ function isOverdue(task: { status: string; end_date?: string | null }): boolean 
   return new Date(task.end_date) < new Date();
 }
 
-function computeStats(projects: ProjectResponse[], invoices: InvoiceSummary[]): DashboardStats {
+function computeStats(
+  projects: ProjectResponse[],
+  invoices: InvoiceSummary[],
+  staffUtilization: StaffUtilization,
+): DashboardStats {
   const activeProjects = projects.filter((p) => p.status === "active").length;
 
   const overdueTasks = projects
@@ -54,7 +65,7 @@ function computeStats(projects: ProjectResponse[], invoices: InvoiceSummary[]): 
     .filter((inv) => inv.status === "sent" || inv.status === "overdue")
     .reduce((sum, inv) => sum + (inv.total_cents ?? 0), 0);
 
-  return { activeProjects, overdueTasks, monthlyRevenueCents, outstandingCents };
+  return { activeProjects, overdueTasks, monthlyRevenueCents, outstandingCents, staffUtilization };
 }
 
 export default function DashboardPage() {
@@ -70,11 +81,17 @@ export default function DashboardPage() {
     Promise.all([
       listProjects(1, 100),
       apiFetch<InvoiceListData>("/invoices/?per_page=200"),
+      apiFetch<StaffUtilization>("/staff/utilization"),
     ])
-      .then(([projectsRes, invoicesRes]) => {
+      .then(([projectsRes, invoicesRes, utilizationRes]) => {
         if (!cancelled) {
           const invoices: InvoiceSummary[] = (invoicesRes as { data?: { data?: InvoiceSummary[] } })?.data?.data ?? [];
-          setStats(computeStats(projectsRes.data, invoices));
+          const utilization: StaffUtilization = (utilizationRes as StaffUtilization) ?? {
+            utilization_percent: 0,
+            assigned_hours: 0,
+            available_hours: 0,
+          };
+          setStats(computeStats(projectsRes.data, invoices, utilization));
           setLoading(false);
         }
       })
@@ -100,8 +117,8 @@ export default function DashboardPage() {
       </div>
 
       {loading && (
-        <div data-testid="dashboard-loading" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {[0, 1, 2, 3].map((i) => (
+        <div data-testid="dashboard-loading" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          {[0, 1, 2, 3, 4].map((i) => (
             <Card key={i}>
               <CardHeader className="pb-2">
                 <div className="h-4 w-24 animate-pulse rounded bg-muted" />
@@ -125,7 +142,7 @@ export default function DashboardPage() {
 
       {!loading && !error && stats && (
         <>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -182,6 +199,20 @@ export default function DashboardPage() {
               <CardContent>
                 <p className="text-2xl font-bold" data-testid="kpi-outstanding-invoices">
                   {formatBudget(stats.outstandingCents)}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Personeelsbezetting
+                </CardTitle>
+                <Users className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold" data-testid="kpi-staff-utilization">
+                  {stats.staffUtilization.utilization_percent}%
                 </p>
               </CardContent>
             </Card>

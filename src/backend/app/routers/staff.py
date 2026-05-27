@@ -1,9 +1,10 @@
 """Staff router — CRUD for employees + availability windows."""
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from app.core.database import get_db
+from app.models.assignment import StaffAssignment
 from app.models.staff import Staff, StaffAvailability
 from app.models.user import User
 from app.routers.auth import get_current_user
@@ -14,6 +15,7 @@ from app.schemas.staff import (
     StaffListResponse,
     StaffResponse,
     StaffUpdate,
+    StaffUtilizationResponse,
 )
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
@@ -94,6 +96,60 @@ async def create_staff(
     await db.commit()
     result = await db.execute(select(Staff).where(Staff.id == staff.id).options(selectinload(Staff.availability)))
     return StaffResponse.model_validate(result.scalar_one())
+
+
+@router.get("/utilization", response_model=StaffUtilizationResponse)
+async def get_staff_utilization(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> StaffUtilizationResponse:
+    """Return staff utilization for the current ISO week.
+
+    utilization_percent = (assigned_hours this week) / (total weekly_hours_target for active staff) * 100
+    """
+    now = datetime.now(UTC)
+    week_start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+    week_end = week_start + timedelta(days=7)
+
+    available_result = await db.execute(
+        select(func.coalesce(func.sum(Staff.weekly_hours_target), 0.0)).where(
+            Staff.owner_id == current_user.id,
+            Staff.deleted_at.is_(None),
+            Staff.active.is_(True),
+        )
+    )
+    available_hours: float = float(available_result.scalar_one())
+
+    assigned_result = await db.execute(
+        select(StaffAssignment)
+        .join(Staff, StaffAssignment.staff_id == Staff.id)
+        .where(
+            Staff.owner_id == current_user.id,
+            Staff.deleted_at.is_(None),
+            StaffAssignment.start_at < week_end,
+            StaffAssignment.end_at > week_start,
+        )
+    )
+    assignments = assigned_result.scalars().all()
+
+    assigned_hours = 0.0
+    for a in assignments:
+        overlap_start = max(a.start_at.replace(tzinfo=UTC) if a.start_at.tzinfo is None else a.start_at, week_start)
+        overlap_end = min(a.end_at.replace(tzinfo=UTC) if a.end_at.tzinfo is None else a.end_at, week_end)
+        duration_h = (overlap_end - overlap_start).total_seconds() / 3600
+        if duration_h > 0:
+            assigned_hours += duration_h
+
+    if available_hours > 0:
+        utilization_percent = round((assigned_hours / available_hours) * 100, 1)
+    else:
+        utilization_percent = 0.0
+
+    return StaffUtilizationResponse(
+        utilization_percent=utilization_percent,
+        assigned_hours=round(assigned_hours, 2),
+        available_hours=round(available_hours, 2),
+    )
 
 
 @router.get("/{staff_id}", response_model=StaffResponse)
