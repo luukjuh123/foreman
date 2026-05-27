@@ -14,7 +14,6 @@ from app.routers import (
     billing,
     customers,
     documents,
-    equipment,
     financials,
     inbound,
     incidents,
@@ -68,6 +67,7 @@ def create_app() -> FastAPI:
 
     app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
     app.include_router(projects.router, prefix="/api/v1/projects", tags=["projects"])
+    app.include_router(documents.router, prefix="/api/v1/projects", tags=["documents"])
     app.include_router(ai_planning.router, prefix="/api/v1/planning", tags=["planning"])
     app.include_router(materials.router, prefix="/api/v1/materials", tags=["materials"])
     app.include_router(financials.router, prefix="/api/v1/financials", tags=["financials"])

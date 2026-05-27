@@ -1,7 +1,8 @@
-"""Tests for Document management — upload/download/versioning per project."""
+"""Tests for document management — upload/download contracts, permits, drawings per project."""
+
+from __future__ import annotations
 
 import io
-
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
@@ -16,9 +17,7 @@ TEST_DB_URL = "sqlite+aiosqlite://"
 
 @pytest_asyncio.fixture
 async def app_with_db(tmp_path):
-    engine = create_async_engine(
-        TEST_DB_URL, connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
+    engine = create_async_engine(TEST_DB_URL, connect_args={"check_same_thread": False}, poolclass=StaticPool)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
@@ -30,51 +29,45 @@ async def app_with_db(tmp_path):
 
     app.dependency_overrides[get_db] = override_get_db
 
-    # Override the upload directory to use a temp path
-    from app.core import config as cfg
-
-    original_upload_dir = cfg.settings.upload_dir
-    cfg.settings.upload_dir = str(tmp_path / "uploads")
+    # Override the document storage path to use tmp_path
+    from app.core import config
+    original_path = config.settings.document_storage_path
+    config.settings.document_storage_path = str(tmp_path / "documents")
 
     yield app
 
-    cfg.settings.upload_dir = original_upload_dir
+    config.settings.document_storage_path = original_path
     await engine.dispose()
 
 
 @pytest_asyncio.fixture
 async def client(app_with_db):
-    async with AsyncClient(
-        transport=ASGITransport(app=app_with_db), base_url="http://test"
-    ) as ac:
+    async with AsyncClient(transport=ASGITransport(app=app_with_db), base_url="http://test") as ac:
         yield ac
 
 
-async def _auth(client: AsyncClient, email: str = "boss@example.com") -> dict:
-    resp = await client.post(
-        "/api/v1/auth/register",
-        json={"email": email, "name": "Boss", "password": "supersecret"},
-    )
+async def _auth_headers(client: AsyncClient, email: str = "doc@example.com") -> dict:
+    resp = await client.post("/api/v1/auth/register", json={
+        "email": email,
+        "name": "Test User",
+        "password": "testpass123",
+    })
+    assert resp.status_code == 201
     token = resp.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
 
 
-async def _create_project(
-    client: AsyncClient, headers: dict, name: str = "Test Project"
-) -> str:
-    resp = await client.post(
-        "/api/v1/projects/",
-        json={"name": name, "description": "A test project"},
-        headers=headers,
-    )
-    assert resp.status_code == 201, resp.text
+async def _create_project(client: AsyncClient, headers: dict, name: str = "Test Project") -> str:
+    resp = await client.post("/api/v1/projects/", json={
+        "name": name,
+        "description": "A test project",
+    }, headers=headers)
+    assert resp.status_code == 201
     return resp.json()["id"]
 
 
-def _make_file(
-    content: bytes = b"fake pdf content", filename: str = "contract.pdf"
-) -> dict:
-    return {"file": (filename, io.BytesIO(content), "application/pdf")}
+def _make_file(content: bytes = b"hello world", filename: str = "test.pdf") -> tuple:
+    return ("file", (filename, io.BytesIO(content), "application/pdf"))
 
 
 # ---------------------------------------------------------------------------
@@ -84,36 +77,69 @@ def _make_file(
 
 @pytest.mark.asyncio
 async def test_upload_document(client: AsyncClient) -> None:
-    headers = await _auth(client)
+    headers = await _auth_headers(client)
     project_id = await _create_project(client, headers)
 
     resp = await client.post(
         f"/api/v1/projects/{project_id}/documents",
-        files=_make_file(),
-        data={"category": "contract", "description": "Signed contract"},
+        files=[_make_file(b"contract content", "contract.pdf")],
+        data={"category": "contract", "description": "Main contract"},
         headers=headers,
     )
-    assert resp.status_code == 201, resp.text
-    body = resp.json()
-    assert body["filename"] == "contract.pdf"
-    assert body["category"] == "contract"
-    assert body["version"] == 1
-    assert body["parent_id"] is None
-    assert body["project_id"] == project_id
-    assert body["size_bytes"] > 0
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["name"] == "contract.pdf"
+    assert data["category"] == "contract"
+    assert data["description"] == "Main contract"
+    assert data["version"] == 1
+    assert data["parent_id"] is None
+    assert data["project_id"] == project_id
+    assert data["size_bytes"] == len(b"contract content")
+    assert "id" in data
 
 
 @pytest.mark.asyncio
-async def test_upload_requires_auth(client: AsyncClient) -> None:
-    headers = await _auth(client)
+async def test_upload_document_requires_auth(client: AsyncClient) -> None:
+    headers = await _auth_headers(client)
     project_id = await _create_project(client, headers)
 
     resp = await client.post(
         f"/api/v1/projects/{project_id}/documents",
-        files=_make_file(),
-        data={"category": "permit"},
+        files=[_make_file()],
+        data={"category": "other"},
     )
-    assert resp.status_code in (401, 403)
+    assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_upload_document_wrong_project_owner(client: AsyncClient) -> None:
+    headers_a = await _auth_headers(client, "user_a@example.com")
+    headers_b = await _auth_headers(client, "user_b@example.com")
+    project_id = await _create_project(client, headers_a)
+
+    resp = await client.post(
+        f"/api/v1/projects/{project_id}/documents",
+        files=[_make_file()],
+        data={"category": "other"},
+        headers=headers_b,
+    )
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_upload_document_file_size_limit(client: AsyncClient) -> None:
+    headers = await _auth_headers(client)
+    project_id = await _create_project(client, headers)
+
+    # 50MB + 1 byte exceeds limit
+    big_content = b"x" * (50 * 1024 * 1024 + 1)
+    resp = await client.post(
+        f"/api/v1/projects/{project_id}/documents",
+        files=[("file", ("big.pdf", io.BytesIO(big_content), "application/pdf"))],
+        data={"category": "other"},
+        headers=headers,
+    )
+    assert resp.status_code == 413
 
 
 # ---------------------------------------------------------------------------
@@ -122,68 +148,76 @@ async def test_upload_requires_auth(client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
-async def test_list_documents_for_project(client: AsyncClient) -> None:
-    headers = await _auth(client)
+async def test_list_documents(client: AsyncClient) -> None:
+    headers = await _auth_headers(client)
     project_id = await _create_project(client, headers)
 
-    for name, cat in [("a.pdf", "contract"), ("b.pdf", "permit"), ("c.pdf", "drawing")]:
-        await client.post(
-            f"/api/v1/projects/{project_id}/documents",
-            files={"file": (name, io.BytesIO(b"data"), "application/pdf")},
-            data={"category": cat},
-            headers=headers,
-        )
+    # Upload two documents
+    await client.post(
+        f"/api/v1/projects/{project_id}/documents",
+        files=[_make_file(b"contract", "c.pdf")],
+        data={"category": "contract"},
+        headers=headers,
+    )
+    await client.post(
+        f"/api/v1/projects/{project_id}/documents",
+        files=[_make_file(b"permit", "p.pdf")],
+        data={"category": "permit"},
+        headers=headers,
+    )
 
     resp = await client.get(f"/api/v1/projects/{project_id}/documents", headers=headers)
-    assert resp.status_code == 200, resp.text
-    body = resp.json()
-    assert body["total"] == 3
-    assert len(body["data"]) == 3
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total"] == 2
+    assert len(data["items"]) == 2
 
 
 @pytest.mark.asyncio
 async def test_list_documents_filter_by_category(client: AsyncClient) -> None:
-    headers = await _auth(client)
+    headers = await _auth_headers(client)
     project_id = await _create_project(client, headers)
 
-    for name, cat in [
-        ("a.pdf", "contract"),
-        ("b.pdf", "permit"),
-        ("c.pdf", "contract"),
-    ]:
-        await client.post(
-            f"/api/v1/projects/{project_id}/documents",
-            files={"file": (name, io.BytesIO(b"data"), "application/pdf")},
-            data={"category": cat},
-            headers=headers,
-        )
+    await client.post(
+        f"/api/v1/projects/{project_id}/documents",
+        files=[_make_file(b"contract", "c.pdf")],
+        data={"category": "contract"},
+        headers=headers,
+    )
+    await client.post(
+        f"/api/v1/projects/{project_id}/documents",
+        files=[_make_file(b"permit", "p.pdf")],
+        data={"category": "permit"},
+        headers=headers,
+    )
 
     resp = await client.get(
         f"/api/v1/projects/{project_id}/documents?category=contract",
         headers=headers,
     )
     assert resp.status_code == 200
-    body = resp.json()
-    assert body["total"] == 2
-    assert all(d["category"] == "contract" for d in body["data"])
+    data = resp.json()
+    assert data["total"] == 1
+    assert data["items"][0]["category"] == "contract"
 
 
 @pytest.mark.asyncio
 async def test_list_documents_excludes_deleted(client: AsyncClient) -> None:
-    headers = await _auth(client)
+    headers = await _auth_headers(client)
     project_id = await _create_project(client, headers)
 
-    resp = await client.post(
+    upload_resp = await client.post(
         f"/api/v1/projects/{project_id}/documents",
-        files=_make_file(),
-        data={"category": "permit"},
+        files=[_make_file(b"content", "doc.pdf")],
+        data={"category": "other"},
         headers=headers,
     )
-    doc_id = resp.json()["id"]
+    doc_id = upload_resp.json()["id"]
 
-    await client.delete(f"/api/v1/documents/{doc_id}", headers=headers)
+    await client.delete(f"/api/v1/projects/{project_id}/documents/{doc_id}", headers=headers)
 
     resp = await client.get(f"/api/v1/projects/{project_id}/documents", headers=headers)
+    assert resp.status_code == 200
     assert resp.json()["total"] == 0
 
 
@@ -194,32 +228,52 @@ async def test_list_documents_excludes_deleted(client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_get_document_metadata(client: AsyncClient) -> None:
-    headers = await _auth(client)
+    headers = await _auth_headers(client)
     project_id = await _create_project(client, headers)
 
-    upload = await client.post(
+    upload_resp = await client.post(
         f"/api/v1/projects/{project_id}/documents",
-        files=_make_file(filename="permit.pdf"),
-        data={"category": "permit", "description": "Building permit"},
+        files=[_make_file(b"drawing data", "floor_plan.dwg")],
+        data={"category": "drawing", "description": "Floor plan"},
         headers=headers,
     )
-    doc_id = upload.json()["id"]
+    doc_id = upload_resp.json()["id"]
 
-    resp = await client.get(f"/api/v1/documents/{doc_id}", headers=headers)
+    resp = await client.get(f"/api/v1/projects/{project_id}/documents/{doc_id}", headers=headers)
     assert resp.status_code == 200
-    body = resp.json()
-    assert body["id"] == doc_id
-    assert body["filename"] == "permit.pdf"
-    assert body["description"] == "Building permit"
+    data = resp.json()
+    assert data["id"] == doc_id
+    assert data["name"] == "floor_plan.dwg"
+    assert data["category"] == "drawing"
 
 
 @pytest.mark.asyncio
-async def test_get_document_404(client: AsyncClient) -> None:
-    import uuid
-
-    headers = await _auth(client)
-    resp = await client.get(f"/api/v1/documents/{uuid.uuid4()}", headers=headers)
+async def test_get_document_not_found(client: AsyncClient) -> None:
+    headers = await _auth_headers(client)
+    project_id = await _create_project(client, headers)
+    resp = await client.get(
+        f"/api/v1/projects/{project_id}/documents/00000000-0000-0000-0000-000000000000",
+        headers=headers,
+    )
     assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_get_document_wrong_owner(client: AsyncClient) -> None:
+    headers_a = await _auth_headers(client, "owner2@example.com")
+    headers_b = await _auth_headers(client, "other2@example.com")
+    project_id = await _create_project(client, headers_a)
+
+    upload_resp = await client.post(
+        f"/api/v1/projects/{project_id}/documents",
+        files=[_make_file()],
+        data={"category": "other"},
+        headers=headers_a,
+    )
+    doc_id = upload_resp.json()["id"]
+
+    resp = await client.get(f"/api/v1/projects/{project_id}/documents/{doc_id}", headers=headers_b)
+    assert resp.status_code == 403
 
 
 # ---------------------------------------------------------------------------
@@ -229,21 +283,24 @@ async def test_get_document_404(client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_download_document(client: AsyncClient) -> None:
-    headers = await _auth(client)
+    headers = await _auth_headers(client)
     project_id = await _create_project(client, headers)
 
-    content = b"PDF file content here"
-    resp = await client.post(
+    file_content = b"PDF content here"
+    upload_resp = await client.post(
         f"/api/v1/projects/{project_id}/documents",
-        files={"file": ("drawing.pdf", io.BytesIO(content), "application/pdf")},
-        data={"category": "drawing"},
+        files=[("file", ("report.pdf", io.BytesIO(file_content), "application/pdf"))],
+        data={"category": "contract"},
         headers=headers,
     )
-    doc_id = resp.json()["id"]
+    doc_id = upload_resp.json()["id"]
 
-    resp = await client.get(f"/api/v1/documents/{doc_id}/download", headers=headers)
+    resp = await client.get(
+        f"/api/v1/projects/{project_id}/documents/{doc_id}/download",
+        headers=headers,
+    )
     assert resp.status_code == 200
-    assert resp.content == content
+    assert resp.content == file_content
 
 
 # ---------------------------------------------------------------------------
@@ -253,109 +310,110 @@ async def test_download_document(client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_upload_new_version(client: AsyncClient) -> None:
-    headers = await _auth(client)
+    headers = await _auth_headers(client)
     project_id = await _create_project(client, headers)
 
     v1_resp = await client.post(
         f"/api/v1/projects/{project_id}/documents",
-        files=_make_file(b"version 1 content"),
+        files=[_make_file(b"version 1", "contract.pdf")],
         data={"category": "contract"},
         headers=headers,
     )
     doc_id = v1_resp.json()["id"]
-    assert v1_resp.json()["version"] == 1
 
     v2_resp = await client.post(
-        f"/api/v1/documents/{doc_id}/versions",
-        files=_make_file(b"version 2 content"),
+        f"/api/v1/projects/{project_id}/documents/{doc_id}/versions",
+        files=[_make_file(b"version 2", "contract_v2.pdf")],
+        data={"description": "Updated contract"},
         headers=headers,
     )
-    assert v2_resp.status_code == 201, v2_resp.text
+    assert v2_resp.status_code == 201
     v2 = v2_resp.json()
     assert v2["version"] == 2
     assert v2["parent_id"] == doc_id
-    assert v2["filename"] == "contract.pdf"
+    assert v2["name"] == "contract_v2.pdf"
+    assert v2["category"] == "contract"  # inherits category from parent
 
 
 @pytest.mark.asyncio
 async def test_list_versions(client: AsyncClient) -> None:
-    headers = await _auth(client)
+    headers = await _auth_headers(client)
     project_id = await _create_project(client, headers)
 
     v1_resp = await client.post(
         f"/api/v1/projects/{project_id}/documents",
-        files=_make_file(b"v1"),
-        data={"category": "contract"},
+        files=[_make_file(b"v1", "doc.pdf")],
+        data={"category": "permit"},
         headers=headers,
     )
     doc_id = v1_resp.json()["id"]
 
-    v2_resp = await client.post(
-        f"/api/v1/documents/{doc_id}/versions",
-        files=_make_file(b"v2"),
+    await client.post(
+        f"/api/v1/projects/{project_id}/documents/{doc_id}/versions",
+        files=[_make_file(b"v2", "doc_v2.pdf")],
         headers=headers,
     )
-    v2_id = v2_resp.json()["id"]
+    await client.post(
+        f"/api/v1/projects/{project_id}/documents/{doc_id}/versions",
+        files=[_make_file(b"v3", "doc_v3.pdf")],
+        headers=headers,
+    )
 
-    # List versions of v1 (the root)
-    resp = await client.get(f"/api/v1/documents/{doc_id}/versions", headers=headers)
+    resp = await client.get(
+        f"/api/v1/projects/{project_id}/documents/{doc_id}/versions",
+        headers=headers,
+    )
     assert resp.status_code == 200
-    ids = [d["id"] for d in resp.json()]
-    assert doc_id in ids
-    assert v2_id in ids
-    assert len(ids) == 2
-
-    # List versions starting from v2 should also return the full chain
-    resp2 = await client.get(f"/api/v1/documents/{v2_id}/versions", headers=headers)
-    assert resp2.status_code == 200
-    ids2 = [d["id"] for d in resp2.json()]
-    assert set(ids2) == {doc_id, v2_id}
+    data = resp.json()
+    assert len(data) == 3
+    versions = [d["version"] for d in data]
+    assert sorted(versions) == [1, 2, 3]
 
 
 # ---------------------------------------------------------------------------
-# Soft delete
+# Delete (soft)
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_soft_delete_document(client: AsyncClient) -> None:
-    headers = await _auth(client)
+async def test_delete_document_soft(client: AsyncClient) -> None:
+    headers = await _auth_headers(client)
     project_id = await _create_project(client, headers)
 
-    resp = await client.post(
+    upload_resp = await client.post(
         f"/api/v1/projects/{project_id}/documents",
-        files=_make_file(),
+        files=[_make_file()],
         data={"category": "other"},
         headers=headers,
     )
-    doc_id = resp.json()["id"]
+    doc_id = upload_resp.json()["id"]
 
-    del_resp = await client.delete(f"/api/v1/documents/{doc_id}", headers=headers)
+    del_resp = await client.delete(
+        f"/api/v1/projects/{project_id}/documents/{doc_id}",
+        headers=headers,
+    )
     assert del_resp.status_code == 204
 
-    # Metadata endpoint should 404 after delete
-    resp = await client.get(f"/api/v1/documents/{doc_id}", headers=headers)
-    assert resp.status_code == 404
+    # Should be gone from get
+    get_resp = await client.get(
+        f"/api/v1/projects/{project_id}/documents/{doc_id}",
+        headers=headers,
+    )
+    assert get_resp.status_code == 404
 
 
 @pytest.mark.asyncio
-async def test_cannot_access_other_users_document(client: AsyncClient) -> None:
-    h1 = await _auth(client, "owner@example.com")
-    h2 = await _auth(client, "other@example.com")
+async def test_delete_document_requires_auth(client: AsyncClient) -> None:
+    headers = await _auth_headers(client)
+    project_id = await _create_project(client, headers)
 
-    project_id = await _create_project(client, h1)
-    resp = await client.post(
+    upload_resp = await client.post(
         f"/api/v1/projects/{project_id}/documents",
-        files=_make_file(),
-        data={"category": "contract"},
-        headers=h1,
+        files=[_make_file()],
+        data={"category": "other"},
+        headers=headers,
     )
-    doc_id = resp.json()["id"]
+    doc_id = upload_resp.json()["id"]
 
-    assert (await client.get(f"/api/v1/documents/{doc_id}", headers=h2)).status_code == 404
-    assert (
-        await client.get(f"/api/v1/documents/{doc_id}/download", headers=h2)
-    ).status_code == 404
-    assert (
-        await client.delete(f"/api/v1/documents/{doc_id}", headers=h2)
-    ).status_code == 404
+    resp = await client.delete(f"/api/v1/projects/{project_id}/documents/{doc_id}")
+    assert resp.status_code == 401

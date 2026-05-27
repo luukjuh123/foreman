@@ -41,8 +41,8 @@ class Settings(BaseSettings):
     weather_default_latitude: float = 52.3676  # Amsterdam
     weather_default_longitude: float = 4.9041
 
-    # File uploads
-    upload_dir: str = "uploads"
+    # Document storage
+    document_storage_path: str = "./uploads/documents"
 
     # App
     debug: bool = False
