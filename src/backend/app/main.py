@@ -1,15 +1,20 @@
 """foreman FastAPI application factory."""
 
+from app.core.audit_middleware import AuditLogMiddleware
 from app.core.config import settings
 from app.core.logging import RequestLoggingMiddleware, configure_logging
 from app.core.rate_limit_middleware import RateLimitMiddleware
 from app.routers import (
     agenda,
     ai_planning,
+    analytics,
     assignments,
+    audit_log,
     auth,
     billing,
     customers,
+    documents,
+    equipment,
     financials,
     inbound,
     incidents,
@@ -25,6 +30,7 @@ from app.routers import (
     push,
     reports,
     reviews,
+    safety,
     staff,
     subcontractors,
     templates,
@@ -49,6 +55,7 @@ def create_app() -> FastAPI:
         openapi_url="/api/openapi.json",
     )
 
+    app.add_middleware(AuditLogMiddleware)
     app.add_middleware(RateLimitMiddleware)
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(
@@ -87,6 +94,8 @@ def create_app() -> FastAPI:
     app.include_router(webhooks.router, prefix="/api/v1/webhooks", tags=["webhooks"])
     app.include_router(subcontractors.router, prefix="/api/v1/subcontractors", tags=["subcontractors"])
     app.include_router(portal.router, prefix="/api/v1", tags=["portal"])
+    app.include_router(weather.router, prefix="/api/v1/weather", tags=["weather"])
+    app.include_router(audit_log.router, prefix="/api/v1/audit-log", tags=["audit-log"])
 
     @app.get("/healthz", tags=["health"])
     async def health_check() -> dict:

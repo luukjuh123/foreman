@@ -496,10 +496,7 @@ async def export_project(
         for inv in invoices
     ]
 
-    reports_list = [
-        {"id": r.id, "type": r.type, "title": r.title, "created_at": r.created_at}
-        for r in reports
-    ]
+    reports_list = [{"id": r.id, "type": r.type, "title": r.title, "created_at": r.created_at} for r in reports]
 
     photos_list = [
         {"id": p.id, "image_url": p.image_url, "completion_pct": p.completion_pct, "created_at": p.created_at}

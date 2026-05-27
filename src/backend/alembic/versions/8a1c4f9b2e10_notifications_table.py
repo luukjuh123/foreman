@@ -6,24 +6,22 @@ Create Date: 2026-05-18 14:30:00.000000
 
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
 
 revision: str = "8a1c4f9b2e10"
-down_revision: Union[str, Sequence[str], None] = "30246b22cf35"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = "30246b22cf35"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
     op.create_table(
         "notifications",
         sa.Column("id", sa.Uuid(), primary_key=True),
-        sa.Column(
-            "user_id", sa.Uuid(), sa.ForeignKey("users.id"), nullable=False, index=True
-        ),
+        sa.Column("user_id", sa.Uuid(), sa.ForeignKey("users.id"), nullable=False, index=True),
         sa.Column("type", sa.String(100), nullable=False, index=True),
         sa.Column("title", sa.String(255), nullable=False),
         sa.Column("body", sa.Text(), nullable=False, server_default=""),
