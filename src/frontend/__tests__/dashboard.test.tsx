@@ -237,24 +237,15 @@ describe("DashboardPage", () => {
     vi.resetModules();
   });
 
-  function mockApiFetch(invoices: unknown[] = []) {
-    vi.doMock("@/lib/api", () => ({
-      apiFetch: vi.fn().mockImplementation((path: string) => {
-        if (path.includes("/staff/utilization")) {
-          return Promise.resolve({ utilization_percent: 0, assigned_hours: 0, available_hours: 0 });
-        }
-        return Promise.resolve({ data: { data: invoices, total: invoices.length }, error: null });
-      }),
-    }));
-  }
-
   it("renders welcome message", async () => {
     vi.doMock("@/lib/projects", () => ({
       listProjects: vi.fn().mockResolvedValue({ data: [], total: 0, page: 1, per_page: 20 }),
       formatBudget: (cents: number) =>
         new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", minimumFractionDigits: 2 }).format(cents / 100),
     }));
-    mockApiFetch();
+    vi.doMock("@/lib/api", () => ({
+      apiFetch: vi.fn().mockResolvedValue({ data: { data: [], total: 0 }, error: null }),
+    }));
 
     const { default: DashboardPage } = await import("@/app/dashboard/page");
 
@@ -301,13 +292,15 @@ describe("DashboardPage", () => {
     expect(screen.getByTestId("dashboard-error")).toBeInTheDocument();
   });
 
-  it("renders all five KPI stat cards after loading", async () => {
+  it("renders all four KPI stat cards after loading", async () => {
     vi.doMock("@/lib/projects", () => ({
       listProjects: vi.fn().mockResolvedValue({ data: [], total: 0, page: 1, per_page: 20 }),
       formatBudget: (cents: number) =>
         new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", minimumFractionDigits: 2 }).format(cents / 100),
     }));
-    mockApiFetch();
+    vi.doMock("@/lib/api", () => ({
+      apiFetch: vi.fn().mockResolvedValue({ data: { data: [], total: 0 }, error: null }),
+    }));
 
     const { default: DashboardPage } = await import("@/app/dashboard/page");
 
@@ -319,7 +312,6 @@ describe("DashboardPage", () => {
     expect(screen.getByText(/verlopen taken/i)).toBeInTheDocument();
     expect(screen.getByText(/maandelijkse omzet/i)).toBeInTheDocument();
     expect(screen.getByText(/openstaande facturen/i)).toBeInTheDocument();
-    expect(screen.getByText(/personeelsbezetting/i)).toBeInTheDocument();
   });
 
   it("displays active project count from API data", async () => {
@@ -334,7 +326,9 @@ describe("DashboardPage", () => {
       formatBudget: (cents: number) =>
         new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", minimumFractionDigits: 2 }).format(cents / 100),
     }));
-    mockApiFetch();
+    vi.doMock("@/lib/api", () => ({
+      apiFetch: vi.fn().mockResolvedValue({ data: { data: [], total: 0 }, error: null }),
+    }));
 
     const { default: DashboardPage } = await import("@/app/dashboard/page");
 
@@ -371,7 +365,9 @@ describe("DashboardPage", () => {
       formatBudget: (cents: number) =>
         new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", minimumFractionDigits: 2 }).format(cents / 100),
     }));
-    mockApiFetch();
+    vi.doMock("@/lib/api", () => ({
+      apiFetch: vi.fn().mockResolvedValue({ data: { data: [], total: 0 }, error: null }),
+    }));
 
     const { default: DashboardPage } = await import("@/app/dashboard/page");
 
@@ -389,7 +385,9 @@ describe("DashboardPage", () => {
       formatBudget: (cents: number) =>
         new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", minimumFractionDigits: 2 }).format(cents / 100),
     }));
-    mockApiFetch();
+    vi.doMock("@/lib/api", () => ({
+      apiFetch: vi.fn().mockResolvedValue({ data: { data: [], total: 0 }, error: null }),
+    }));
 
     const { default: DashboardPage } = await import("@/app/dashboard/page");
 

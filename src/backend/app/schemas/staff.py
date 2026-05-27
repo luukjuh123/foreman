@@ -71,9 +71,3 @@ class StaffListResponse(BaseModel):
     total: int
     page: int
     per_page: int
-
-
-class StaffUtilizationResponse(BaseModel):
-    utilization_percent: float
-    assigned_hours: float
-    available_hours: float

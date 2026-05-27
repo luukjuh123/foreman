@@ -4,7 +4,6 @@
  * - Overdue tasks count
  * - Monthly revenue (sum of paid invoices this month, euro cents)
  * - Outstanding invoices (sum of sent+overdue invoices, euro cents)
- * - Staff utilization rate (Phase 19 addition)
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, act } from "@testing-library/react";
@@ -61,21 +60,6 @@ function makeProject(opts: {
 const PAST_DATE = "2020-01-01";
 const FUTURE_DATE = "2099-12-31";
 
-/** Create a path-aware apiFetch mock that handles both invoices and utilization. */
-function mockApiFetch(
-  invoices: unknown[] = [],
-  utilization = { utilization_percent: 0, assigned_hours: 0, available_hours: 0 },
-) {
-  vi.doMock("@/lib/api", () => ({
-    apiFetch: vi.fn().mockImplementation((path: string) => {
-      if (path.includes("/staff/utilization")) {
-        return Promise.resolve(utilization);
-      }
-      return Promise.resolve({ data: { data: invoices, total: invoices.length }, error: null });
-    }),
-  }));
-}
-
 describe("Dashboard KPI — active projects count", () => {
   beforeEach(() => vi.resetModules());
   afterEach(() => vi.resetModules());
@@ -92,7 +76,7 @@ describe("Dashboard KPI — active projects count", () => {
       }),
       formatBudget: (c: number) => `€${c}`,
     }));
-    mockApiFetch();
+    vi.doMock("@/lib/api", () => ({ apiFetch: vi.fn().mockResolvedValue({ data: { data: [], total: 0 }, error: null }) }));
 
     const { default: DashboardPage } = await import("@/app/dashboard/page");
     await act(async () => { render(<DashboardPage />); });
@@ -113,11 +97,11 @@ describe("Dashboard KPI — overdue tasks", () => {
             id: "1", status: "active",
             phases: [{
               tasks: [
-                { status: "todo", end_date: PAST_DATE },        // overdue
+                { status: "todo", end_date: PAST_DATE },      // overdue
                 { status: "in_progress", end_date: PAST_DATE }, // overdue
                 { status: "done", end_date: PAST_DATE },         // not overdue (done)
-                { status: "todo", end_date: FUTURE_DATE },       // not overdue (future)
-                { status: "todo", end_date: null },              // not overdue (no date)
+                { status: "todo", end_date: FUTURE_DATE },        // not overdue (future)
+                { status: "todo", end_date: null },               // not overdue (no date)
               ],
             }],
           }),
@@ -126,7 +110,7 @@ describe("Dashboard KPI — overdue tasks", () => {
       }),
       formatBudget: (c: number) => `€${c}`,
     }));
-    mockApiFetch();
+    vi.doMock("@/lib/api", () => ({ apiFetch: vi.fn().mockResolvedValue({ data: { data: [], total: 0 }, error: null }) }));
 
     const { default: DashboardPage } = await import("@/app/dashboard/page");
     await act(async () => { render(<DashboardPage />); });
@@ -142,7 +126,7 @@ describe("Dashboard KPI — overdue tasks", () => {
       }),
       formatBudget: (c: number) => `€${c}`,
     }));
-    mockApiFetch();
+    vi.doMock("@/lib/api", () => ({ apiFetch: vi.fn().mockResolvedValue({ data: { data: [], total: 0 }, error: null }) }));
 
     const { default: DashboardPage } = await import("@/app/dashboard/page");
     await act(async () => { render(<DashboardPage />); });
@@ -162,12 +146,20 @@ describe("Dashboard KPI — monthly revenue", () => {
       listProjects: vi.fn().mockResolvedValue({ data: [], total: 0, page: 1, per_page: 20 }),
       formatBudget: (c: number) => `€${(c / 100).toFixed(2)}`,
     }));
-    mockApiFetch([
-      { id: "inv1", status: "paid", total_cents: 50000, paid_at: `${thisMonth}-10T00:00:00Z` },
-      { id: "inv2", status: "paid", total_cents: 30000, paid_at: `${thisMonth}-15T00:00:00Z` },
-      { id: "inv3", status: "paid", total_cents: 20000, paid_at: "2020-01-10T00:00:00Z" }, // last year, exclude
-      { id: "inv4", status: "sent", total_cents: 10000, paid_at: null }, // not paid, exclude
-    ]);
+    vi.doMock("@/lib/api", () => ({
+      apiFetch: vi.fn().mockResolvedValue({
+        data: {
+          data: [
+            { id: "inv1", status: "paid", total_cents: 50000, paid_at: `${thisMonth}-10T00:00:00Z` },
+            { id: "inv2", status: "paid", total_cents: 30000, paid_at: `${thisMonth}-15T00:00:00Z` },
+            { id: "inv3", status: "paid", total_cents: 20000, paid_at: "2020-01-10T00:00:00Z" }, // last year, exclude
+            { id: "inv4", status: "sent", total_cents: 10000, paid_at: null }, // not paid, exclude
+          ],
+          total: 4,
+        },
+        error: null,
+      }),
+    }));
 
     const { default: DashboardPage } = await import("@/app/dashboard/page");
     await act(async () => { render(<DashboardPage />); });
@@ -182,7 +174,9 @@ describe("Dashboard KPI — monthly revenue", () => {
       listProjects: vi.fn().mockResolvedValue({ data: [], total: 0, page: 1, per_page: 20 }),
       formatBudget: (c: number) => `€${(c / 100).toFixed(2)}`,
     }));
-    mockApiFetch();
+    vi.doMock("@/lib/api", () => ({
+      apiFetch: vi.fn().mockResolvedValue({ data: { data: [], total: 0 }, error: null }),
+    }));
 
     const { default: DashboardPage } = await import("@/app/dashboard/page");
     await act(async () => { render(<DashboardPage />); });
@@ -200,12 +194,20 @@ describe("Dashboard KPI — outstanding invoices", () => {
       listProjects: vi.fn().mockResolvedValue({ data: [], total: 0, page: 1, per_page: 20 }),
       formatBudget: (c: number) => `€${(c / 100).toFixed(2)}`,
     }));
-    mockApiFetch([
-      { id: "inv1", status: "sent", total_cents: 40000, paid_at: null },
-      { id: "inv2", status: "overdue", total_cents: 25000, paid_at: null },
-      { id: "inv3", status: "paid", total_cents: 10000, paid_at: "2024-01-01T00:00:00Z" }, // exclude
-      { id: "inv4", status: "draft", total_cents: 5000, paid_at: null }, // exclude
-    ]);
+    vi.doMock("@/lib/api", () => ({
+      apiFetch: vi.fn().mockResolvedValue({
+        data: {
+          data: [
+            { id: "inv1", status: "sent", total_cents: 40000, paid_at: null },
+            { id: "inv2", status: "overdue", total_cents: 25000, paid_at: null },
+            { id: "inv3", status: "paid", total_cents: 10000, paid_at: "2024-01-01T00:00:00Z" }, // exclude
+            { id: "inv4", status: "draft", total_cents: 5000, paid_at: null }, // exclude
+          ],
+          total: 4,
+        },
+        error: null,
+      }),
+    }));
 
     const { default: DashboardPage } = await import("@/app/dashboard/page");
     await act(async () => { render(<DashboardPage />); });
@@ -213,80 +215,5 @@ describe("Dashboard KPI — outstanding invoices", () => {
     // 40000 + 25000 = 65000 cents = €650.00
     const kpi = screen.getByTestId("kpi-outstanding-invoices");
     expect(kpi).toHaveTextContent("650");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Dashboard KPI — staff utilization (Phase 19)
-// ---------------------------------------------------------------------------
-
-describe("Dashboard KPI — staff utilization", () => {
-  beforeEach(() => vi.resetModules());
-  afterEach(() => vi.resetModules());
-
-  function mockWithUtilization(util: { utilization_percent: number; assigned_hours: number; available_hours: number }) {
-    vi.doMock("@/lib/projects", () => ({
-      listProjects: vi.fn().mockResolvedValue({ data: [], total: 0, page: 1, per_page: 20 }),
-      formatBudget: (c: number) => `€${(c / 100).toFixed(2)}`,
-    }));
-    mockApiFetch([], util);
-  }
-
-  it("renders Personeelsbezetting card title", async () => {
-    mockWithUtilization({ utilization_percent: 50, assigned_hours: 20, available_hours: 40 });
-
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
-    await act(async () => { render(<DashboardPage />); });
-
-    expect(screen.getByText("Personeelsbezetting")).toBeInTheDocument();
-  });
-
-  it("renders utilization percentage with % sign", async () => {
-    mockWithUtilization({ utilization_percent: 78.5, assigned_hours: 31.4, available_hours: 40 });
-
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
-    await act(async () => { render(<DashboardPage />); });
-
-    expect(screen.getByTestId("kpi-staff-utilization")).toHaveTextContent("78.5%");
-  });
-
-  it("renders 0% when no staff assigned", async () => {
-    mockWithUtilization({ utilization_percent: 0, assigned_hours: 0, available_hours: 0 });
-
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
-    await act(async () => { render(<DashboardPage />); });
-
-    expect(screen.getByTestId("kpi-staff-utilization")).toHaveTextContent("0%");
-  });
-
-  it("renders 100% when fully utilized", async () => {
-    mockWithUtilization({ utilization_percent: 100, assigned_hours: 40, available_hours: 40 });
-
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
-    await act(async () => { render(<DashboardPage />); });
-
-    expect(screen.getByTestId("kpi-staff-utilization")).toHaveTextContent("100%");
-  });
-
-  it("calls /staff/utilization endpoint", async () => {
-    const apiFetchMock = vi.fn().mockImplementation((path: string) => {
-      if (path.includes("/staff/utilization")) {
-        return Promise.resolve({ utilization_percent: 60, assigned_hours: 24, available_hours: 40 });
-      }
-      return Promise.resolve({ data: { data: [], total: 0 }, error: null });
-    });
-    vi.doMock("@/lib/projects", () => ({
-      listProjects: vi.fn().mockResolvedValue({ data: [], total: 0, page: 1, per_page: 20 }),
-      formatBudget: (c: number) => `€${(c / 100).toFixed(2)}`,
-    }));
-    vi.doMock("@/lib/api", () => ({ apiFetch: apiFetchMock }));
-
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
-    await act(async () => { render(<DashboardPage />); });
-
-    const utilizationCalls = apiFetchMock.mock.calls.filter(
-      (call: unknown[]) => typeof call[0] === "string" && (call[0] as string).includes("/staff/utilization")
-    );
-    expect(utilizationCalls.length).toBeGreaterThan(0);
   });
 });
