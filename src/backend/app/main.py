@@ -5,7 +5,6 @@ from app.core.config import settings
 from app.core.logging import RequestLoggingMiddleware, configure_logging
 from app.core.rate_limit_middleware import RateLimitMiddleware
 from app.routers import (
-    accounting,
     agenda,
     ai_planning,
     analytics,
@@ -13,8 +12,8 @@ from app.routers import (
     audit,
     auth,
     billing,
-    collaboration,
     customers,
+    documents,
     equipment,
     financials,
     gps_checkin,
@@ -25,7 +24,6 @@ from app.routers import (
     materials,
     notifications,
     payroll,
-    permits,
     photos,
     portal,
     processes,
@@ -39,7 +37,6 @@ from app.routers import (
     subcontractors,
     templates,
     time_tracking,
-    timeline,
     voice,
     weather,
     webhooks,
