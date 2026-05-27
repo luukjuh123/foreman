@@ -12,6 +12,7 @@ import {
   Package,
   Wrench,
   Users,
+  Hammer,
   BarChart3,
   Star,
   Settings,

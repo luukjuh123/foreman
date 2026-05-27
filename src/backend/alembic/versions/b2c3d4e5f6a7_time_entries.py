@@ -6,15 +6,15 @@ Create Date: 2026-05-19 09:30:00.000000
 
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
 
 revision: str = "b2c3d4e5f6a7"
-down_revision: Union[str, Sequence[str], None] = "a1b2c3d4e5f6"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = "a1b2c3d4e5f6"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -48,9 +48,7 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.CheckConstraint("hours > 0 AND hours <= 24", name="ck_time_entry_hours_range"),
-        sa.CheckConstraint(
-            "hourly_rate_cents_snapshot >= 0", name="ck_time_entry_rate_non_negative"
-        ),
+        sa.CheckConstraint("hourly_rate_cents_snapshot >= 0", name="ck_time_entry_rate_non_negative"),
     )
 
 

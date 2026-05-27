@@ -29,6 +29,7 @@ from app.schemas.project import (
 )
 from app.services.billing.subscriptions import enforce_project_limit
 from app.services.billing.usage import increment_projects
+from app.services.health_score import HealthScoreResult, calculate_health_score
 from app.services.planning.cpm import detect_cycle
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
@@ -496,10 +497,7 @@ async def export_project(
         for inv in invoices
     ]
 
-    reports_list = [
-        {"id": r.id, "type": r.type, "title": r.title, "created_at": r.created_at}
-        for r in reports
-    ]
+    reports_list = [{"id": r.id, "type": r.type, "title": r.title, "created_at": r.created_at} for r in reports]
 
     photos_list = [
         {"id": p.id, "image_url": p.image_url, "completion_pct": p.completion_pct, "created_at": p.created_at}
@@ -522,3 +520,20 @@ async def export_project(
         media_type="application/zip",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+# ---------------------------------------------------------------------------
+# Health score endpoint
+# ---------------------------------------------------------------------------
+
+
+@router.get("/{project_id}/health-score", response_model=HealthScoreResult)
+async def get_health_score(
+    project_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> HealthScoreResult:
+    """Return a 0-100 health score for a project."""
+    project = await _get_project_or_404(project_id, db)
+    _assert_owner(project, current_user)
+    return calculate_health_score(project)
