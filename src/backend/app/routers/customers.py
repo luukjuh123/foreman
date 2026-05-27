@@ -3,7 +3,7 @@
 import uuid
 
 from app.core.database import get_db
-from app.models.customer import Customer
+from app.models.invoice import Customer
 from app.routers.auth import get_current_user
 from app.schemas.customer import CustomerCreate, CustomerResponse, CustomerUpdate
 from fastapi import APIRouter, Depends, HTTPException, status
