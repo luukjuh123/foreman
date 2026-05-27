@@ -10,6 +10,7 @@ from app.routers import (
     auth,
     billing,
     customers,
+    dashboard,
     financials,
     inbound,
     incidents,
@@ -58,6 +59,7 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
+    app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["dashboard"])
     app.include_router(projects.router, prefix="/api/v1/projects", tags=["projects"])
     app.include_router(ai_planning.router, prefix="/api/v1/planning", tags=["planning"])
     app.include_router(materials.router, prefix="/api/v1/materials", tags=["materials"])
