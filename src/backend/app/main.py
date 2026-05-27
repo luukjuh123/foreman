@@ -12,6 +12,7 @@ from app.routers import (
     assignments,
     audit,
     auth,
+    documents,
     billing,
     collaboration,
     customers,
