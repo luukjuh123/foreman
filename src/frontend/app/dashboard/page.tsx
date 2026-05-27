@@ -1,11 +1,16 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FolderKanban, AlertCircle, TrendingUp, Receipt } from "lucide-react";
+import { FolderKanban, AlertCircle, TrendingUp, Receipt, Users } from "lucide-react";
 import { listProjects, formatBudget } from "@/lib/projects";
 import { apiFetch } from "@/lib/api";
-import type { ProjectResponse } from "@/lib/types";
+import type { ProjectResponse, AgendaTask, AgendaDayResponse } from "@/lib/types";
+import { KpiCards, computeStaffUtilization, type DashboardStats } from "@/components/dashboard/kpi-cards";
+import { fetchWeekAgenda } from "@/lib/agenda";
+
+const ONBOARDING_KEY = "foreman_onboarding_done";
 
 interface InvoiceSummary {
   id: string;
@@ -19,11 +24,18 @@ interface InvoiceListData {
   total: number;
 }
 
+interface StaffUtilization {
+  utilization_percent: number;
+  assigned_hours: number;
+  available_hours: number;
+}
+
 interface DashboardStats {
   activeProjects: number;
   overdueTasks: number;
   monthlyRevenueCents: number;
   outstandingCents: number;
+  staffUtilization: StaffUtilization;
 }
 
 function isOverdue(task: { status: string; end_date?: string | null }): boolean {
@@ -32,7 +44,11 @@ function isOverdue(task: { status: string; end_date?: string | null }): boolean 
   return new Date(task.end_date) < new Date();
 }
 
-function computeStats(projects: ProjectResponse[], invoices: InvoiceSummary[]): DashboardStats {
+function computeStats(
+  projects: ProjectResponse[],
+  invoices: InvoiceSummary[],
+  staffUtilization: StaffUtilization,
+): DashboardStats {
   const activeProjects = projects.filter((p) => p.status === "active").length;
 
   const overdueTasks = projects
@@ -50,31 +66,53 @@ function computeStats(projects: ProjectResponse[], invoices: InvoiceSummary[]): 
     )
     .reduce((sum, inv) => sum + (inv.total_cents ?? 0), 0);
 
-  const outstandingCents = invoices
-    .filter((inv) => inv.status === "sent" || inv.status === "overdue")
-    .reduce((sum, inv) => sum + (inv.total_cents ?? 0), 0);
+  const staffUtilizationPct = computeStaffUtilization(staff, assignments, thisMonth);
 
-  return { activeProjects, overdueTasks, monthlyRevenueCents, outstandingCents };
+  return { activeProjects, overdueTasks, monthlyRevenueCents, staffUtilizationPct };
+}
+
+  return { activeProjects, overdueTasks, monthlyRevenueCents, outstandingCents, staffUtilization };
 }
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [recentProjects, setRecentProjects] = useState<RecentProject[]>([]);
+  const [upcomingTasks, setUpcomingTasks] = useState<Array<AgendaTask & { date: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Redirect first-time visitors to onboarding
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const done = localStorage.getItem(ONBOARDING_KEY);
+      if (!done) {
+        router.push("/dashboard/onboarding");
+      }
+    }
+  }, [router]);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
 
+    const agendaFetch = fetchWeekAgenda().catch(() => null);
+
     Promise.all([
       listProjects(1, 100),
       apiFetch<InvoiceListData>("/invoices/?per_page=200"),
+      apiFetch<StaffUtilization>("/staff/utilization"),
     ])
-      .then(([projectsRes, invoicesRes]) => {
+      .then(([projectsRes, invoicesRes, utilizationRes]) => {
         if (!cancelled) {
           const invoices: InvoiceSummary[] = (invoicesRes as { data?: { data?: InvoiceSummary[] } })?.data?.data ?? [];
-          setStats(computeStats(projectsRes.data, invoices));
+          const utilization: StaffUtilization = (utilizationRes as StaffUtilization) ?? {
+            utilization_percent: 0,
+            assigned_hours: 0,
+            available_hours: 0,
+          };
+          setStats(computeStats(projectsRes.data, invoices, utilization));
           setLoading(false);
         }
       })
@@ -100,8 +138,8 @@ export default function DashboardPage() {
       </div>
 
       {loading && (
-        <div data-testid="dashboard-loading" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {[0, 1, 2, 3].map((i) => (
+        <div data-testid="dashboard-loading" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          {[0, 1, 2, 3, 4].map((i) => (
             <Card key={i}>
               <CardHeader className="pb-2">
                 <div className="h-4 w-24 animate-pulse rounded bg-muted" />
@@ -125,7 +163,7 @@ export default function DashboardPage() {
 
       {!loading && !error && stats && (
         <>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -185,6 +223,20 @@ export default function DashboardPage() {
                 </p>
               </CardContent>
             </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Personeelsbezetting
+                </CardTitle>
+                <Users className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold" data-testid="kpi-staff-utilization">
+                  {stats.staffUtilization.utilization_percent}%
+                </p>
+              </CardContent>
+            </Card>
           </div>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -193,7 +245,20 @@ export default function DashboardPage() {
                 <CardTitle className="text-base">Recente Activiteit</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-muted-foreground">Geen recente activiteit.</p>
+                {recentProjects.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Geen recente activiteit.</p>
+                ) : (
+                  <ul className="space-y-2" data-testid="recent-activity-list">
+                    {recentProjects.map((p) => (
+                      <li key={p.id} className="flex items-center justify-between text-sm">
+                        <span className="font-medium truncate max-w-[60%]">{p.name}</span>
+                        <span className="text-muted-foreground text-xs">
+                          {p.updated_at ? formatDate(p.updated_at) : "—"}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </CardContent>
             </Card>
 
@@ -202,7 +267,21 @@ export default function DashboardPage() {
                 <CardTitle className="text-base">Aankomende Taken</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-muted-foreground">Geen aankomende taken.</p>
+                {upcomingTasks.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Geen aankomende taken.</p>
+                ) : (
+                  <ul className="space-y-2" data-testid="upcoming-tasks-list">
+                    {upcomingTasks.map((t) => (
+                      <li key={`${t.task_id}-${t.date}`} className="text-sm">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium truncate max-w-[60%]">{t.name}</span>
+                          <span className="text-muted-foreground text-xs">{formatDate(t.date)}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate">{t.project_name}</p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </CardContent>
             </Card>
           </div>

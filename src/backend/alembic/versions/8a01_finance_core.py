@@ -6,15 +6,15 @@ Create Date: 2026-05-18 14:30:00
 
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
 
 revision: str = "8a01_finance_core"
-down_revision: Union[str, Sequence[str], None] = "30246b22cf35"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = "30246b22cf35"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -37,9 +37,7 @@ def upgrade() -> None:
             "account_type IN ('asset','liability','equity','revenue','expense')",
             name="ck_accounts_type",
         ),
-        sa.CheckConstraint(
-            "normal_balance IN ('debit','credit')", name="ck_accounts_normal_balance"
-        ),
+        sa.CheckConstraint("normal_balance IN ('debit','credit')", name="ck_accounts_normal_balance"),
     )
     op.create_index("ix_accounts_owner_code", "accounts", ["owner_id", "code"])
 
@@ -79,9 +77,7 @@ def upgrade() -> None:
             nullable=False,
             index=True,
         ),
-        sa.Column(
-            "account_id", sa.Uuid(), sa.ForeignKey("accounts.id"), nullable=False, index=True
-        ),
+        sa.Column("account_id", sa.Uuid(), sa.ForeignKey("accounts.id"), nullable=False, index=True),
         sa.Column("debit_cents", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("credit_cents", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("description", sa.String(500), nullable=True),

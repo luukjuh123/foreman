@@ -12,13 +12,14 @@ import {
   Package,
   Wrench,
   Users,
+  Hammer,
   BarChart3,
-  BookOpen,
   Star,
   Settings,
   Menu,
   X,
   Bell,
+  Mic,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -32,10 +33,11 @@ const NAV_ITEMS = [
   { label: "Beschikbaarheid", href: "/dashboard/materials/availability", icon: Package },
   { label: "Processen", href: "/dashboard/processes", icon: Wrench },
   { label: "Personeel", href: "/dashboard/staff", icon: Users },
+  { label: "Gereedschap", href: "/dashboard/equipment", icon: Hammer },
   { label: "Rapporten", href: "/dashboard/reports", icon: BarChart3 },
   { label: "Reviews", href: "/dashboard/reviews", icon: Star },
   { label: "Meldingen", href: "/dashboard/notifications", icon: Bell },
-  { label: "Boekhouding", href: "/dashboard/financials", icon: BookOpen },
+  { label: "Spraakassistent", href: "/dashboard/voice", icon: Mic },
   { label: "Instellingen", href: "/dashboard/settings", icon: Settings },
 ];
 
