@@ -41,23 +41,25 @@ const mockProjectList = {
   per_page: 100,
 };
 
-// Compute the current week's Monday and Tuesday dynamically so the
-// assignment filter (which uses the real Date) always puts them in the
-// visible week, regardless of when the tests run.
-function getMondayOfCurrentWeek(): string {
+/** Compute Monday of the week containing today, matching the component's getMondayOf logic. */
+function getCurrentWeekMonday(): Date {
   const d = new Date();
   const day = d.getDay();
   const diff = day === 0 ? -6 : 1 - day;
   d.setDate(d.getDate() + diff);
-  d.setHours(8, 0, 0, 0);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function toISODate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
-const MONDAY = getMondayOfCurrentWeek();
-const TUESDAY = (() => {
-  const d = new Date(MONDAY + "T08:00:00");
-  d.setDate(d.getDate() + 1);
-  return d.toISOString().slice(0, 10);
-})();
+
+// Compute assignment dates at runtime so they always fall in the current week,
+// preventing stale-date failures as time passes.
+const _monday = getCurrentWeekMonday();
+const _tuesday = new Date(_monday);
+_tuesday.setDate(_monday.getDate() + 1);
 
 const mockAssignmentsStaff1 = [
   {
@@ -65,8 +67,8 @@ const mockAssignmentsStaff1 = [
     staff_id: "staff-1",
     project_id: "proj-1",
     task_id: null,
-    start_at: `${MONDAY}T08:00:00`,
-    end_at: `${MONDAY}T16:00:00`,
+    start_at: `${toISODate(_monday)}T08:00:00`,
+    end_at: `${toISODate(_monday)}T16:00:00`,
     notes: null,
     created_at: "2026-05-01T00:00:00",
   },
@@ -78,8 +80,8 @@ const mockAssignmentsStaff2 = [
     staff_id: "staff-2",
     project_id: "proj-2",
     task_id: null,
-    start_at: `${TUESDAY}T08:00:00`, // Tuesday
-    end_at: `${TUESDAY}T16:00:00`,
+    start_at: `${toISODate(_tuesday)}T08:00:00`,
+    end_at: `${toISODate(_tuesday)}T16:00:00`,
     notes: null,
     created_at: "2026-05-01T00:00:00",
   },

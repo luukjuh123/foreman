@@ -1,4 +1,4 @@
-"""Customer model — re-exported from invoice domain for backwards compatibility."""
+"""Customer model — canonical definition, used by both customers and invoices routers."""
 
 # The canonical Customer model (scoped by owner_id, Dutch invoice fields) lives in
 # invoice.py and was defined there first. Importing it here so app.routers.customers
@@ -14,14 +14,12 @@ class Customer(Base):
     __tablename__ = "customers"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    # Optional: owner scoping for invoice-domain customers
-    owner_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    owner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
     # General address field (free-form)
     address: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    # Structured address fields used by invoices
     address_line1: Mapped[str | None] = mapped_column(String(255), nullable=True)
     address_line2: Mapped[str | None] = mapped_column(String(255), nullable=True)
     city: Mapped[str | None] = mapped_column(String(100), nullable=True)

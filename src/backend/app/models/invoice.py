@@ -13,7 +13,7 @@ import uuid
 from datetime import date, datetime
 
 from app.core.database import Base
-from app.models.customer import Customer  # noqa: F401 — re-exported for invoice router imports
+from app.models.customer import Customer as Customer
 from sqlalchemy import (
     Date,
     DateTime,
