@@ -1,15 +1,27 @@
 """AI auto-fill planning service — schedule tasks via CPM and historical durations."""
 
+from __future__ import annotations
+
 import math
 from datetime import date, timedelta
+from typing import TYPE_CHECKING
 
 from app.schemas.planning import TaskScheduleProposal
 from app.services.planning.cpm import CpmTask, compute_critical_path
+from app.services.weather import is_outdoor_process
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+if TYPE_CHECKING:
+    from app.services.weather.client import WeatherDay
+
 # Fallback duration when estimated_hours == 0 and no historical data exists.
 _DEFAULT_FALLBACK_HOURS = 8.0
+
+# Poor-weather thresholds — must mirror assess_work_risk() in weather service.
+_POOR_RAIN_MM = 10.0
+_POOR_WIND_KMH = 60.0
+_POOR_FROST_C = -2.0
 
 
 def _hours_to_days(hours: float, working_hours_per_day: int) -> int:
@@ -22,18 +34,52 @@ def _add_working_days(start: date, days: int) -> date:
     return start + timedelta(days=days - 1)
 
 
+def _is_poor_weather_day(d: date, forecast: list[WeatherDay]) -> bool:
+    """Return True if the given date has a poor work-risk forecast.
+
+    Thresholds: precipitation > 10mm OR wind > 60 km/h OR temp_min < -2°C.
+    Returns False if the date is not in the forecast window.
+    """
+    d_iso = d.isoformat()
+    for day in forecast:
+        if day.date == d_iso:
+            return (
+                day.precipitation_mm > _POOR_RAIN_MM
+                or day.wind_speed_kmh > _POOR_WIND_KMH
+                or day.temp_min < _POOR_FROST_C
+            )
+    return False
+
+
+def _first_non_poor_day(start: date, forecast: list[WeatherDay]) -> tuple[date, bool]:
+    """Return the first day >= start that is not a poor-weather day.
+
+    Also returns whether any day was actually skipped (for reasoning).
+    Tries up to 14 days ahead; falls back to start if none found.
+    """
+    for offset in range(14):
+        candidate = start + timedelta(days=offset)
+        if not _is_poor_weather_day(candidate, forecast):
+            return candidate, offset > 0
+    return start, False  # safety fallback: don't block indefinitely
+
+
 def compute_schedule(
     tasks: list[CpmTask],
     *,
     start_date: date,
     working_hours_per_day: int = 8,
     historical_hours: dict[str, float] | None = None,
+    weather_forecast: list[WeatherDay] | None = None,
 ) -> list[TaskScheduleProposal]:
     """Compute a proposed schedule for a list of CpmTask objects.
 
     For tasks with duration_hours == 0:
     - checks historical_hours dict (keyed by task name) for past averages
     - falls back to _DEFAULT_FALLBACK_HOURS
+
+    When weather_forecast is provided, outdoor tasks (schilderen, dakwerk, voegen,
+    metselwerk) are pushed to the first non-poor-risk day. Indoor tasks are unaffected.
 
     Returns a TaskScheduleProposal per task.
     """
@@ -57,6 +103,12 @@ def compute_schedule(
         # early_start is in hours offset from project start
         start_offset_days = math.ceil(task.early_start / working_hours_per_day)
         task_start = start_date + timedelta(days=start_offset_days)
+
+        # Weather awareness: push outdoor tasks past poor-risk days.
+        weather_skipped = False
+        if weather_forecast and is_outdoor_process(task.name):
+            task_start, weather_skipped = _first_non_poor_day(task_start, weather_forecast)
+
         task_end = _add_working_days(task_start, days)
 
         if task.dependencies:
@@ -73,6 +125,9 @@ def compute_schedule(
 
         if task.duration_hours == _DEFAULT_FALLBACK_HOURS and not hist.get(task.name):
             reasoning += " Duration estimated using default fallback (no historical data)."
+
+        if weather_skipped:
+            reasoning += f" Start delayed due to poor weather forecast on original start date."
 
         proposals.append(
             TaskScheduleProposal(

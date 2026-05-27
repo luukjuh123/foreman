@@ -14,6 +14,9 @@ class Customer(Base):
     """Billing/contact party for invoices and CRM, scoped per owner."""
 
     __tablename__ = "customers"
+    # extend_existing resolves SQLAlchemy conflict with invoice.Customer
+    # which also uses __tablename__ = "customers". Both classes map the same table.
+    __table_args__ = {"extend_existing": True}
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     owner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
