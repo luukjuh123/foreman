@@ -15,6 +15,7 @@ from app.routers import (
     billing,
     collaboration,
     customers,
+    documents,
     equipment,
     financials,
     gps_checkin,
