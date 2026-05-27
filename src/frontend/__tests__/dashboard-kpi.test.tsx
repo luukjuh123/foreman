@@ -22,6 +22,11 @@ vi.mock("next/link", () => ({
   ),
 }));
 
+// Agenda is fetched on the dashboard page; mock it to return empty week by default.
+vi.mock("@/lib/agenda", () => ({
+  fetchWeekAgenda: vi.fn().mockResolvedValue({ week_start: "2026-05-26", week_end: "2026-06-01", days: [] }),
+}));
+
 // Helper to build project fixture with phases + tasks
 function makeProject(opts: {
   id: string;
@@ -191,11 +196,11 @@ describe("Dashboard KPI — monthly revenue", () => {
   });
 });
 
-describe("Dashboard KPI — outstanding invoices", () => {
+describe("Dashboard KPI — staff utilization rate", () => {
   beforeEach(() => vi.resetModules());
   afterEach(() => vi.resetModules());
 
-  it("sums total_cents of sent and overdue invoices", async () => {
+  it("renders staff utilization percentage card", async () => {
     vi.doMock("@/lib/projects", () => ({
       listProjects: vi.fn().mockResolvedValue({ data: [], total: 0, page: 1, per_page: 20 }),
       formatBudget: (c: number) => `€${(c / 100).toFixed(2)}`,
@@ -210,9 +215,8 @@ describe("Dashboard KPI — outstanding invoices", () => {
     const { default: DashboardPage } = await import("@/app/dashboard/page");
     await act(async () => { render(<DashboardPage />); });
 
-    // 40000 + 25000 = 65000 cents = €650.00
-    const kpi = screen.getByTestId("kpi-outstanding-invoices");
-    expect(kpi).toHaveTextContent("650");
+    const kpi = screen.getByTestId("kpi-staff-utilization");
+    expect(kpi).toHaveTextContent("%");
   });
 });
 

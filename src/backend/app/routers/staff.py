@@ -18,11 +18,18 @@ from app.schemas.staff import (
     StaffUtilizationResponse,
 )
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, select
+from pydantic import BaseModel
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 router = APIRouter()
+
+
+class StaffUtilizationResponse(BaseModel):
+    utilization_rate: float  # 0-100 percent (capped at 100)
+    assigned_hours: float
+    available_hours: float
 
 
 async def _get_owned_staff_or_404(staff_id: uuid.UUID, user: User, db: AsyncSession) -> Staff:
@@ -39,6 +46,94 @@ async def _get_owned_staff_or_404(staff_id: uuid.UUID, user: User, db: AsyncSess
     if staff is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Staff not found")
     return staff
+
+
+def _monday_of_week(dt: datetime) -> datetime:
+    """Return the Monday 00:00:00 UTC of the week containing `dt`."""
+    return (dt - timedelta(days=dt.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+
+
+@router.get("/utilization", response_model=StaffUtilizationResponse)
+async def staff_utilization(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> StaffUtilizationResponse:
+    """Return the staff utilization rate for the current calendar week.
+
+    utilization_rate = (assigned_hours / available_hours) × 100, capped at 100%.
+    available_hours = sum of weekly_hours_target for all active staff.
+    assigned_hours = sum of hours of assignments overlapping this Mon–Sun.
+    """
+    now = datetime.now(UTC)
+    week_start = _monday_of_week(now)
+    week_end = week_start + timedelta(days=7)
+
+    # Total available hours: sum of weekly_hours_target for active staff owned by user.
+    available_result = await db.execute(
+        select(func.sum(Staff.weekly_hours_target)).where(
+            Staff.owner_id == current_user.id,
+            Staff.deleted_at.is_(None),
+            Staff.active.is_(True),
+        )
+    )
+    available_hours: float = float(available_result.scalar_one() or 0.0)
+
+    if available_hours == 0.0:
+        return StaffUtilizationResponse(
+            utilization_rate=0.0,
+            assigned_hours=0.0,
+            available_hours=0.0,
+        )
+
+    # Fetch assignments that overlap the current week for staff owned by user.
+    owned_staff_ids_result = await db.execute(
+        select(Staff.id).where(
+            Staff.owner_id == current_user.id,
+            Staff.deleted_at.is_(None),
+            Staff.active.is_(True),
+        )
+    )
+    owned_staff_ids = [row[0] for row in owned_staff_ids_result.all()]
+
+    if not owned_staff_ids:
+        return StaffUtilizationResponse(
+            utilization_rate=0.0,
+            assigned_hours=0.0,
+            available_hours=available_hours,
+        )
+
+    assignments_result = await db.execute(
+        select(StaffAssignment).where(
+            StaffAssignment.staff_id.in_(owned_staff_ids),
+            and_(
+                StaffAssignment.start_at < week_end,
+                StaffAssignment.end_at > week_start,
+            ),
+        )
+    )
+    assignments = assignments_result.scalars().all()
+
+    # Clamp each assignment to the week window and sum hours.
+    # SQLite returns naive datetimes; ensure comparison uses consistent tzinfo.
+    def _ensure_utc(dt: datetime) -> datetime:
+        return dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)
+
+    assigned_hours: float = 0.0
+    for asgn in assignments:
+        asgn_start = _ensure_utc(asgn.start_at)
+        asgn_end = _ensure_utc(asgn.end_at)
+        overlap_start = max(asgn_start, week_start)
+        overlap_end = min(asgn_end, week_end)
+        if overlap_end > overlap_start:
+            assigned_hours += (overlap_end - overlap_start).total_seconds() / 3600.0
+
+    utilization_rate = min(100.0, (assigned_hours / available_hours) * 100.0)
+
+    return StaffUtilizationResponse(
+        utilization_rate=round(utilization_rate, 2),
+        assigned_hours=round(assigned_hours, 2),
+        available_hours=round(available_hours, 2),
+    )
 
 
 @router.get("/", response_model=StaffListResponse)

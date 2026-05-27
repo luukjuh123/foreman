@@ -42,5 +42,3 @@ class RateLimiter:
         self._evict_old(key)
         used = len(self._buckets[key])
         return max(0, self.max_requests - used)
-
-

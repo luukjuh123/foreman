@@ -1,11 +1,16 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FolderKanban, AlertCircle, TrendingUp, Receipt, Users } from "lucide-react";
 import { listProjects, formatBudget } from "@/lib/projects";
 import { apiFetch } from "@/lib/api";
-import type { ProjectResponse } from "@/lib/types";
+import type { ProjectResponse, AgendaTask, AgendaDayResponse } from "@/lib/types";
+import { KpiCards, computeStaffUtilization, type DashboardStats } from "@/components/dashboard/kpi-cards";
+import { fetchWeekAgenda } from "@/lib/agenda";
+
+const ONBOARDING_KEY = "foreman_onboarding_done";
 
 interface InvoiceSummary {
   id: string;
@@ -61,22 +66,38 @@ function computeStats(
     )
     .reduce((sum, inv) => sum + (inv.total_cents ?? 0), 0);
 
-  const outstandingCents = invoices
-    .filter((inv) => inv.status === "sent" || inv.status === "overdue")
-    .reduce((sum, inv) => sum + (inv.total_cents ?? 0), 0);
+  const staffUtilizationPct = computeStaffUtilization(staff, assignments, thisMonth);
+
+  return { activeProjects, overdueTasks, monthlyRevenueCents, staffUtilizationPct };
+}
 
   return { activeProjects, overdueTasks, monthlyRevenueCents, outstandingCents, staffUtilization };
 }
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [recentProjects, setRecentProjects] = useState<RecentProject[]>([]);
+  const [upcomingTasks, setUpcomingTasks] = useState<Array<AgendaTask & { date: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Redirect first-time visitors to onboarding
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const done = localStorage.getItem(ONBOARDING_KEY);
+      if (!done) {
+        router.push("/dashboard/onboarding");
+      }
+    }
+  }, [router]);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
+
+    const agendaFetch = fetchWeekAgenda().catch(() => null);
 
     Promise.all([
       listProjects(1, 100),
@@ -224,7 +245,20 @@ export default function DashboardPage() {
                 <CardTitle className="text-base">Recente Activiteit</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-muted-foreground">Geen recente activiteit.</p>
+                {recentProjects.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Geen recente activiteit.</p>
+                ) : (
+                  <ul className="space-y-2" data-testid="recent-activity-list">
+                    {recentProjects.map((p) => (
+                      <li key={p.id} className="flex items-center justify-between text-sm">
+                        <span className="font-medium truncate max-w-[60%]">{p.name}</span>
+                        <span className="text-muted-foreground text-xs">
+                          {p.updated_at ? formatDate(p.updated_at) : "—"}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </CardContent>
             </Card>
 
@@ -233,7 +267,21 @@ export default function DashboardPage() {
                 <CardTitle className="text-base">Aankomende Taken</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-muted-foreground">Geen aankomende taken.</p>
+                {upcomingTasks.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Geen aankomende taken.</p>
+                ) : (
+                  <ul className="space-y-2" data-testid="upcoming-tasks-list">
+                    {upcomingTasks.map((t) => (
+                      <li key={`${t.task_id}-${t.date}`} className="text-sm">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium truncate max-w-[60%]">{t.name}</span>
+                          <span className="text-muted-foreground text-xs">{formatDate(t.date)}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate">{t.project_name}</p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </CardContent>
             </Card>
           </div>
