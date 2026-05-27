@@ -33,6 +33,7 @@ async def create_customer(
     body: CustomerCreate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    current_user: object = Depends(get_current_user),
 ) -> Customer:
     customer = Customer(owner_id=current_user.id, **body.model_dump())
     db.add(customer)

@@ -36,6 +36,8 @@ from app.routers import (
     templates,
     time_tracking,
     voice,
+    weather,
+    webhooks,
 )
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -88,6 +90,9 @@ def create_app() -> FastAPI:
     app.include_router(staff.router, prefix="/api/v1/staff", tags=["staff"])
     app.include_router(templates.router, prefix="/api/v1/templates", tags=["templates"])
     app.include_router(voice.router, prefix="/api/v1/voice", tags=["voice"])
+    app.include_router(weather.router, prefix="/api/v1/weather", tags=["weather"])
+    app.include_router(webhooks.router, prefix="/api/v1/webhooks", tags=["webhooks"])
+    app.include_router(subcontractors.router, prefix="/api/v1/subcontractors", tags=["subcontractors"])
     app.include_router(portal.router, prefix="/api/v1", tags=["portal"])
     app.include_router(weather.router, prefix="/api/v1/weather", tags=["weather"])
     app.include_router(audit_log.router, prefix="/api/v1/audit-log", tags=["audit-log"])
