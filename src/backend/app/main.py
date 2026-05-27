@@ -7,11 +7,14 @@ from app.core.rate_limit_middleware import RateLimitMiddleware
 from app.routers import (
     agenda,
     ai_planning,
+    analytics,
     assignments,
     audit_log,
     auth,
     billing,
     customers,
+    documents,
+    equipment,
     financials,
     inbound,
     incidents,
@@ -27,11 +30,12 @@ from app.routers import (
     push,
     reports,
     reviews,
+    safety,
     staff,
+    subcontractors,
     templates,
     time_tracking,
     voice,
-    weather,
 )
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
