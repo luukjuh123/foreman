@@ -101,10 +101,10 @@ function setupMocks(
 describe("StaffSchedulePage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Pin only Date (not timers) to 2026-05-19 — in the week of Mon 2026-05-18 —
-    // so weekStart resolves to 2026-05-18, matching the mock assignment dates.
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(new Date("2026-05-19T10:00:00"));
+    // Pin system time to the week of 2026-05-18 so getMondayOf(new Date())
+    // returns 2026-05-18, matching the mock assignment dates.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date("2026-05-20T10:00:00"));
   });
 
   afterEach(() => {
