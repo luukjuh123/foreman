@@ -20,6 +20,7 @@ import {
   X,
   Bell,
   Mic,
+  Hammer,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
