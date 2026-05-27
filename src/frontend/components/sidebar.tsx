@@ -30,6 +30,7 @@ const NAV_ITEMS = [
   { label: "Agenda", href: "/dashboard/agenda", icon: Calendar },
   { label: "Facturen", href: "/dashboard/invoices", icon: FileText },
   { label: "Financiën", href: "/dashboard/financials", icon: TrendingUp },
+  { label: "BTW Aangifte", href: "/dashboard/btw", icon: FileText },
   { label: "Materialen", href: "/dashboard/materials", icon: Package },
   { label: "Beschikbaarheid", href: "/dashboard/materials/availability", icon: Package },
   { label: "Processen", href: "/dashboard/processes", icon: Wrench },
