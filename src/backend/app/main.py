@@ -10,6 +10,7 @@ from app.routers import (
     auth,
     billing,
     customers,
+    documents,
     financials,
     inbound,
     incidents,
@@ -23,7 +24,6 @@ from app.routers import (
     processes,
     projects,
     push,
-    quotes,
     reports,
     reviews,
     staff,
@@ -60,6 +60,7 @@ def create_app() -> FastAPI:
 
     app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
     app.include_router(projects.router, prefix="/api/v1/projects", tags=["projects"])
+    app.include_router(documents.router, prefix="/api/v1/projects", tags=["documents"])
     app.include_router(ai_planning.router, prefix="/api/v1/planning", tags=["planning"])
     app.include_router(materials.router, prefix="/api/v1/materials", tags=["materials"])
     app.include_router(financials.router, prefix="/api/v1/financials", tags=["financials"])
@@ -83,7 +84,6 @@ def create_app() -> FastAPI:
     app.include_router(templates.router, prefix="/api/v1/templates", tags=["templates"])
     app.include_router(voice.router, prefix="/api/v1/voice", tags=["voice"])
     app.include_router(portal.router, prefix="/api/v1", tags=["portal"])
-    app.include_router(quotes.router, prefix="/api/v1/quotes", tags=["quotes"])
 
     @app.get("/healthz", tags=["health"])
     async def health_check() -> dict:
