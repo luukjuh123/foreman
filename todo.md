@@ -180,13 +180,21 @@
 
 ## Priority: Medium (Phase 19 — Polish & Advanced Features)
 
-- [x] Backend: Customer portal — read-only project view for clients with progress photos, timeline, and invoice status
-- [ ] Frontend: Dashboard analytics — key metrics cards (active projects, overdue tasks, monthly revenue, staff utilization rate)
-- [ ] Frontend: Bulk material import — CSV upload for material lists with auto-matching to hardware store products
-- [ ] Backend: Document management — upload/download contracts, permits, drawings per project with versioning
-- [ ] Frontend: Multi-project Gantt view — combined timeline of all active projects for cross-project resource planning
-- [ ] Backend: Audit log — track all user actions (create/update/delete) with timestamp, actor, and diff
-- [ ] Frontend: Onboarding wizard — first-time user flow explaining key features with interactive sample project
+- [ ] Backend: API rate limiting middleware — per-user throttle (100 req/15min general, 10 req/15min auth) using slowapi
+- [ ] Backend: Webhook system — notify external systems on project/invoice/report events via configurable HTTP callbacks
+- [x] Frontend: Dashboard KPI widgets — active projects count, overdue tasks, monthly revenue, outstanding invoices as stat cards
+- [x] Frontend: Dark/light theme toggle with persistent preference (localStorage + cookie for SSR)
+- [x] Backend: Data export API — full project archive as ZIP (project JSON + photos + invoices + reports)
+
+## Priority: Medium (Phase 20 — Subcontractor Management)
+
+- [x] Backend: Subcontractor model — company name, KVK number, specialties, hourly/fixed rates, certifications (VCA, BRL), rating — PR feat/subcontractor-management
+- [x] Backend: CRUD endpoints for subcontractors with search/filter by specialty and availability — PR feat/subcontractor-management
+- [x] Backend: Assign subcontractors to project phases/tasks — track their hours and costs separately from staff — PR feat/subcontractor-management
+- [x] Backend: Subcontractor invoice linking — match incoming invoices to project costs, auto-reconcile with bookkeeping — PR feat/subcontractor-management
+- [x] Frontend: Subcontractor directory — list, add, edit with certification expiry warnings — PR #188
+- [x] Frontend: Subcontractor assignment UI on project phase cards — pick from directory, set rates — PR #188
+- [x] Frontend: Subcontractor cost dashboard — spending per project, per subcontractor, margin analysis — PR #188
 
 ## Completed
 <!-- [x] Task description — PR #N -->
