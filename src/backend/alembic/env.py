@@ -11,6 +11,7 @@ import app.models.subscription
 import app.models.usage
 
 # Import all models so Base.metadata is populated
+import app.models.document  # noqa: F401
 import app.models.user  # noqa: F401
 from alembic import context
 from app.core.config import settings

@@ -12,13 +12,13 @@ class DocumentResponse(BaseModel):
     id: uuid.UUID
     project_id: uuid.UUID
     uploaded_by: uuid.UUID
-    name: str
-    description: str | None
+    filename: str
+    content_type: str
+    file_size_bytes: int
     category: str
-    mime_type: str
-    size_bytes: int
     version: int
-    parent_id: uuid.UUID | None
+    storage_path: str
+    description: str | None
     created_at: datetime
     updated_at: datetime
 
@@ -28,9 +28,5 @@ class DocumentResponse(BaseModel):
 class DocumentListResponse(BaseModel):
     items: list[DocumentResponse]
     total: int
-
-
-class DocumentUpdate(BaseModel):
-    name: str | None = None
-    description: str | None = None
-    category: str | None = None
+    page: int
+    per_page: int
