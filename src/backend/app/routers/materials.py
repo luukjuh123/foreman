@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import csv
+import io
+
 from app.schemas.material_estimate import (
     ConcreteSpec,
     EstimateItem,
@@ -28,9 +31,27 @@ from app.services.stores.comparison import compare_prices
 from app.services.stores.gamma import GammaClient
 from app.services.stores.hornbach import HornbachClient
 from app.services.stores.praxis import PraxisClient
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, UploadFile
+from pydantic import BaseModel
 
 router = APIRouter()
+
+
+# ---------------------------------------------------------------------------
+# CSV import schemas
+# ---------------------------------------------------------------------------
+
+
+class MaterialImportRow(BaseModel):
+    name: str
+    quantity: float
+    unit: str
+
+
+class MaterialImportResponse(BaseModel):
+    rows: list[MaterialImportRow]
+    errors: list[str]
+
 
 STORE_NAMES = ["hornbach", "gamma", "praxis", "bouwmaat"]
 
@@ -153,3 +174,54 @@ async def estimate_room_materials(payload: RoomEstimateRequest) -> RoomEstimateR
         data=RoomEstimateResponseData(estimates=estimates),
         error=None,
     )
+
+
+# ---------------------------------------------------------------------------
+# CSV bulk import
+# ---------------------------------------------------------------------------
+
+_REQUIRED_COLUMNS = {"name", "quantity", "unit"}
+
+
+@router.post("/import-csv", response_model=MaterialImportResponse)
+async def import_csv(file: UploadFile) -> MaterialImportResponse:
+    """Parse a CSV file and return a list of material rows.
+
+    Required CSV columns: name, quantity, unit.
+    Optional columns: description, store_preference (ignored but accepted).
+    Rows with non-numeric quantity are skipped and reported in errors.
+    """
+    raw = await file.read()
+    if not raw.strip():
+        raise HTTPException(status_code=422, detail="Het bestand is leeg.")
+
+    text = raw.decode("utf-8", errors="replace")
+    reader = csv.DictReader(io.StringIO(text))
+
+    # Validate required columns exist in header
+    fieldnames = {f.strip().lower() for f in (reader.fieldnames or [])}
+    missing = _REQUIRED_COLUMNS - fieldnames
+    if missing:
+        missing_str = ", ".join(sorted(missing))
+        raise HTTPException(
+            status_code=422,
+            detail=f"Ontbrekende kolommen: {missing_str}",
+        )
+
+    rows: list[MaterialImportRow] = []
+    errors: list[str] = []
+
+    for i, raw_row in enumerate(reader, start=1):
+        name = (raw_row.get("name") or "").strip()
+        unit = (raw_row.get("unit") or "").strip()
+        qty_str = (raw_row.get("quantity") or "").strip()
+
+        try:
+            quantity = float(qty_str)
+        except (ValueError, TypeError):
+            errors.append(f"Rij {i} ({name!r}): ongeldige hoeveelheid {qty_str!r}")
+            continue
+
+        rows.append(MaterialImportRow(name=name, quantity=quantity, unit=unit))
+
+    return MaterialImportResponse(rows=rows, errors=errors)

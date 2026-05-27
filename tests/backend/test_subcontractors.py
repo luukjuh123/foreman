@@ -1,13 +1,11 @@
 """Tests for Subcontractor management — Phase 19.
 
 Covers:
-- CRUD for subcontractors (invite, list, get, update, soft-delete)
-- Project access grants (share limited project view)
-- Hour logging per subcontractor per project
-- Invoice tracking per subcontractor
+- Subcontractor CRUD: company name, KVK, specialties, hourly/fixed rates, certifications, rating
+- Certifications (VCA, BRL) with expiry dates
+- Assignments: link subcontractors to projects/phases/tasks, track hours and costs
+- Invoice linking: match invoices to subcontractor + project, auto-reconcile with journal entries
 """
-
-import uuid
 
 import pytest
 import pytest_asyncio
@@ -56,43 +54,17 @@ async def _auth(client: AsyncClient, email: str = "boss@example.com") -> dict:
     return {"Authorization": f"Bearer {token}"}
 
 
-async def _create_project(client: AsyncClient, headers: dict) -> str:
+async def _create_project(client: AsyncClient, headers: dict, name: str = "Renovation") -> str:
     resp = await client.post(
         "/api/v1/projects/",
-        json={"name": "Test Project", "description": "desc"},
+        json={"name": name, "description": "Test project", "start_date": "2026-06-01", "end_date": "2026-08-01"},
         headers=headers,
     )
     assert resp.status_code == 201, resp.text
     return resp.json()["id"]
 
 
-# ---------------------------------------------------------------------------
-# Subcontractor CRUD
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_create_subcontractor(client: AsyncClient) -> None:
-    headers = await _auth(client)
-    resp = await client.post(
-        "/api/v1/subcontractors/",
-        json={
-            "company_name": "Bakker Installaties",
-            "contact_name": "Piet Bakker",
-            "email": "piet@bakker.nl",
-            "phone": "0612345678",
-            "hourly_rate_cents": 7500,
-            "specialty": "plumbing",
-        },
-        headers=headers,
-    )
-    assert resp.status_code == 201, resp.text
-    body = resp.json()
-    assert body["company_name"] == "Bakker Installaties"
-    assert body["contact_name"] == "Piet Bakker"
-    assert body["hourly_rate_cents"] == 7500
-    assert body["specialty"] == "plumbing"
-    assert "id" in body
+# ─── Subcontractor CRUD ───────────────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
@@ -100,30 +72,114 @@ async def test_create_subcontractor_minimal(client: AsyncClient) -> None:
     headers = await _auth(client)
     resp = await client.post(
         "/api/v1/subcontractors/",
-        json={"company_name": "ZZP Henk", "hourly_rate_cents": 5500},
+        json={
+            "company_name": "Stucadoors BV",
+            "kvk_number": "12345678",
+            "specialties": ["stucen", "schilderen"],
+            "hourly_rate_cents": 7500,
+        },
         headers=headers,
     )
     assert resp.status_code == 201, resp.text
     body = resp.json()
-    assert body["company_name"] == "ZZP Henk"
-    assert body["contact_name"] is None
-    assert body["email"] is None
+    assert body["company_name"] == "Stucadoors BV"
+    assert body["kvk_number"] == "12345678"
+    assert body["specialties"] == ["stucen", "schilderen"]
+    assert body["hourly_rate_cents"] == 7500
+    assert body["fixed_rate_cents"] is None
+    assert body["rating"] is None
+    assert body["certifications"] == []
 
 
 @pytest.mark.asyncio
-async def test_list_subcontractors(client: AsyncClient) -> None:
+async def test_create_subcontractor_with_fixed_rate_and_rating(client: AsyncClient) -> None:
+    headers = await _auth(client)
+    resp = await client.post(
+        "/api/v1/subcontractors/",
+        json={
+            "company_name": "Tegelbedrijf Utrecht",
+            "specialties": ["tegelen"],
+            "hourly_rate_cents": 6500,
+            "fixed_rate_cents": 250000,
+            "rating": 4,
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["fixed_rate_cents"] == 250000
+    assert body["rating"] == 4
+
+
+@pytest.mark.asyncio
+async def test_rating_must_be_1_to_5(client: AsyncClient) -> None:
+    headers = await _auth(client)
+    resp = await client.post(
+        "/api/v1/subcontractors/",
+        json={"company_name": "X", "specialties": [], "hourly_rate_cents": 1000, "rating": 6},
+        headers=headers,
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_hourly_rate_non_negative(client: AsyncClient) -> None:
+    headers = await _auth(client)
+    resp = await client.post(
+        "/api/v1/subcontractors/",
+        json={"company_name": "X", "specialties": [], "hourly_rate_cents": -1},
+        headers=headers,
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_list_subcontractors_pagination(client: AsyncClient) -> None:
     headers = await _auth(client)
     for i in range(3):
         await client.post(
             "/api/v1/subcontractors/",
-            json={"company_name": f"Sub {i}", "hourly_rate_cents": 5000 + i * 100},
+            json={"company_name": f"Sub {i}", "specialties": ["x"], "hourly_rate_cents": 1000},
             headers=headers,
         )
-    resp = await client.get("/api/v1/subcontractors/", headers=headers)
+    resp = await client.get("/api/v1/subcontractors/?page=1&per_page=2", headers=headers)
     assert resp.status_code == 200
     body = resp.json()
     assert body["total"] == 3
-    assert len(body["data"]) == 3
+    assert len(body["data"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_list_subcontractors_search_by_specialty(client: AsyncClient) -> None:
+    headers = await _auth(client)
+    await client.post(
+        "/api/v1/subcontractors/",
+        json={"company_name": "Stucwerk NL", "specialties": ["stucen"], "hourly_rate_cents": 5000},
+        headers=headers,
+    )
+    await client.post(
+        "/api/v1/subcontractors/",
+        json={"company_name": "Tegels Plus", "specialties": ["tegelen"], "hourly_rate_cents": 5000},
+        headers=headers,
+    )
+    resp = await client.get("/api/v1/subcontractors/?specialty=stucen", headers=headers)
+    assert resp.status_code == 200
+    names = [s["company_name"] for s in resp.json()["data"]]
+    assert "Stucwerk NL" in names
+    assert "Tegels Plus" not in names
+
+
+@pytest.mark.asyncio
+async def test_list_subcontractors_excludes_other_owners(client: AsyncClient) -> None:
+    h1 = await _auth(client, "a@example.com")
+    h2 = await _auth(client, "b@example.com")
+    await client.post(
+        "/api/v1/subcontractors/",
+        json={"company_name": "Owner A Sub", "specialties": [], "hourly_rate_cents": 1000},
+        headers=h1,
+    )
+    resp = await client.get("/api/v1/subcontractors/", headers=h2)
+    assert resp.json()["total"] == 0
 
 
 @pytest.mark.asyncio
@@ -131,20 +187,13 @@ async def test_get_subcontractor(client: AsyncClient) -> None:
     headers = await _auth(client)
     create_resp = await client.post(
         "/api/v1/subcontractors/",
-        json={"company_name": "Elektro Jansen", "hourly_rate_cents": 6000, "specialty": "electrical"},
+        json={"company_name": "Dak BV", "specialties": ["dakdekken"], "hourly_rate_cents": 8000},
         headers=headers,
     )
-    sub_id = create_resp.json()["id"]
-    resp = await client.get(f"/api/v1/subcontractors/{sub_id}", headers=headers)
+    sid = create_resp.json()["id"]
+    resp = await client.get(f"/api/v1/subcontractors/{sid}", headers=headers)
     assert resp.status_code == 200
-    assert resp.json()["company_name"] == "Elektro Jansen"
-
-
-@pytest.mark.asyncio
-async def test_get_subcontractor_not_found(client: AsyncClient) -> None:
-    headers = await _auth(client)
-    resp = await client.get(f"/api/v1/subcontractors/{uuid.uuid4()}", headers=headers)
-    assert resp.status_code == 404
+    assert resp.json()["company_name"] == "Dak BV"
 
 
 @pytest.mark.asyncio
@@ -152,19 +201,18 @@ async def test_update_subcontractor(client: AsyncClient) -> None:
     headers = await _auth(client)
     create_resp = await client.post(
         "/api/v1/subcontractors/",
-        json={"company_name": "Old Name", "hourly_rate_cents": 5000},
+        json={"company_name": "Schilder NL", "specialties": ["schilderen"], "hourly_rate_cents": 5500},
         headers=headers,
     )
-    sub_id = create_resp.json()["id"]
+    sid = create_resp.json()["id"]
     resp = await client.put(
-        f"/api/v1/subcontractors/{sub_id}",
-        json={"company_name": "New Name", "hourly_rate_cents": 6000},
+        f"/api/v1/subcontractors/{sid}",
+        json={"hourly_rate_cents": 6000, "rating": 5},
         headers=headers,
     )
     assert resp.status_code == 200
-    body = resp.json()
-    assert body["company_name"] == "New Name"
-    assert body["hourly_rate_cents"] == 6000
+    assert resp.json()["hourly_rate_cents"] == 6000
+    assert resp.json()["rating"] == 5
 
 
 @pytest.mark.asyncio
@@ -172,245 +220,359 @@ async def test_delete_subcontractor(client: AsyncClient) -> None:
     headers = await _auth(client)
     create_resp = await client.post(
         "/api/v1/subcontractors/",
-        json={"company_name": "To Delete", "hourly_rate_cents": 5000},
+        json={"company_name": "Del BV", "specialties": [], "hourly_rate_cents": 1000},
         headers=headers,
     )
-    sub_id = create_resp.json()["id"]
-    resp = await client.delete(f"/api/v1/subcontractors/{sub_id}", headers=headers)
+    sid = create_resp.json()["id"]
+    resp = await client.delete(f"/api/v1/subcontractors/{sid}", headers=headers)
     assert resp.status_code == 204
-    # Soft-deleted — 404 on subsequent get
-    resp = await client.get(f"/api/v1/subcontractors/{sub_id}", headers=headers)
+    resp = await client.get(f"/api/v1/subcontractors/{sid}", headers=headers)
     assert resp.status_code == 404
 
 
 @pytest.mark.asyncio
-async def test_subcontractor_isolation(client: AsyncClient) -> None:
-    """Subcontractor belongs to owner — other users cannot see it."""
-    headers_a = await _auth(client, "a@example.com")
-    headers_b = await _auth(client, "b@example.com")
+async def test_cannot_touch_other_owners_subcontractor(client: AsyncClient) -> None:
+    h1 = await _auth(client, "owner1@example.com")
+    h2 = await _auth(client, "owner2@example.com")
     create_resp = await client.post(
         "/api/v1/subcontractors/",
-        json={"company_name": "Private Sub", "hourly_rate_cents": 5000},
-        headers=headers_a,
+        json={"company_name": "Private Sub", "specialties": [], "hourly_rate_cents": 1000},
+        headers=h1,
     )
-    sub_id = create_resp.json()["id"]
-    resp = await client.get(f"/api/v1/subcontractors/{sub_id}", headers=headers_b)
-    assert resp.status_code == 404
+    sid = create_resp.json()["id"]
+    assert (await client.get(f"/api/v1/subcontractors/{sid}", headers=h2)).status_code == 404
+    assert (await client.put(f"/api/v1/subcontractors/{sid}", json={"rating": 3}, headers=h2)).status_code == 404
+    assert (await client.delete(f"/api/v1/subcontractors/{sid}", headers=h2)).status_code == 404
 
 
-# ---------------------------------------------------------------------------
-# Project access grants
-# ---------------------------------------------------------------------------
+# ─── Certifications ───────────────────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
-async def test_grant_project_access(client: AsyncClient) -> None:
+async def test_add_certification(client: AsyncClient) -> None:
+    headers = await _auth(client)
+    create_resp = await client.post(
+        "/api/v1/subcontractors/",
+        json={"company_name": "Cert BV", "specialties": [], "hourly_rate_cents": 5000},
+        headers=headers,
+    )
+    sid = create_resp.json()["id"]
+    resp = await client.post(
+        f"/api/v1/subcontractors/{sid}/certifications",
+        json={"cert_type": "VCA", "expiry_date": "2027-12-31"},
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["cert_type"] == "VCA"
+    assert body["expiry_date"] == "2027-12-31"
+
+
+@pytest.mark.asyncio
+async def test_certification_type_must_be_valid(client: AsyncClient) -> None:
+    headers = await _auth(client)
+    create_resp = await client.post(
+        "/api/v1/subcontractors/",
+        json={"company_name": "Cert2 BV", "specialties": [], "hourly_rate_cents": 5000},
+        headers=headers,
+    )
+    sid = create_resp.json()["id"]
+    resp = await client.post(
+        f"/api/v1/subcontractors/{sid}/certifications",
+        json={"cert_type": "INVALID", "expiry_date": "2027-12-31"},
+        headers=headers,
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_certifications_listed_on_subcontractor(client: AsyncClient) -> None:
+    headers = await _auth(client)
+    create_resp = await client.post(
+        "/api/v1/subcontractors/",
+        json={"company_name": "Cert3 BV", "specialties": [], "hourly_rate_cents": 5000},
+        headers=headers,
+    )
+    sid = create_resp.json()["id"]
+    await client.post(
+        f"/api/v1/subcontractors/{sid}/certifications",
+        json={"cert_type": "VCA", "expiry_date": "2027-01-01"},
+        headers=headers,
+    )
+    await client.post(
+        f"/api/v1/subcontractors/{sid}/certifications",
+        json={"cert_type": "BRL", "expiry_date": "2026-06-30"},
+        headers=headers,
+    )
+    resp = await client.get(f"/api/v1/subcontractors/{sid}", headers=headers)
+    certs = resp.json()["certifications"]
+    assert len(certs) == 2
+    types = {c["cert_type"] for c in certs}
+    assert types == {"VCA", "BRL"}
+
+
+# ─── Assignments ──────────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_create_assignment(client: AsyncClient) -> None:
     headers = await _auth(client)
     project_id = await _create_project(client, headers)
-    create_resp = await client.post(
+    sub_resp = await client.post(
         "/api/v1/subcontractors/",
-        json={"company_name": "Grond Werk BV", "hourly_rate_cents": 5500},
+        json={"company_name": "Assign BV", "specialties": ["stucen"], "hourly_rate_cents": 7000},
         headers=headers,
     )
-    sub_id = create_resp.json()["id"]
+    sub_id = sub_resp.json()["id"]
+
     resp = await client.post(
-        f"/api/v1/subcontractors/{sub_id}/project-access",
-        json={"project_id": project_id},
+        "/api/v1/subcontractors/assignments/",
+        json={
+            "subcontractor_id": sub_id,
+            "project_id": project_id,
+            "description": "Stucen badkamer",
+            "estimated_hours": 16,
+            "agreed_rate_cents": 7000,
+        },
         headers=headers,
     )
     assert resp.status_code == 201, resp.text
     body = resp.json()
     assert body["subcontractor_id"] == sub_id
     assert body["project_id"] == project_id
+    assert body["description"] == "Stucen badkamer"
+    assert body["estimated_hours"] == 16
+    assert body["agreed_rate_cents"] == 7000
+    assert body["actual_hours"] == 0
+    assert body["status"] == "planned"
 
 
 @pytest.mark.asyncio
-async def test_list_project_access(client: AsyncClient) -> None:
+async def test_list_assignments_for_project(client: AsyncClient) -> None:
     headers = await _auth(client)
     project_id = await _create_project(client, headers)
-    create_resp = await client.post(
+    sub_resp = await client.post(
         "/api/v1/subcontractors/",
-        json={"company_name": "Schilder BV", "hourly_rate_cents": 4500},
+        json={"company_name": "List Assign BV", "specialties": [], "hourly_rate_cents": 5000},
         headers=headers,
     )
-    sub_id = create_resp.json()["id"]
-    await client.post(
-        f"/api/v1/subcontractors/{sub_id}/project-access",
-        json={"project_id": project_id},
-        headers=headers,
-    )
-    resp = await client.get(f"/api/v1/subcontractors/{sub_id}/project-access", headers=headers)
-    assert resp.status_code == 200
-    data = resp.json()
-    assert len(data) == 1
-    assert data[0]["project_id"] == project_id
+    sub_id = sub_resp.json()["id"]
 
-
-@pytest.mark.asyncio
-async def test_revoke_project_access(client: AsyncClient) -> None:
-    headers = await _auth(client)
-    project_id = await _create_project(client, headers)
-    create_resp = await client.post(
-        "/api/v1/subcontractors/",
-        json={"company_name": "Revoke Test", "hourly_rate_cents": 5000},
-        headers=headers,
-    )
-    sub_id = create_resp.json()["id"]
-    grant_resp = await client.post(
-        f"/api/v1/subcontractors/{sub_id}/project-access",
-        json={"project_id": project_id},
-        headers=headers,
-    )
-    grant_id = grant_resp.json()["id"]
-    resp = await client.delete(
-        f"/api/v1/subcontractors/{sub_id}/project-access/{grant_id}",
-        headers=headers,
-    )
-    assert resp.status_code == 204
-    # Confirm it's gone
-    list_resp = await client.get(f"/api/v1/subcontractors/{sub_id}/project-access", headers=headers)
-    assert list_resp.json() == []
-
-
-# ---------------------------------------------------------------------------
-# Hour logging
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_log_subcontractor_hours(client: AsyncClient) -> None:
-    headers = await _auth(client)
-    project_id = await _create_project(client, headers)
-    create_resp = await client.post(
-        "/api/v1/subcontractors/",
-        json={"company_name": "Uur Logger", "hourly_rate_cents": 6000},
-        headers=headers,
-    )
-    sub_id = create_resp.json()["id"]
-    resp = await client.post(
-        f"/api/v1/subcontractors/{sub_id}/hours",
-        json={
-            "project_id": project_id,
-            "work_date": "2024-06-01",
-            "hours": 8.0,
-            "description": "Fundering gestort",
-        },
-        headers=headers,
-    )
-    assert resp.status_code == 201, resp.text
-    body = resp.json()
-    assert body["hours"] == 8.0
-    assert body["cost_cents"] == 48000  # 8 * 6000
-
-
-@pytest.mark.asyncio
-async def test_list_subcontractor_hours(client: AsyncClient) -> None:
-    headers = await _auth(client)
-    project_id = await _create_project(client, headers)
-    create_resp = await client.post(
-        "/api/v1/subcontractors/",
-        json={"company_name": "Uur Lijst", "hourly_rate_cents": 5000},
-        headers=headers,
-    )
-    sub_id = create_resp.json()["id"]
-    for day in [1, 2, 3]:
-        await client.post(
-            f"/api/v1/subcontractors/{sub_id}/hours",
-            json={"project_id": project_id, "work_date": f"2024-06-0{day}", "hours": 8.0},
-            headers=headers,
-        )
-    resp = await client.get(f"/api/v1/subcontractors/{sub_id}/hours", headers=headers)
-    assert resp.status_code == 200
-    body = resp.json()
-    assert len(body) == 3
-    total_cost = sum(h["cost_cents"] for h in body)
-    assert total_cost == 3 * 8 * 5000
-
-
-# ---------------------------------------------------------------------------
-# Invoice tracking
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_add_subcontractor_invoice(client: AsyncClient) -> None:
-    headers = await _auth(client)
-    project_id = await _create_project(client, headers)
-    create_resp = await client.post(
-        "/api/v1/subcontractors/",
-        json={"company_name": "Invoice BV", "hourly_rate_cents": 6500},
-        headers=headers,
-    )
-    sub_id = create_resp.json()["id"]
-    resp = await client.post(
-        f"/api/v1/subcontractors/{sub_id}/invoices",
-        json={
-            "project_id": project_id,
-            "invoice_number": "INV-2024-001",
-            "invoice_date": "2024-06-15",
-            "amount_cents": 150000,
-            "description": "Week 24 werkzaamheden",
-        },
-        headers=headers,
-    )
-    assert resp.status_code == 201, resp.text
-    body = resp.json()
-    assert body["invoice_number"] == "INV-2024-001"
-    assert body["amount_cents"] == 150000
-    assert body["status"] == "pending"
-
-
-@pytest.mark.asyncio
-async def test_list_subcontractor_invoices(client: AsyncClient) -> None:
-    headers = await _auth(client)
-    project_id = await _create_project(client, headers)
-    create_resp = await client.post(
-        "/api/v1/subcontractors/",
-        json={"company_name": "Multi Invoice BV", "hourly_rate_cents": 6500},
-        headers=headers,
-    )
-    sub_id = create_resp.json()["id"]
     for i in range(2):
         await client.post(
-            f"/api/v1/subcontractors/{sub_id}/invoices",
+            "/api/v1/subcontractors/assignments/",
             json={
+                "subcontractor_id": sub_id,
                 "project_id": project_id,
-                "invoice_number": f"INV-2024-00{i+1}",
-                "invoice_date": "2024-06-15",
-                "amount_cents": 100000 + i * 10000,
+                "description": f"Task {i}",
+                "estimated_hours": 8,
+                "agreed_rate_cents": 5000,
             },
             headers=headers,
         )
-    resp = await client.get(f"/api/v1/subcontractors/{sub_id}/invoices", headers=headers)
+
+    resp = await client.get(f"/api/v1/subcontractors/assignments/?project_id={project_id}", headers=headers)
     assert resp.status_code == 200
-    assert len(resp.json()) == 2
+    assert resp.json()["total"] == 2
 
 
 @pytest.mark.asyncio
-async def test_mark_subcontractor_invoice_paid(client: AsyncClient) -> None:
+async def test_update_assignment_actual_hours(client: AsyncClient) -> None:
     headers = await _auth(client)
     project_id = await _create_project(client, headers)
-    create_resp = await client.post(
+    sub_resp = await client.post(
         "/api/v1/subcontractors/",
-        json={"company_name": "Pay Test BV", "hourly_rate_cents": 6500},
+        json={"company_name": "Hours BV", "specialties": [], "hourly_rate_cents": 6000},
         headers=headers,
     )
-    sub_id = create_resp.json()["id"]
-    inv_resp = await client.post(
-        f"/api/v1/subcontractors/{sub_id}/invoices",
+    sub_id = sub_resp.json()["id"]
+
+    assign_resp = await client.post(
+        "/api/v1/subcontractors/assignments/",
         json={
+            "subcontractor_id": sub_id,
             "project_id": project_id,
-            "invoice_number": "INV-PAY-001",
-            "invoice_date": "2024-06-15",
-            "amount_cents": 80000,
+            "description": "Werkzaamheden",
+            "estimated_hours": 20,
+            "agreed_rate_cents": 6000,
+        },
+        headers=headers,
+    )
+    aid = assign_resp.json()["id"]
+
+    resp = await client.put(
+        f"/api/v1/subcontractors/assignments/{aid}",
+        json={"actual_hours": 18, "status": "completed"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["actual_hours"] == 18
+    assert resp.json()["status"] == "completed"
+    # total cost = actual_hours * agreed_rate_cents
+    assert resp.json()["total_cost_cents"] == 18 * 6000
+
+
+@pytest.mark.asyncio
+async def test_assignment_fixed_cost(client: AsyncClient) -> None:
+    headers = await _auth(client)
+    project_id = await _create_project(client, headers)
+    sub_resp = await client.post(
+        "/api/v1/subcontractors/",
+        json={"company_name": "Fixed BV", "specialties": [], "hourly_rate_cents": 6000},
+        headers=headers,
+    )
+    sub_id = sub_resp.json()["id"]
+
+    resp = await client.post(
+        "/api/v1/subcontractors/assignments/",
+        json={
+            "subcontractor_id": sub_id,
+            "project_id": project_id,
+            "description": "Vaste prijs werk",
+            "agreed_fixed_cost_cents": 150000,
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["agreed_fixed_cost_cents"] == 150000
+    assert body["total_cost_cents"] == 150000
+
+
+# ─── Invoice Linking ──────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_create_subcontractor_invoice(client: AsyncClient) -> None:
+    headers = await _auth(client)
+    project_id = await _create_project(client, headers)
+    sub_resp = await client.post(
+        "/api/v1/subcontractors/",
+        json={"company_name": "Invoice Sub BV", "specialties": [], "hourly_rate_cents": 7000},
+        headers=headers,
+    )
+    sub_id = sub_resp.json()["id"]
+
+    resp = await client.post(
+        "/api/v1/subcontractors/invoices/",
+        json={
+            "subcontractor_id": sub_id,
+            "project_id": project_id,
+            "invoice_reference": "SUB-2026-001",
+            "invoice_date": "2026-07-01",
+            "amount_cents": 70000,
+            "vat_cents": 14700,
+            "description": "Factuur stucwerk badkamer",
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["subcontractor_id"] == sub_id
+    assert body["project_id"] == project_id
+    assert body["invoice_reference"] == "SUB-2026-001"
+    assert body["amount_cents"] == 70000
+    assert body["vat_cents"] == 14700
+    assert body["status"] == "received"
+    assert body["journal_entry_id"] is None
+
+
+@pytest.mark.asyncio
+async def test_reconcile_invoice_creates_journal_entry(client: AsyncClient) -> None:
+    headers = await _auth(client)
+    project_id = await _create_project(client, headers)
+    sub_resp = await client.post(
+        "/api/v1/subcontractors/",
+        json={"company_name": "Reconcile BV", "specialties": [], "hourly_rate_cents": 5000},
+        headers=headers,
+    )
+    sub_id = sub_resp.json()["id"]
+
+    inv_resp = await client.post(
+        "/api/v1/subcontractors/invoices/",
+        json={
+            "subcontractor_id": sub_id,
+            "project_id": project_id,
+            "invoice_reference": "SUB-2026-002",
+            "invoice_date": "2026-07-15",
+            "amount_cents": 50000,
+            "vat_cents": 10500,
+            "description": "Tegelwerk",
         },
         headers=headers,
     )
     inv_id = inv_resp.json()["id"]
-    resp = await client.patch(
-        f"/api/v1/subcontractors/{sub_id}/invoices/{inv_id}",
-        json={"status": "paid"},
+
+    resp = await client.post(
+        f"/api/v1/subcontractors/invoices/{inv_id}/reconcile",
         headers=headers,
     )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["status"] == "reconciled"
+    assert body["journal_entry_id"] is not None
+
+
+@pytest.mark.asyncio
+async def test_cannot_reconcile_twice(client: AsyncClient) -> None:
+    headers = await _auth(client)
+    project_id = await _create_project(client, headers)
+    sub_resp = await client.post(
+        "/api/v1/subcontractors/",
+        json={"company_name": "Double Reconcile BV", "specialties": [], "hourly_rate_cents": 5000},
+        headers=headers,
+    )
+    sub_id = sub_resp.json()["id"]
+    inv_resp = await client.post(
+        "/api/v1/subcontractors/invoices/",
+        json={
+            "subcontractor_id": sub_id,
+            "project_id": project_id,
+            "invoice_reference": "SUB-2026-003",
+            "invoice_date": "2026-07-15",
+            "amount_cents": 30000,
+            "description": "Work",
+        },
+        headers=headers,
+    )
+    inv_id = inv_resp.json()["id"]
+    await client.post(f"/api/v1/subcontractors/invoices/{inv_id}/reconcile", headers=headers)
+    resp = await client.post(f"/api/v1/subcontractors/invoices/{inv_id}/reconcile", headers=headers)
+    assert resp.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_list_subcontractor_invoices_by_project(client: AsyncClient) -> None:
+    headers = await _auth(client)
+    project_id = await _create_project(client, headers)
+    sub_resp = await client.post(
+        "/api/v1/subcontractors/",
+        json={"company_name": "ListInv BV", "specialties": [], "hourly_rate_cents": 5000},
+        headers=headers,
+    )
+    sub_id = sub_resp.json()["id"]
+
+    for i in range(3):
+        await client.post(
+            "/api/v1/subcontractors/invoices/",
+            json={
+                "subcontractor_id": sub_id,
+                "project_id": project_id,
+                "invoice_reference": f"SUB-2026-{i:03d}",
+                "invoice_date": "2026-07-01",
+                "amount_cents": 10000,
+                "description": f"Factuur {i}",
+            },
+            headers=headers,
+        )
+
+    resp = await client.get(f"/api/v1/subcontractors/invoices/?project_id={project_id}", headers=headers)
     assert resp.status_code == 200
-    assert resp.json()["status"] == "paid"
+    assert resp.json()["total"] == 3
+
+
+@pytest.mark.asyncio
+async def test_unauthenticated_rejected(client: AsyncClient) -> None:
+    assert (await client.get("/api/v1/subcontractors/")).status_code in (401, 403)
+    assert (await client.get("/api/v1/subcontractors/assignments/")).status_code in (401, 403)
+    assert (await client.get("/api/v1/subcontractors/invoices/")).status_code in (401, 403)
