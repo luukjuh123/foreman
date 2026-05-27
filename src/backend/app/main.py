@@ -17,8 +17,7 @@ from app.routers import (
     customers,
     equipment,
     financials,
-    forecasting,
-    geofence,
+    gps_checkin,
     inbound,
     incidents,
     invoices,
@@ -102,17 +101,7 @@ def create_app() -> FastAPI:
     app.include_router(weather.router, prefix="/api/v1/weather", tags=["weather"])
     app.include_router(webhooks.router, prefix="/api/v1/webhooks", tags=["webhooks"])
     app.include_router(portal.router, prefix="/api/v1", tags=["portal"])
-    app.include_router(weather.router, prefix="/api/v1/weather", tags=["weather"])
-    app.include_router(equipment.router, prefix="/api/v1/equipment", tags=["equipment"])
-    app.include_router(subcontractors.router, prefix="/api/v1/subcontractors", tags=["subcontractors"])
-    app.include_router(webhooks.router, prefix="/api/v1/webhooks", tags=["webhooks"])
-    app.include_router(audit.router, prefix="/api/v1/audit", tags=["audit"])
-    app.include_router(accounting.router, prefix="/api/v1/accounting", tags=["accounting"])
-    app.include_router(collaboration.router, prefix="/api/v1/collaboration", tags=["collaboration"])
-    app.include_router(forecasting.router, prefix="/api/forecasting", tags=["forecasting"])
-    app.include_router(geofence.router, prefix="/api/v1/geofence", tags=["geofence"])
-    app.include_router(permits.router, prefix="/api/v1/permits", tags=["permits"])
-    app.include_router(timeline.router, prefix="/api/v1", tags=["timeline"])
+    app.include_router(gps_checkin.router, prefix="/api/v1/projects", tags=["gps-checkin"])
 
     @app.get("/healthz", tags=["health"])
     async def health_check() -> dict:

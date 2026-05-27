@@ -3,14 +3,14 @@
 import asyncio
 from logging.config import fileConfig
 
+# Import all models so Base.metadata is populated
+import app.models.geofence
 import app.models.material
 import app.models.project
 import app.models.push_subscription
 import app.models.share_token
 import app.models.subscription
 import app.models.usage
-
-# Import all models so Base.metadata is populated
 import app.models.user  # noqa: F401
 from alembic import context
 from app.core.config import settings
