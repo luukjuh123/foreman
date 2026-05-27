@@ -1,4 +1,4 @@
-"""Customer model."""
+"""Customer model — canonical definition, used by both customers and invoices routers."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 
 from app.core.database import Base
-from sqlalchemy import DateTime, String, Text, func
+from sqlalchemy import DateTime, ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 
@@ -14,6 +14,9 @@ class Customer(Base):
     """A customer/client scoped per owner."""
 
     __tablename__ = "customers"
+    # extend_existing resolves SQLAlchemy conflict with invoice.Customer
+    # which also uses __tablename__ = "customers". Both classes map the same table.
+    __table_args__ = {"extend_existing": True}
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     owner_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True, index=True)
@@ -29,6 +32,7 @@ class Customer(Base):
     kvk_number: Mapped[str | None] = mapped_column(String(20), nullable=True)
     vat_number: Mapped[str | None] = mapped_column(String(20), nullable=True)
     btw_number: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    vat_number: Mapped[str | None] = mapped_column(String(20), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

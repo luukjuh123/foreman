@@ -1,11 +1,15 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FolderKanban, AlertCircle, TrendingUp, Receipt } from "lucide-react";
-import { listProjects, formatBudget } from "@/lib/projects";
+import { listProjects } from "@/lib/projects";
 import { apiFetch } from "@/lib/api";
-import type { ProjectResponse } from "@/lib/types";
+import type { ProjectResponse, AgendaTask, AgendaDayResponse } from "@/lib/types";
+import { KpiCards, computeStaffUtilization, type DashboardStats } from "@/components/dashboard/kpi-cards";
+import { fetchWeekAgenda } from "@/lib/agenda";
+
+const ONBOARDING_KEY = "foreman_onboarding_done";
 
 interface InvoiceSummary {
   id: string;
@@ -19,11 +23,24 @@ interface InvoiceListData {
   total: number;
 }
 
-interface DashboardStats {
-  activeProjects: number;
-  overdueTasks: number;
-  monthlyRevenueCents: number;
-  outstandingCents: number;
+interface StaffMember {
+  id: string;
+  weekly_hours_target: number | null;
+  active: boolean;
+}
+
+interface Assignment {
+  staff_id: string;
+  start_at: string;
+  end_at: string;
+}
+
+
+interface RecentProject {
+  id: string;
+  name: string;
+  updated_at: string | null;
+  status: string;
 }
 
 function isOverdue(task: { status: string; end_date?: string | null }): boolean {
@@ -32,7 +49,12 @@ function isOverdue(task: { status: string; end_date?: string | null }): boolean 
   return new Date(task.end_date) < new Date();
 }
 
-function computeStats(projects: ProjectResponse[], invoices: InvoiceSummary[]): DashboardStats {
+function computeStats(
+  projects: ProjectResponse[],
+  invoices: InvoiceSummary[],
+  staff: StaffMember[],
+  assignments: Assignment[]
+): DashboardStats {
   const activeProjects = projects.filter((p) => p.status === "active").length;
 
   const overdueTasks = projects
@@ -50,31 +72,92 @@ function computeStats(projects: ProjectResponse[], invoices: InvoiceSummary[]): 
     )
     .reduce((sum, inv) => sum + (inv.total_cents ?? 0), 0);
 
-  const outstandingCents = invoices
-    .filter((inv) => inv.status === "sent" || inv.status === "overdue")
-    .reduce((sum, inv) => sum + (inv.total_cents ?? 0), 0);
+  const staffUtilizationPct = computeStaffUtilization(staff, assignments, thisMonth);
 
-  return { activeProjects, overdueTasks, monthlyRevenueCents, outstandingCents };
+  return { activeProjects, overdueTasks, monthlyRevenueCents, staffUtilizationPct };
+}
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("nl-NL", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
 }
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [recentProjects, setRecentProjects] = useState<RecentProject[]>([]);
+  const [upcomingTasks, setUpcomingTasks] = useState<Array<AgendaTask & { date: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Redirect first-time visitors to onboarding
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const done = localStorage.getItem(ONBOARDING_KEY);
+      if (!done) {
+        router.push("/dashboard/onboarding");
+      }
+    }
+  }, [router]);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
 
+    const agendaFetch = fetchWeekAgenda().catch(() => null);
+
     Promise.all([
       listProjects(1, 100),
       apiFetch<InvoiceListData>("/invoices/?per_page=200"),
+      apiFetch<{ data: StaffMember[] }>("/staff/?per_page=200"),
+      apiFetch<Assignment[]>("/assignments/?per_page=500"),
+      agendaFetch,
     ])
-      .then(([projectsRes, invoicesRes]) => {
+      .then(([projectsRes, invoicesRes, staffRes, assignmentsRes, agendaRes]) => {
         if (!cancelled) {
-          const invoices: InvoiceSummary[] = (invoicesRes as { data?: { data?: InvoiceSummary[] } })?.data?.data ?? [];
-          setStats(computeStats(projectsRes.data, invoices));
+          const invoices: InvoiceSummary[] =
+            (invoicesRes as { data?: { data?: InvoiceSummary[] } })?.data?.data ?? [];
+          const rawStaff = (staffRes as { data?: unknown })?.data;
+          const staff: StaffMember[] = Array.isArray(rawStaff) ? (rawStaff as StaffMember[]) : [];
+          const assignments: Assignment[] = Array.isArray(assignmentsRes)
+            ? (assignmentsRes as Assignment[])
+            : [];
+
+          setStats(computeStats(projectsRes.data, invoices, staff, assignments));
+
+          // Recent projects: sort by updated_at desc, take top 5.
+          const sorted = [...projectsRes.data]
+            .sort((a, b) => {
+              const ta = (a as unknown as { updated_at?: string }).updated_at ?? "";
+              const tb = (b as unknown as { updated_at?: string }).updated_at ?? "";
+              return tb.localeCompare(ta);
+            })
+            .slice(0, 5)
+            .map((p) => ({
+              id: p.id,
+              name: p.name,
+              status: p.status,
+              updated_at: (p as unknown as { updated_at?: string }).updated_at ?? null,
+            }));
+          setRecentProjects(sorted);
+
+          // Upcoming tasks from agenda week view — non-done tasks today or later.
+          if (agendaRes && "days" in agendaRes) {
+            const today = new Date().toISOString().slice(0, 10);
+            const upcoming = agendaRes.days
+              .flatMap((day: AgendaDayResponse) =>
+                day.tasks
+                  .filter((t) => t.status !== "done" && day.date >= today)
+                  .map((t) => ({ ...t, date: day.date }))
+              )
+              .slice(0, 5);
+            setUpcomingTasks(upcoming);
+          }
+
           setLoading(false);
         }
       })
@@ -100,17 +183,8 @@ export default function DashboardPage() {
       </div>
 
       {loading && (
-        <div data-testid="dashboard-loading" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {[0, 1, 2, 3].map((i) => (
-            <Card key={i}>
-              <CardHeader className="pb-2">
-                <div className="h-4 w-24 animate-pulse rounded bg-muted" />
-              </CardHeader>
-              <CardContent>
-                <div className="h-8 w-16 animate-pulse rounded bg-muted" />
-              </CardContent>
-            </Card>
-          ))}
+        <div data-testid="dashboard-loading">
+          <KpiCards stats={null} loading={true} error={null} />
         </div>
       )}
 
@@ -125,67 +199,7 @@ export default function DashboardPage() {
 
       {!loading && !error && stats && (
         <>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Actieve Projecten
-                </CardTitle>
-                <FolderKanban className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold" data-testid="kpi-active-projects">
-                  {stats.activeProjects}
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Verlopen Taken
-                </CardTitle>
-                <AlertCircle className="h-4 w-4 text-destructive" />
-              </CardHeader>
-              <CardContent>
-                <p
-                  className="text-2xl font-bold"
-                  data-testid="kpi-overdue-tasks"
-                  style={stats.overdueTasks > 0 ? { color: "var(--destructive)" } : undefined}
-                >
-                  {stats.overdueTasks}
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Maandelijkse Omzet
-                </CardTitle>
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold" data-testid="kpi-monthly-revenue">
-                  {formatBudget(stats.monthlyRevenueCents)}
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Openstaande Facturen
-                </CardTitle>
-                <Receipt className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold" data-testid="kpi-outstanding-invoices">
-                  {formatBudget(stats.outstandingCents)}
-                </p>
-              </CardContent>
-            </Card>
-          </div>
+          <KpiCards stats={stats} loading={false} error={null} />
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <Card>
@@ -193,7 +207,20 @@ export default function DashboardPage() {
                 <CardTitle className="text-base">Recente Activiteit</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-muted-foreground">Geen recente activiteit.</p>
+                {recentProjects.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Geen recente activiteit.</p>
+                ) : (
+                  <ul className="space-y-2" data-testid="recent-activity-list">
+                    {recentProjects.map((p) => (
+                      <li key={p.id} className="flex items-center justify-between text-sm">
+                        <span className="font-medium truncate max-w-[60%]">{p.name}</span>
+                        <span className="text-muted-foreground text-xs">
+                          {p.updated_at ? formatDate(p.updated_at) : "—"}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </CardContent>
             </Card>
 
@@ -202,7 +229,21 @@ export default function DashboardPage() {
                 <CardTitle className="text-base">Aankomende Taken</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-muted-foreground">Geen aankomende taken.</p>
+                {upcomingTasks.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Geen aankomende taken.</p>
+                ) : (
+                  <ul className="space-y-2" data-testid="upcoming-tasks-list">
+                    {upcomingTasks.map((t) => (
+                      <li key={`${t.task_id}-${t.date}`} className="text-sm">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium truncate max-w-[60%]">{t.name}</span>
+                          <span className="text-muted-foreground text-xs">{formatDate(t.date)}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate">{t.project_name}</p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </CardContent>
             </Card>
           </div>

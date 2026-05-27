@@ -2,6 +2,9 @@
 
 Money is stored as integer euro cents.
 VAT rates are stored as integer basis points (e.g. 2100 = 21%).
+
+The Customer model lives in app.models.customer and is imported here for
+relationship declarations and re-export convenience.
 """
 
 from __future__ import annotations
