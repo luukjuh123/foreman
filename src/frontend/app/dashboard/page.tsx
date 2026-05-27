@@ -6,6 +6,9 @@ import { FolderKanban, AlertCircle, TrendingUp, Receipt } from "lucide-react";
 import { listProjects, formatBudget } from "@/lib/projects";
 import { apiFetch } from "@/lib/api";
 import type { ProjectResponse } from "@/lib/types";
+import OnboardingWizard from "@/components/onboarding/OnboardingWizard";
+
+const ONBOARDING_KEY = "foreman_onboarding_complete";
 
 interface InvoiceSummary {
   id: string;
@@ -61,6 +64,16 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  useEffect(() => {
+    const done = typeof window !== "undefined"
+      ? localStorage.getItem(ONBOARDING_KEY)
+      : "true";
+    if (!done) {
+      setShowOnboarding(true);
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -91,6 +104,10 @@ export default function DashboardPage() {
   }, []);
 
   return (
+    <>
+    {showOnboarding && (
+      <OnboardingWizard onClose={() => setShowOnboarding(false)} />
+    )}
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Welkom bij Foreman</h1>
@@ -209,5 +226,6 @@ export default function DashboardPage() {
         </>
       )}
     </div>
+    </>
   );
 }
