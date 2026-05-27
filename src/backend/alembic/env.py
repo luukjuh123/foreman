@@ -3,21 +3,20 @@
 import asyncio
 from logging.config import fileConfig
 
-from alembic import context
-from sqlalchemy import pool
-from sqlalchemy.ext.asyncio import async_engine_from_config
-
-from app.core.config import settings
-from app.core.database import Base
+import app.models.material
+import app.models.project
+import app.models.push_subscription
+import app.models.share_token
+import app.models.subscription
+import app.models.usage
 
 # Import all models so Base.metadata is populated
 import app.models.user  # noqa: F401
-import app.models.project  # noqa: F401
-import app.models.material  # noqa: F401
-import app.models.subscription  # noqa: F401
-import app.models.usage  # noqa: F401
-import app.models.push_subscription  # noqa: F401
-import app.models.share_token  # noqa: F401
+from alembic import context
+from app.core.config import settings
+from app.core.database import Base
+from sqlalchemy import pool
+from sqlalchemy.ext.asyncio import async_engine_from_config
 
 config = context.config
 

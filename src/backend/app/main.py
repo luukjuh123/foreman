@@ -1,15 +1,19 @@
 """foreman FastAPI application factory."""
 
+from app.core.audit_middleware import AuditLogMiddleware
 from app.core.config import settings
 from app.core.logging import RequestLoggingMiddleware, configure_logging
 from app.core.rate_limit_middleware import RateLimitMiddleware
 from app.routers import (
     agenda,
     ai_planning,
+    analytics,
     assignments,
+    audit_log,
     auth,
     billing,
     customers,
+    documents,
     financials,
     inbound,
     incidents,
@@ -26,11 +30,14 @@ from app.routers import (
     push,
     reports,
     reviews,
+    safety,
     staff,
+    subcontractors,
     templates,
     time_tracking,
     voice,
     weather,
+    webhooks,
 )
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -48,6 +55,7 @@ def create_app() -> FastAPI:
         openapi_url="/api/openapi.json",
     )
 
+    app.add_middleware(AuditLogMiddleware)
     app.add_middleware(RateLimitMiddleware)
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(
@@ -60,6 +68,7 @@ def create_app() -> FastAPI:
 
     app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
     app.include_router(projects.router, prefix="/api/v1/projects", tags=["projects"])
+    app.include_router(documents.router, prefix="/api/v1/projects", tags=["documents"])
     app.include_router(ai_planning.router, prefix="/api/v1/planning", tags=["planning"])
     app.include_router(materials.router, prefix="/api/v1/materials", tags=["materials"])
     app.include_router(financials.router, prefix="/api/v1/financials", tags=["financials"])
@@ -82,6 +91,9 @@ def create_app() -> FastAPI:
     app.include_router(staff.router, prefix="/api/v1/staff", tags=["staff"])
     app.include_router(templates.router, prefix="/api/v1/templates", tags=["templates"])
     app.include_router(voice.router, prefix="/api/v1/voice", tags=["voice"])
+    app.include_router(weather.router, prefix="/api/v1/weather", tags=["weather"])
+    app.include_router(webhooks.router, prefix="/api/v1/webhooks", tags=["webhooks"])
+    app.include_router(subcontractors.router, prefix="/api/v1/subcontractors", tags=["subcontractors"])
     app.include_router(portal.router, prefix="/api/v1", tags=["portal"])
     app.include_router(punch_items.router, prefix="/api/v1/projects", tags=["punch-items"])
 
