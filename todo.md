@@ -196,5 +196,13 @@
 - [x] Frontend: Subcontractor assignment UI on project phase cards — pick from directory, set rates — PR #188
 - [x] Frontend: Subcontractor cost dashboard — spending per project, per subcontractor, margin analysis — PR #188
 
+## Priority: Medium (Phase 21 — Feature Improvements)
+
+- [ ] Backend: Document management — upload/download contracts, permits, drawings per project with file versioning; S3-compatible storage via env config; endpoints: POST /projects/{id}/documents (multipart upload), GET /projects/{id}/documents (list with filters), GET /documents/{id}/download, DELETE /documents/{id}; SQLAlchemy Document model with UUID PK, project FK, filename, mime_type, size_bytes, version, uploaded_by, created_at; max 50MB per file; supported types: PDF, DOCX, DWG, PNG, JPG
+- [ ] Backend: Audit log — track all user actions (create/update/delete) across projects, invoices, staff, and subcontractors; AuditEntry model with UUID PK, actor_id, action (enum: create/update/delete), entity_type, entity_id, diff (JSON of changed fields), timestamp, ip_address; queryable via GET /audit-log with filters by actor, entity, action, date range; paginated; read-only (no delete endpoint)
+- [ ] Frontend: Multi-project Gantt view — combined timeline of all active projects on a single horizontal chart for cross-project resource planning; color-coded bars per project; staff allocation overlay showing who is assigned where; zoom controls (week/month/quarter); click-through to individual project Gantt; reuses existing Gantt component from Phase 2
+- [x] Frontend: Bulk material CSV import — upload CSV file with columns (material_name, quantity, unit) to auto-create shopping lists; fuzzy-match material names against hardware store products (Phase 12 price comparison engine); preview step showing matched/unmatched items before confirmation; download CSV template; error rows highlighted with reasons
+- [ ] Frontend: Onboarding wizard — first-time user flow triggered after registration; 4-step interactive tour: (1) create sample project, (2) add phases and tasks, (3) run AI planning, (4) generate first invoice; uses existing API endpoints; progress tracked in localStorage; skippable; re-accessible from settings
+
 ## Completed
 <!-- [x] Task description — PR #N -->
