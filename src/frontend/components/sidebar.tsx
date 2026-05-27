@@ -13,7 +13,7 @@ import {
   Wrench,
   Users,
   BarChart3,
-  BookOpen,
+  Mic,
   Star,
   Settings,
   Menu,
@@ -35,7 +35,7 @@ const NAV_ITEMS = [
   { label: "Rapporten", href: "/dashboard/reports", icon: BarChart3 },
   { label: "Reviews", href: "/dashboard/reviews", icon: Star },
   { label: "Meldingen", href: "/dashboard/notifications", icon: Bell },
-  { label: "Boekhouding", href: "/dashboard/financials", icon: BookOpen },
+  { label: "Spraakassistent", href: "/dashboard/voice", icon: Mic },
   { label: "Instellingen", href: "/dashboard/settings", icon: Settings },
 ];
 
