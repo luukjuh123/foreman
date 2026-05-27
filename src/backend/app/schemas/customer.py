@@ -33,14 +33,14 @@ class CustomerUpdate(BaseModel):
 class CustomerResponse(BaseModel):
     id: uuid.UUID
     name: str
-    email: str | None
-    phone: str | None
-    address: str | None
-    city: str | None
-    postal_code: str | None
-    kvk_number: str | None
-    btw_number: str | None
-    notes: str | None
+    email: str | None = None
+    phone: str | None = None
+    address: str | None = None
+    city: str | None = None
+    postal_code: str | None = None
+    kvk_number: str | None = None
+    btw_number: str | None = None
+    notes: str | None = None
     created_at: datetime
     updated_at: datetime
 

@@ -1,7 +1,9 @@
 """Customer model — canonical definition, used by both customers and invoices routers."""
 
-import uuid
-from datetime import datetime
+# The canonical Customer model (scoped by owner_id, Dutch invoice fields) lives in
+# invoice.py and was defined there first. Importing it here so app.routers.customers
+# can reference the same class without a duplicate table definition.
+from app.models.invoice import Customer
 
 from app.core.database import Base
 from sqlalchemy import DateTime, ForeignKey, String, Text, func
@@ -16,6 +18,7 @@ class Customer(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    # General address field (free-form)
     address: Mapped[str | None] = mapped_column(String(255), nullable=True)
     address_line1: Mapped[str | None] = mapped_column(String(255), nullable=True)
     address_line2: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -23,6 +26,7 @@ class Customer(Base):
     postal_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
     country_code: Mapped[str] = mapped_column(String(2), default="NL")
     kvk_number: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # btw_number = VAT number (Dutch alias for vat_number)
     btw_number: Mapped[str | None] = mapped_column(String(30), nullable=True)
     vat_number: Mapped[str | None] = mapped_column(String(20), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
