@@ -3,7 +3,8 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { listProjects } from "@/lib/projects";
+import { FolderKanban, AlertCircle, TrendingUp, Receipt, Users } from "lucide-react";
+import { listProjects, formatBudget } from "@/lib/projects";
 import { apiFetch } from "@/lib/api";
 import type { ProjectResponse, AgendaTask, AgendaDayResponse } from "@/lib/types";
 import { KpiCards, computeStaffUtilization, type DashboardStats } from "@/components/dashboard/kpi-cards";
@@ -23,24 +24,18 @@ interface InvoiceListData {
   total: number;
 }
 
-interface StaffMember {
-  id: string;
-  weekly_hours_target: number | null;
-  active: boolean;
+interface StaffUtilization {
+  utilization_percent: number;
+  assigned_hours: number;
+  available_hours: number;
 }
 
-interface Assignment {
-  staff_id: string;
-  start_at: string;
-  end_at: string;
-}
-
-
-interface RecentProject {
-  id: string;
-  name: string;
-  updated_at: string | null;
-  status: string;
+interface DashboardStats {
+  activeProjects: number;
+  overdueTasks: number;
+  monthlyRevenueCents: number;
+  outstandingCents: number;
+  staffUtilization: StaffUtilization;
 }
 
 function isOverdue(task: { status: string; end_date?: string | null }): boolean {
@@ -52,8 +47,7 @@ function isOverdue(task: { status: string; end_date?: string | null }): boolean 
 function computeStats(
   projects: ProjectResponse[],
   invoices: InvoiceSummary[],
-  staff: StaffMember[],
-  assignments: Assignment[]
+  staffUtilization: StaffUtilization,
 ): DashboardStats {
   const activeProjects = projects.filter((p) => p.status === "active").length;
 
@@ -77,12 +71,7 @@ function computeStats(
   return { activeProjects, overdueTasks, monthlyRevenueCents, staffUtilizationPct };
 }
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("nl-NL", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
+  return { activeProjects, overdueTasks, monthlyRevenueCents, outstandingCents, staffUtilization };
 }
 
 export default function DashboardPage() {
@@ -113,51 +102,17 @@ export default function DashboardPage() {
     Promise.all([
       listProjects(1, 100),
       apiFetch<InvoiceListData>("/invoices/?per_page=200"),
-      apiFetch<{ data: StaffMember[] }>("/staff/?per_page=200"),
-      apiFetch<Assignment[]>("/assignments/?per_page=500"),
-      agendaFetch,
+      apiFetch<StaffUtilization>("/staff/utilization"),
     ])
-      .then(([projectsRes, invoicesRes, staffRes, assignmentsRes, agendaRes]) => {
+      .then(([projectsRes, invoicesRes, utilizationRes]) => {
         if (!cancelled) {
-          const invoices: InvoiceSummary[] =
-            (invoicesRes as { data?: { data?: InvoiceSummary[] } })?.data?.data ?? [];
-          const rawStaff = (staffRes as { data?: unknown })?.data;
-          const staff: StaffMember[] = Array.isArray(rawStaff) ? (rawStaff as StaffMember[]) : [];
-          const assignments: Assignment[] = Array.isArray(assignmentsRes)
-            ? (assignmentsRes as Assignment[])
-            : [];
-
-          setStats(computeStats(projectsRes.data, invoices, staff, assignments));
-
-          // Recent projects: sort by updated_at desc, take top 5.
-          const sorted = [...projectsRes.data]
-            .sort((a, b) => {
-              const ta = (a as unknown as { updated_at?: string }).updated_at ?? "";
-              const tb = (b as unknown as { updated_at?: string }).updated_at ?? "";
-              return tb.localeCompare(ta);
-            })
-            .slice(0, 5)
-            .map((p) => ({
-              id: p.id,
-              name: p.name,
-              status: p.status,
-              updated_at: (p as unknown as { updated_at?: string }).updated_at ?? null,
-            }));
-          setRecentProjects(sorted);
-
-          // Upcoming tasks from agenda week view — non-done tasks today or later.
-          if (agendaRes && "days" in agendaRes) {
-            const today = new Date().toISOString().slice(0, 10);
-            const upcoming = agendaRes.days
-              .flatMap((day: AgendaDayResponse) =>
-                day.tasks
-                  .filter((t) => t.status !== "done" && day.date >= today)
-                  .map((t) => ({ ...t, date: day.date }))
-              )
-              .slice(0, 5);
-            setUpcomingTasks(upcoming);
-          }
-
+          const invoices: InvoiceSummary[] = (invoicesRes as { data?: { data?: InvoiceSummary[] } })?.data?.data ?? [];
+          const utilization: StaffUtilization = (utilizationRes as StaffUtilization) ?? {
+            utilization_percent: 0,
+            assigned_hours: 0,
+            available_hours: 0,
+          };
+          setStats(computeStats(projectsRes.data, invoices, utilization));
           setLoading(false);
         }
       })
@@ -183,8 +138,17 @@ export default function DashboardPage() {
       </div>
 
       {loading && (
-        <div data-testid="dashboard-loading">
-          <KpiCards stats={null} loading={true} error={null} />
+        <div data-testid="dashboard-loading" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <Card key={i}>
+              <CardHeader className="pb-2">
+                <div className="h-4 w-24 animate-pulse rounded bg-muted" />
+              </CardHeader>
+              <CardContent>
+                <div className="h-8 w-16 animate-pulse rounded bg-muted" />
+              </CardContent>
+            </Card>
+          ))}
         </div>
       )}
 
@@ -199,7 +163,81 @@ export default function DashboardPage() {
 
       {!loading && !error && stats && (
         <>
-          <KpiCards stats={stats} loading={false} error={null} />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Actieve Projecten
+                </CardTitle>
+                <FolderKanban className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold" data-testid="kpi-active-projects">
+                  {stats.activeProjects}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Verlopen Taken
+                </CardTitle>
+                <AlertCircle className="h-4 w-4 text-destructive" />
+              </CardHeader>
+              <CardContent>
+                <p
+                  className="text-2xl font-bold"
+                  data-testid="kpi-overdue-tasks"
+                  style={stats.overdueTasks > 0 ? { color: "var(--destructive)" } : undefined}
+                >
+                  {stats.overdueTasks}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Maandelijkse Omzet
+                </CardTitle>
+                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold" data-testid="kpi-monthly-revenue">
+                  {formatBudget(stats.monthlyRevenueCents)}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Openstaande Facturen
+                </CardTitle>
+                <Receipt className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold" data-testid="kpi-outstanding-invoices">
+                  {formatBudget(stats.outstandingCents)}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Personeelsbezetting
+                </CardTitle>
+                <Users className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold" data-testid="kpi-staff-utilization">
+                  {stats.staffUtilization.utilization_percent}%
+                </p>
+              </CardContent>
+            </Card>
+          </div>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <Card>
