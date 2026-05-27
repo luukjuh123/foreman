@@ -1,7 +1,10 @@
-"""Invoice domain models: Customer, Invoice, InvoiceLine, InvoiceCounter.
+"""Invoice domain models: Invoice, InvoiceLine, InvoiceCounter.
 
 Money is stored as integer euro cents.
 VAT rates are stored as integer basis points (e.g. 2100 = 21%).
+
+The Customer model lives in app.models.customer and is imported here for
+relationship declarations and re-export convenience.
 """
 
 from __future__ import annotations
@@ -10,6 +13,7 @@ import uuid
 from datetime import date, datetime
 
 from app.core.database import Base
+from app.models.customer import Customer  # noqa: F401 — re-exported for convenience
 from sqlalchemy import (
     Date,
     DateTime,

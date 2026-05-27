@@ -41,15 +41,32 @@ const mockProjectList = {
   per_page: 100,
 };
 
-// Assignment for staff-1 on a Monday (2026-05-18)
+// Compute the current week's Monday and Tuesday dynamically so the
+// assignment filter (which uses the real Date) always puts them in the
+// visible week, regardless of when the tests run.
+function getMondayOfCurrentWeek(): string {
+  const d = new Date();
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  d.setHours(8, 0, 0, 0);
+  return d.toISOString().slice(0, 10);
+}
+const MONDAY = getMondayOfCurrentWeek();
+const TUESDAY = (() => {
+  const d = new Date(MONDAY + "T08:00:00");
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10);
+})();
+
 const mockAssignmentsStaff1 = [
   {
     id: "asgn-1",
     staff_id: "staff-1",
     project_id: "proj-1",
     task_id: null,
-    start_at: "2026-05-18T08:00:00",
-    end_at: "2026-05-18T16:00:00",
+    start_at: `${MONDAY}T08:00:00`,
+    end_at: `${MONDAY}T16:00:00`,
     notes: null,
     created_at: "2026-05-01T00:00:00",
   },
@@ -61,8 +78,8 @@ const mockAssignmentsStaff2 = [
     staff_id: "staff-2",
     project_id: "proj-2",
     task_id: null,
-    start_at: "2026-05-19T08:00:00", // Tuesday
-    end_at: "2026-05-19T16:00:00",
+    start_at: `${TUESDAY}T08:00:00`, // Tuesday
+    end_at: `${TUESDAY}T16:00:00`,
     notes: null,
     created_at: "2026-05-01T00:00:00",
   },

@@ -6,6 +6,7 @@ from app.core.rate_limit_middleware import RateLimitMiddleware
 from app.routers import (
     agenda,
     ai_planning,
+    analytics,
     assignments,
     audit,
     auth,
@@ -27,7 +28,7 @@ from app.routers import (
     reports,
     reviews,
     staff,
-    templates,
+    subcontractors,
     time_tracking,
     voice,
 )

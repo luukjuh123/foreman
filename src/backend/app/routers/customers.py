@@ -38,9 +38,9 @@ async def create_customer(
 @router.get("/", response_model=list[CustomerResponse])
 async def list_customers(
     db: AsyncSession = Depends(get_db),
-    _: object = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ) -> list[Customer]:
-    result = await db.execute(select(Customer).order_by(Customer.name))
+    result = await db.execute(select(Customer).where(Customer.owner_id == current_user.id).order_by(Customer.name))
     return list(result.scalars().all())
 
 
