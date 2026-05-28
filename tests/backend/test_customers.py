@@ -53,14 +53,14 @@ async def test_create_customer(client):
         "name": "Bouwbedrijf Jansen",
         "email": "jansen@example.nl",
         "kvk_number": "12345678",
-        "btw_number": "NL123456789B01",
+        "vat_number": "NL123456789B01",
     }, headers=headers)
     assert resp.status_code == 201
     data = resp.json()
     assert data["name"] == "Bouwbedrijf Jansen"
     assert data["email"] == "jansen@example.nl"
     assert data["kvk_number"] == "12345678"
-    assert data["btw_number"] == "NL123456789B01"
+    assert data["vat_number"] == "NL123456789B01"
     assert "id" in data
     assert "created_at" in data
 
@@ -98,10 +98,10 @@ async def test_update_customer(client):
     headers = await _auth_headers(client)
     create_resp = await client.post("/api/v1/customers/", json={"name": "Klant D"}, headers=headers)
     cid = create_resp.json()["id"]
-    resp = await client.patch(f"/api/v1/customers/{cid}", json={"phone": "0612345678", "city": "Amsterdam"}, headers=headers)
+    resp = await client.patch(f"/api/v1/customers/{cid}", json={"address_line1": "Dorpsstraat 1", "city": "Amsterdam"}, headers=headers)
     assert resp.status_code == 200
     data = resp.json()
-    assert data["phone"] == "0612345678"
+    assert data["address_line1"] == "Dorpsstraat 1"
     assert data["city"] == "Amsterdam"
     assert data["name"] == "Klant D"
 
@@ -125,5 +125,5 @@ async def test_create_customer_minimal(client):
     assert resp.status_code == 201
     data = resp.json()
     assert data["email"] is None
-    assert data["phone"] is None
     assert data["kvk_number"] is None
+    assert data["vat_number"] is None

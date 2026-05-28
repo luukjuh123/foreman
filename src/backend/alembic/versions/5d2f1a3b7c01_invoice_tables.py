@@ -8,15 +8,18 @@ Create Date: 2026-05-19 09:00:00
 
 from __future__ import annotations
 
-from typing import Sequence, Union
+from typing import TYPE_CHECKING
 
 import sqlalchemy as sa
 from alembic import op
 
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
 revision: str = "5d2f1a3b7c01"
-down_revision: Union[str, Sequence[str], None] = "30246b22cf35"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = "30246b22cf35"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -42,12 +45,8 @@ def upgrade() -> None:
         "invoices",
         sa.Column("id", sa.Uuid(), primary_key=True),
         sa.Column("owner_id", sa.Uuid(), sa.ForeignKey("users.id"), nullable=False, index=True),
-        sa.Column(
-            "customer_id", sa.Uuid(), sa.ForeignKey("customers.id"), nullable=False, index=True
-        ),
-        sa.Column(
-            "project_id", sa.Uuid(), sa.ForeignKey("projects.id"), nullable=True, index=True
-        ),
+        sa.Column("customer_id", sa.Uuid(), sa.ForeignKey("customers.id"), nullable=False, index=True),
+        sa.Column("project_id", sa.Uuid(), sa.ForeignKey("projects.id"), nullable=True, index=True),
         sa.Column("invoice_number", sa.String(20), nullable=False),
         sa.Column("issue_date", sa.Date(), nullable=False),
         sa.Column("due_date", sa.Date(), nullable=False),
@@ -69,9 +68,7 @@ def upgrade() -> None:
     op.create_table(
         "invoice_lines",
         sa.Column("id", sa.Uuid(), primary_key=True),
-        sa.Column(
-            "invoice_id", sa.Uuid(), sa.ForeignKey("invoices.id"), nullable=False, index=True
-        ),
+        sa.Column("invoice_id", sa.Uuid(), sa.ForeignKey("invoices.id"), nullable=False, index=True),
         sa.Column("position", sa.Integer(), server_default="0"),
         sa.Column("description", sa.String(500), nullable=False),
         sa.Column("quantity", sa.Float(), server_default="1.0"),

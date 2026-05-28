@@ -31,6 +31,8 @@ async def app_with_db():
 
     app.dependency_overrides[get_db] = override_get_db
     app.state.test_session_factory = session_factory
+    # Wire audit middleware to the same in-memory DB to avoid production DB access.
+    app.state.audit_session_factory = session_factory
     yield app
     await engine.dispose()
 
