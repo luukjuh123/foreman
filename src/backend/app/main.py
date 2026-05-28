@@ -5,16 +5,19 @@ from app.core.config import settings
 from app.core.logging import RequestLoggingMiddleware, configure_logging
 from app.core.rate_limit_middleware import RateLimitMiddleware
 from app.routers import (
-    accounting,
     agenda,
     ai_planning,
     analytics,
     assignments,
     audit,
+    audit_log,
     auth,
+    documents,
     billing,
+    documents,
     collaboration,
     customers,
+    documents,
     equipment,
     financials,
     gps_checkin,
@@ -25,7 +28,6 @@ from app.routers import (
     materials,
     notifications,
     payroll,
-    permits,
     photos,
     portal,
     processes,
@@ -39,10 +41,10 @@ from app.routers import (
     subcontractors,
     templates,
     time_tracking,
-    timeline,
     voice,
     weather,
     webhooks,
+    websocket,
 )
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -102,6 +104,7 @@ def create_app() -> FastAPI:
     app.include_router(webhooks.router, prefix="/api/v1/webhooks", tags=["webhooks"])
     app.include_router(portal.router, prefix="/api/v1", tags=["portal"])
     app.include_router(gps_checkin.router, prefix="/api/v1/projects", tags=["gps-checkin"])
+    app.include_router(audit_log.router, prefix="/api/v1/audit-log", tags=["audit-log"])
 
     @app.get("/healthz", tags=["health"])
     async def health_check() -> dict:
