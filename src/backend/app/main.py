@@ -14,8 +14,6 @@ from app.routers import (
     auth,
     documents,
     billing,
-    documents,
-    collaboration,
     customers,
     documents,
     equipment,
