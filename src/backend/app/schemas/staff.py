@@ -1,8 +1,10 @@
-"""Pydantic schemas for Staff and StaffAvailability."""
+"""Pydantic schemas for Staff, StaffAvailability, and StaffCertification."""
 
 import uuid
-from datetime import datetime, time
+from datetime import date, datetime, time
+from typing import Literal
 
+from app.models.staff import CERT_TYPES
 from pydantic import BaseModel, Field, model_validator
 
 
@@ -77,3 +79,51 @@ class StaffUtilizationResponse(BaseModel):
     utilization_percent: float
     assigned_hours: float
     available_hours: float
+
+
+# Certification type as a discriminated literal for validation
+CertType = Literal["VCA", "BHV", "crane_license", "asbestos", "other"]
+
+
+class CertificationCreate(BaseModel):
+    cert_type: CertType
+    cert_name: str = Field(min_length=1, max_length=255)
+    issued_at: date
+    expires_at: date
+    document_path: str | None = None
+
+    @model_validator(mode="after")
+    def _check_dates(self) -> "CertificationCreate":
+        if self.expires_at <= self.issued_at:
+            raise ValueError("expires_at must be after issued_at")
+        return self
+
+
+class CertificationUpdate(BaseModel):
+    cert_type: CertType | None = None
+    cert_name: str | None = Field(default=None, min_length=1, max_length=255)
+    issued_at: date | None = None
+    expires_at: date | None = None
+    document_path: str | None = None
+
+
+class CertificationResponse(BaseModel):
+    id: uuid.UUID
+    staff_id: uuid.UUID
+    cert_type: str
+    cert_name: str
+    issued_at: date
+    expires_at: date
+    document_path: str | None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ComplianceOverviewResponse(BaseModel):
+    total_staff: int
+    total_certifications: int
+    expired_count: int
+    expiring_soon_count: int
+    valid_count: int
