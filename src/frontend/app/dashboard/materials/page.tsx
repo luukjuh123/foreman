@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Search, ExternalLink, Upload } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { estimateMaterials, type MaterialResult } from "@/lib/materials";
+import BulkMaterialImportDialog from "@/components/bulk-material-import-dialog";
 
 // ---------------------------------------------------------------------------
 // Store colour mapping
@@ -483,9 +484,12 @@ export default function MaterialsPage() {
       {/* SEARCH SECTION                                                      */}
       {/* ------------------------------------------------------------------ */}
       <section className="space-y-6">
-        <div className="flex items-center gap-3">
-          <Search className="h-5 w-5 text-muted-foreground" />
-          <h2 className="text-xl font-semibold text-foreground">Materialen zoeken</h2>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <Search className="h-5 w-5 text-muted-foreground" />
+            <h2 className="text-xl font-semibold text-foreground">Materialen zoeken</h2>
+          </div>
+          <BulkMaterialImportDialog />
         </div>
 
         {/* Search bar */}
