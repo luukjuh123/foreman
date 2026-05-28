@@ -1,6 +1,4 @@
-"""Collaboration router — placeholder for future collaboration endpoints."""
-
-from __future__ import annotations
+"""Collaboration router — stub."""
 
 from fastapi import APIRouter
 

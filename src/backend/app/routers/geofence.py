@@ -1,4 +1,4 @@
-"""Accounting router — stub."""
+"""Geofence router — stub."""
 
 from fastapi import APIRouter
 

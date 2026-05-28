@@ -1,4 +1,4 @@
-"""Accounting router — stub."""
+"""Forecasting router — stub."""
 
 from fastapi import APIRouter
 

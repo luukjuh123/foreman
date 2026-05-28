@@ -1,6 +1,4 @@
-"""Permits router — placeholder for future permit management endpoints."""
-
-from __future__ import annotations
+"""Permits router — stub."""
 
 from fastapi import APIRouter
 

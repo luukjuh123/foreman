@@ -6,6 +6,7 @@ from app.core.logging import RequestLoggingMiddleware, configure_logging
 from app.core.rate_limit_middleware import RateLimitMiddleware
 from app.routers import (
     agenda,
+    btw,
     ai_planning,
     analytics,
     assignments,
@@ -72,6 +73,7 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
+    app.include_router(btw.router, prefix="/api/v1/btw", tags=["btw"])
     app.include_router(projects.router, prefix="/api/v1/projects", tags=["projects"])
     app.include_router(documents.router, prefix="/api/v1/projects", tags=["documents"])
     app.include_router(ai_planning.router, prefix="/api/v1/planning", tags=["planning"])
