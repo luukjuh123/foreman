@@ -6,11 +6,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FolderKanban, AlertCircle, TrendingUp, Receipt, Users } from "lucide-react";
 import { listProjects, formatBudget } from "@/lib/projects";
 import { apiFetch } from "@/lib/api";
-import type { ProjectResponse, AgendaTask, AgendaDayResponse } from "@/lib/types";
-import { KpiCards, computeStaffUtilization, type DashboardStats } from "@/components/dashboard/kpi-cards";
+import type { ProjectResponse, AgendaTask } from "@/lib/types";
+import { formatDate } from "@/lib/projects";
 import { fetchWeekAgenda } from "@/lib/agenda";
 
 const ONBOARDING_KEY = "foreman_onboarding_done";
+
+interface RecentProject {
+  id: string;
+  name: string;
+  updated_at?: string | null;
+}
 
 interface InvoiceSummary {
   id: string;
@@ -66,10 +72,9 @@ function computeStats(
     )
     .reduce((sum, inv) => sum + (inv.total_cents ?? 0), 0);
 
-  const staffUtilizationPct = computeStaffUtilization(staff, assignments, thisMonth);
-
-  return { activeProjects, overdueTasks, monthlyRevenueCents, staffUtilizationPct };
-}
+  const outstandingCents = invoices
+    .filter((inv) => inv.status === "sent" || inv.status === "overdue")
+    .reduce((sum, inv) => sum + (inv.total_cents ?? 0), 0);
 
   return { activeProjects, overdueTasks, monthlyRevenueCents, outstandingCents, staffUtilization };
 }

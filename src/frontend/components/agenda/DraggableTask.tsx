@@ -2,6 +2,7 @@
 
 import React from "react";
 import { cn } from "@/lib/utils";
+import { WeatherRiskBadge } from "./WeatherRiskBadge";
 
 export interface AgendaTask {
   task_id: string;
@@ -24,6 +25,8 @@ export interface AgendaTask {
 interface DraggableTaskProps {
   task: AgendaTask;
   isDragging?: boolean;
+  /** Optional weather risk badge info for outdoor tasks on bad-weather days */
+  weatherRisk?: { riskType: "rain" | "wind" | "frost"; details: string } | null;
 }
 
 const STATUS_COLOR: Record<string, string> = {
@@ -33,7 +36,7 @@ const STATUS_COLOR: Record<string, string> = {
   blocked: "bg-red-700 border-red-500",
 };
 
-export function DraggableTask({ task, isDragging = false }: DraggableTaskProps) {
+export function DraggableTask({ task, isDragging = false, weatherRisk }: DraggableTaskProps) {
   function handleDragStart(e: React.DragEvent<HTMLDivElement>) {
     // jsdom does not implement dataTransfer methods — guard for test environments.
     try {
@@ -59,6 +62,14 @@ export function DraggableTask({ task, isDragging = false }: DraggableTaskProps) 
     >
       <p className="font-medium truncate">{task.name}</p>
       <p className="text-gray-300 truncate">{task.phase_name}</p>
+      {weatherRisk && (
+        <div className="mt-1">
+          <WeatherRiskBadge
+            riskType={weatherRisk.riskType}
+            details={weatherRisk.details}
+          />
+        </div>
+      )}
     </div>
   );
 }

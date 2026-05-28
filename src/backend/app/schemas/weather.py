@@ -50,3 +50,44 @@ class WeatherRiskResponse(BaseModel):
     risk_type: str
     severity: str
     details: str
+
+
+# ---------------------------------------------------------------------------
+# Rescheduling schemas (Phase 21)
+# ---------------------------------------------------------------------------
+
+
+class RescheduleSuggestion(BaseModel):
+    """A suggested rescheduling for a single outdoor task affected by bad weather."""
+
+    task_id: str
+    task_name: str
+    project_id: str
+    phase_id: str
+    current_start: str  # ISO date
+    current_end: str  # ISO date
+    suggested_start: str | None  # ISO date, None if no good day found in forecast
+    suggested_end: str | None  # ISO date, None if no good day found in forecast
+    weather_risk: str  # "rain" | "wind" | "frost"
+    weather_details: str  # human-readable explanation
+
+
+class RescheduleItem(BaseModel):
+    """A single task rescheduling request (accepted by the user)."""
+
+    task_id: str
+    new_start: str  # ISO date
+    new_end: str  # ISO date
+
+
+class RescheduleRequest(BaseModel):
+    """Batch of rescheduling confirmations to apply."""
+
+    project_id: str
+    reschedules: list[RescheduleItem]
+
+
+class RescheduleResponse(BaseModel):
+    """Result of applying a batch of reschedules."""
+
+    updated_count: int

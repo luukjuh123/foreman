@@ -4,6 +4,8 @@ import React, { useMemo } from "react";
 import type { ProjectResponse } from "@/lib/types";
 import { GanttTimeline } from "./GanttTimeline";
 import { GanttRow } from "./GanttRow";
+import { WeatherGanttOverlay } from "./WeatherGanttOverlay";
+import type { WeatherDayDisplay } from "@/lib/weather";
 
 const DAY_WIDTH_PX = 40;
 const LABEL_WIDTH_PX = 180;
@@ -16,9 +18,11 @@ interface GanttChartProps {
     newStart: string,
     newEnd: string
   ) => void;
+  /** Optional 7-day weather forecast to render as an overlay row */
+  weatherForecast?: WeatherDayDisplay[];
 }
 
-export function GanttChart({ project, onReschedule }: GanttChartProps) {
+export function GanttChart({ project, onReschedule, weatherForecast }: GanttChartProps) {
   const { chartStart, chartEnd } = useMemo(() => {
     const allDates: Date[] = [];
     for (const phase of project.phases) {
@@ -93,6 +97,16 @@ export function GanttChart({ project, onReschedule }: GanttChartProps) {
             endDate={chartEnd}
             dayWidthPx={DAY_WIDTH_PX}
           />
+
+          {/* Weather overlay row — only when forecast data is available */}
+          {weatherForecast && weatherForecast.length > 0 && (
+            <WeatherGanttOverlay
+              startDate={chartStart}
+              endDate={chartEnd}
+              dayWidthPx={DAY_WIDTH_PX}
+              forecast={weatherForecast}
+            />
+          )}
 
           {/* Rows */}
           <div className="relative">

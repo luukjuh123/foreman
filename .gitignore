@@ -13,6 +13,11 @@ __pycache__/
 # Logs
 *.log
 
+# Node
+node_modules/
+**/node_modules/
+.next/
+
 # in foreman/.gitignore
 .env
 **/.env
