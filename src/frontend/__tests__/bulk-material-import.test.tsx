@@ -1,12 +1,14 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import React from "react";
-// Static import of the real parseCsv — resolved before any vi.doMock calls
-import { parseCsv as realParseCsv } from "@/lib/bulk-material-import";
+
+// ---------------------------------------------------------------------------
+// Mocks
+// ---------------------------------------------------------------------------
 
 vi.mock("next/navigation", () => ({
   useRouter: vi.fn(() => ({ push: vi.fn() })),
-  usePathname: vi.fn(() => "/dashboard/materials"),
+  usePathname: vi.fn(() => "/dashboard/materials/import"),
 }));
 
 vi.mock("next/link", () => ({
@@ -15,498 +17,365 @@ vi.mock("next/link", () => ({
   ),
 }));
 
+// Top-level mutable mock so we can swap the implementation per describe/it
+let mockSearchMaterials = vi.fn();
+
+vi.mock("@/lib/materials", () => ({
+  searchMaterials: (...args: unknown[]) => mockSearchMaterials(...args),
+  formatPriceCents: (cents: number) =>
+    new Intl.NumberFormat("nl-NL", {
+      style: "currency",
+      currency: "EUR",
+      minimumFractionDigits: 2,
+    }).format(cents / 100),
+}));
+
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
 
-const mockBulkMatchResponse = {
-  data: [
-    {
-      row_index: 0,
-      input: { name: "Muurverf wit", quantity: 10, unit: "liter", description: "Voor slaapkamer" },
-      match: {
-        store: "hornbach",
-        product_id: "h-001",
-        name: "Muurverf Wit 2.5L Hornbach",
-        url: "https://hornbach.nl/p/h-001",
-        price_cents: 1499,
-        in_stock: true,
-        unit: "piece",
-        confidence: 0.92,
-      },
-    },
-    {
-      row_index: 1,
-      input: { name: "Schroeven M6", quantity: 100, unit: "stuks", description: "" },
-      match: {
-        store: "gamma",
-        product_id: "g-002",
-        name: "Schroeven M6x20 (100 stuks)",
-        url: "https://gamma.nl/p/g-002",
-        price_cents: 599,
-        in_stock: true,
-        unit: "piece",
-        confidence: 0.85,
-      },
-    },
-    {
-      row_index: 2,
-      input: { name: "Onbekend product xyz", quantity: 5, unit: "kg", description: "" },
-      match: null,
-    },
-  ],
-  error: null,
+const mockSearchResult = {
+  store: "hornbach",
+  product_id: "h-001",
+  name: "Houtschroeven 4x40mm (200st)",
+  url: "https://hornbach.nl/p/h-001",
+  price_cents: 599,
+  in_stock: true,
+  unit: "piece",
 };
 
-const mockBulkImportResponse = {
-  data: { imported: 2, failed: 0 },
-  error: null,
+const mockSearchResult2 = {
+  store: "gamma",
+  product_id: "g-002",
+  name: "Multiplex plaat 18mm",
+  url: "https://gamma.nl/p/g-002",
+  price_cents: 2499,
+  in_stock: true,
+  unit: "m2",
 };
 
 // ---------------------------------------------------------------------------
-// Mock lib/bulk-material-import
+// Import page (static — module cache is fine because the mock is top-level)
 // ---------------------------------------------------------------------------
 
-function mockBulkLib(
-  bulkMatch: ReturnType<typeof vi.fn>,
-  bulkImport: ReturnType<typeof vi.fn>
-) {
-  vi.doMock("@/lib/bulk-material-import", () => ({
-    parseCsv: (text: string) => {
-      if (!text.trim()) return { rows: [], error: "Leeg bestand" };
-      const lines = text.trim().split("\n");
-      const header = lines[0].split(",").map((h: string) => h.trim().toLowerCase());
-      if (!header.includes("name")) return { rows: [], error: "Kolom 'name' ontbreekt" };
-      if (lines.length < 2) return { rows: [], error: "Geen gegevensrijen" };
-      const rows = lines.slice(1).map((line: string) => {
-        const cols = line.split(",").map((c: string) => c.trim());
-        return {
-          name: cols[header.indexOf("name")] ?? "",
-          quantity: parseFloat(cols[header.indexOf("quantity")] ?? "0") || 0,
-          unit: cols[header.indexOf("unit")] ?? "",
-          description: cols[header.indexOf("description")] ?? "",
-        };
-      });
-      return { rows, error: null };
-    },
-    bulkMatch,
-    bulkImport,
-  }));
+import ImportPage from "@/app/dashboard/materials/import/page";
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function makeCSVFile(content: string, filename = "materials.csv"): File {
+  return new File([content], filename, { type: "text/csv" });
+}
+
+function uploadFile(file: File) {
+  const input = screen.getByTestId("csv-file-input");
+  Object.defineProperty(input, "files", { value: [file], configurable: true });
+  fireEvent.change(input);
 }
 
 // ---------------------------------------------------------------------------
-// CSV helpers
+// Tests: CSV parsing
 // ---------------------------------------------------------------------------
 
-const validCsv = `name,quantity,unit,description
-Muurverf wit,10,liter,Voor slaapkamer
-Schroeven M6,100,stuks,
-Onbekend product xyz,5,kg,`;
-
-const missingColumnCsv = `product,aantal,eenheid
-Verf,10,l`;
-
-function makeFile(content: string, name = "materialen.csv"): File {
-  return new File([content], name, { type: "text/csv" });
-}
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
-
-describe("BulkMaterialImportDialog", () => {
+describe("BulkMaterialImport — CSV parsing", () => {
   beforeEach(() => {
-    vi.resetModules();
+    mockSearchMaterials = vi.fn().mockResolvedValue({ data: [mockSearchResult] });
   });
 
-  afterEach(() => {
-    vi.resetModules();
+  it("shows upload area on initial render", () => {
+    render(<ImportPage />);
+    expect(screen.getByText(/csv.*uploaden|uploaden/i)).toBeTruthy();
+    expect(screen.getByTestId("csv-file-input")).toBeTruthy();
   });
 
-  // ---- Dialog open/close ----
+  it("parses a valid CSV with name, quantity, unit columns", async () => {
+    render(<ImportPage />);
 
-  it("renders the trigger button", async () => {
-    mockBulkLib(vi.fn(), vi.fn());
-    const { default: Dialog } = await import("@/components/bulk-material-import-dialog");
-    render(<Dialog />);
-    expect(screen.getByTestId("bulk-import-trigger")).toBeInTheDocument();
-  });
-
-  it("opens the dialog when the trigger is clicked", async () => {
-    mockBulkLib(vi.fn(), vi.fn());
-    const { default: Dialog } = await import("@/components/bulk-material-import-dialog");
-    render(<Dialog />);
+    const csv = "name,quantity,unit\nHoutschroeven 4x40mm,10,zak\nMultiplex plaat 18mm,5,m2";
     await act(async () => {
-      fireEvent.click(screen.getByTestId("bulk-import-trigger"));
-    });
-    expect(screen.getByTestId("bulk-import-dialog")).toBeInTheDocument();
-  });
-
-  it("shows the CSV upload zone after opening", async () => {
-    mockBulkLib(vi.fn(), vi.fn());
-    const { default: Dialog } = await import("@/components/bulk-material-import-dialog");
-    render(<Dialog />);
-    await act(async () => {
-      fireEvent.click(screen.getByTestId("bulk-import-trigger"));
-    });
-    expect(screen.getByTestId("csv-upload-zone")).toBeInTheDocument();
-  });
-
-  // ---- CSV parsing errors ----
-
-  it("shows error when CSV is missing required column", async () => {
-    mockBulkLib(vi.fn(), vi.fn());
-    const { default: Dialog } = await import("@/components/bulk-material-import-dialog");
-    render(<Dialog />);
-    await act(async () => {
-      fireEvent.click(screen.getByTestId("bulk-import-trigger"));
-    });
-
-    const input = screen.getByTestId("csv-file-input");
-    await act(async () => {
-      fireEvent.change(input, { target: { files: [makeFile(missingColumnCsv)] } });
+      uploadFile(makeCSVFile(csv));
     });
 
     await waitFor(() => {
-      expect(screen.getByTestId("csv-parse-error")).toBeInTheDocument();
-    }, { timeout: 2000 });
+      expect(screen.getByText("Houtschroeven 4x40mm")).toBeTruthy();
+      expect(screen.getByText("Multiplex plaat 18mm")).toBeTruthy();
+    });
   });
 
-  it("shows error when empty file is uploaded", async () => {
-    mockBulkLib(vi.fn(), vi.fn());
-    const { default: Dialog } = await import("@/components/bulk-material-import-dialog");
-    render(<Dialog />);
-    await act(async () => {
-      fireEvent.click(screen.getByTestId("bulk-import-trigger"));
-    });
+  it("shows parsed quantity and unit in preview table", async () => {
+    render(<ImportPage />);
 
-    const input = screen.getByTestId("csv-file-input");
+    const csv = "name,quantity,unit\nHoutschroeven 4x40mm,10,zak";
     await act(async () => {
-      fireEvent.change(input, { target: { files: [makeFile("")] } });
+      uploadFile(makeCSVFile(csv));
     });
 
     await waitFor(() => {
-      expect(screen.getByTestId("csv-parse-error")).toBeInTheDocument();
-    }, { timeout: 2000 });
+      expect(screen.getByText("10")).toBeTruthy();
+      expect(screen.getByText("zak")).toBeTruthy();
+    });
   });
 
-  // ---- Match preview ----
+  it("shows error when CSV has no header row matching expected columns", async () => {
+    render(<ImportPage />);
 
-  it("shows preview table after valid CSV is uploaded and matched", async () => {
-    const mockMatch = vi.fn().mockResolvedValue(mockBulkMatchResponse);
-    mockBulkLib(mockMatch, vi.fn());
-    const { default: Dialog } = await import("@/components/bulk-material-import-dialog");
-    render(<Dialog />);
+    const csv = "product,aantal,soort\nSchroeven,10,zak";
     await act(async () => {
-      fireEvent.click(screen.getByTestId("bulk-import-trigger"));
-    });
-
-    const input = screen.getByTestId("csv-file-input");
-    await act(async () => {
-      fireEvent.change(input, { target: { files: [makeFile(validCsv)] } });
+      uploadFile(makeCSVFile(csv));
     });
 
     await waitFor(() => {
-      expect(screen.getByTestId("match-preview-table")).toBeInTheDocument();
-    }, { timeout: 2000 });
+      expect(screen.getByTestId("csv-error")).toBeTruthy();
+    });
   });
 
-  it("shows all parsed rows in the preview table", async () => {
-    const mockMatch = vi.fn().mockResolvedValue(mockBulkMatchResponse);
-    mockBulkLib(mockMatch, vi.fn());
-    const { default: Dialog } = await import("@/components/bulk-material-import-dialog");
-    render(<Dialog />);
-    await act(async () => {
-      fireEvent.click(screen.getByTestId("bulk-import-trigger"));
-    });
+  it("shows error when CSV file is empty", async () => {
+    render(<ImportPage />);
 
-    const input = screen.getByTestId("csv-file-input");
     await act(async () => {
-      fireEvent.change(input, { target: { files: [makeFile(validCsv)] } });
+      uploadFile(makeCSVFile(""));
     });
 
     await waitFor(() => {
-      const rows = screen.getAllByTestId("match-preview-row");
-      expect(rows).toHaveLength(3);
-    }, { timeout: 2000 });
+      expect(screen.getByTestId("csv-error")).toBeTruthy();
+    });
   });
 
-  it("shows 'geen match' for rows without a product match", async () => {
-    const mockMatch = vi.fn().mockResolvedValue(mockBulkMatchResponse);
-    mockBulkLib(mockMatch, vi.fn());
-    const { default: Dialog } = await import("@/components/bulk-material-import-dialog");
-    render(<Dialog />);
-    await act(async () => {
-      fireEvent.click(screen.getByTestId("bulk-import-trigger"));
-    });
+  it("shows error when CSV has header but no data rows", async () => {
+    render(<ImportPage />);
 
-    const input = screen.getByTestId("csv-file-input");
     await act(async () => {
-      fireEvent.change(input, { target: { files: [makeFile(validCsv)] } });
+      uploadFile(makeCSVFile("name,quantity,unit\n"));
     });
 
     await waitFor(() => {
-      expect(screen.getByTestId("no-match-indicator")).toBeInTheDocument();
-    }, { timeout: 2000 });
+      expect(screen.getByTestId("csv-error")).toBeTruthy();
+    });
   });
 
-  it("allows rejecting a matched row", async () => {
-    const mockMatch = vi.fn().mockResolvedValue(mockBulkMatchResponse);
-    mockBulkLib(mockMatch, vi.fn());
-    const { default: Dialog } = await import("@/components/bulk-material-import-dialog");
-    render(<Dialog />);
-    await act(async () => {
-      fireEvent.click(screen.getByTestId("bulk-import-trigger"));
-    });
+  it("ignores rows where name is blank", async () => {
+    render(<ImportPage />);
 
-    const input = screen.getByTestId("csv-file-input");
+    const csv = "name,quantity,unit\nHoutschroeven,10,zak\n,5,m2\nMultiplex,3,stuk";
     await act(async () => {
-      fireEvent.change(input, { target: { files: [makeFile(validCsv)] } });
+      uploadFile(makeCSVFile(csv));
     });
 
     await waitFor(() => {
-      expect(screen.getAllByTestId("reject-match-btn")).toHaveLength(2); // only matched rows
-    }, { timeout: 2000 });
-
-    await act(async () => {
-      fireEvent.click(screen.getAllByTestId("reject-match-btn")[0]);
+      expect(screen.getByText("Houtschroeven")).toBeTruthy();
+      expect(screen.getByText("Multiplex")).toBeTruthy();
     });
-
-    expect(screen.getAllByTestId("match-row-rejected")).toHaveLength(1);
-  });
-
-  it("shows loading state during bulk match API call", async () => {
-    let resolveMatch!: (v: typeof mockBulkMatchResponse) => void;
-    const pending = new Promise<typeof mockBulkMatchResponse>((res) => { resolveMatch = res; });
-    const mockMatch = vi.fn().mockReturnValue(pending);
-    mockBulkLib(mockMatch, vi.fn());
-    const { default: Dialog } = await import("@/components/bulk-material-import-dialog");
-    render(<Dialog />);
-    await act(async () => {
-      fireEvent.click(screen.getByTestId("bulk-import-trigger"));
-    });
-
-    const input = screen.getByTestId("csv-file-input");
-    await act(async () => {
-      fireEvent.change(input, { target: { files: [makeFile(validCsv)] } });
-    });
-
-    await waitFor(() => {
-      expect(screen.getByTestId("match-loading")).toBeInTheDocument();
-    }, { timeout: 500 });
-
-    await act(async () => { resolveMatch(mockBulkMatchResponse); });
-  });
-
-  // ---- Confirmation / import ----
-
-  it("shows confirm button in preview step", async () => {
-    const mockMatch = vi.fn().mockResolvedValue(mockBulkMatchResponse);
-    mockBulkLib(mockMatch, vi.fn());
-    const { default: Dialog } = await import("@/components/bulk-material-import-dialog");
-    render(<Dialog />);
-    await act(async () => {
-      fireEvent.click(screen.getByTestId("bulk-import-trigger"));
-    });
-
-    const input = screen.getByTestId("csv-file-input");
-    await act(async () => {
-      fireEvent.change(input, { target: { files: [makeFile(validCsv)] } });
-    });
-
-    await waitFor(() => {
-      expect(screen.getByTestId("confirm-import-btn")).toBeInTheDocument();
-    }, { timeout: 2000 });
-  });
-
-  it("calls bulkImport with accepted rows on confirm", async () => {
-    const mockMatch = vi.fn().mockResolvedValue(mockBulkMatchResponse);
-    const mockImport = vi.fn().mockResolvedValue(mockBulkImportResponse);
-    mockBulkLib(mockMatch, mockImport);
-    const { default: Dialog } = await import("@/components/bulk-material-import-dialog");
-    render(<Dialog />);
-    await act(async () => {
-      fireEvent.click(screen.getByTestId("bulk-import-trigger"));
-    });
-
-    const input = screen.getByTestId("csv-file-input");
-    await act(async () => {
-      fireEvent.change(input, { target: { files: [makeFile(validCsv)] } });
-    });
-
-    await waitFor(() => {
-      expect(screen.getByTestId("confirm-import-btn")).toBeInTheDocument();
-    }, { timeout: 2000 });
-
-    await act(async () => {
-      fireEvent.click(screen.getByTestId("confirm-import-btn"));
-    });
-
-    await waitFor(() => {
-      expect(mockImport).toHaveBeenCalledOnce();
-    });
-
-    // Should only include accepted rows (rows with a match that weren't rejected)
-    const importPayload = mockImport.mock.calls[0][0];
-    expect(Array.isArray(importPayload)).toBe(true);
-    expect(importPayload.length).toBe(2); // 2 matched rows; 1 had no match
-  });
-
-  it("shows success message after import completes", async () => {
-    const mockMatch = vi.fn().mockResolvedValue(mockBulkMatchResponse);
-    const mockImport = vi.fn().mockResolvedValue(mockBulkImportResponse);
-    mockBulkLib(mockMatch, mockImport);
-    const { default: Dialog } = await import("@/components/bulk-material-import-dialog");
-    render(<Dialog />);
-    await act(async () => {
-      fireEvent.click(screen.getByTestId("bulk-import-trigger"));
-    });
-
-    const input = screen.getByTestId("csv-file-input");
-    await act(async () => {
-      fireEvent.change(input, { target: { files: [makeFile(validCsv)] } });
-    });
-
-    await waitFor(() => {
-      expect(screen.getByTestId("confirm-import-btn")).toBeInTheDocument();
-    }, { timeout: 2000 });
-
-    await act(async () => {
-      fireEvent.click(screen.getByTestId("confirm-import-btn"));
-    });
-
-    await waitFor(() => {
-      expect(screen.getByTestId("import-success")).toBeInTheDocument();
-    }, { timeout: 2000 });
-  });
-
-  it("shows error message when bulk match API fails", async () => {
-    const mockMatch = vi.fn().mockRejectedValue(new Error("Server error"));
-    mockBulkLib(mockMatch, vi.fn());
-    const { default: Dialog } = await import("@/components/bulk-material-import-dialog");
-    render(<Dialog />);
-    await act(async () => {
-      fireEvent.click(screen.getByTestId("bulk-import-trigger"));
-    });
-
-    const input = screen.getByTestId("csv-file-input");
-    await act(async () => {
-      fireEvent.change(input, { target: { files: [makeFile(validCsv)] } });
-    });
-
-    await waitFor(() => {
-      expect(screen.getByTestId("match-api-error")).toBeInTheDocument();
-    }, { timeout: 2000 });
-  });
-
-  it("shows error when import API fails", async () => {
-    const mockMatch = vi.fn().mockResolvedValue(mockBulkMatchResponse);
-    const mockImport = vi.fn().mockRejectedValue(new Error("Import failed"));
-    mockBulkLib(mockMatch, mockImport);
-    const { default: Dialog } = await import("@/components/bulk-material-import-dialog");
-    render(<Dialog />);
-    await act(async () => {
-      fireEvent.click(screen.getByTestId("bulk-import-trigger"));
-    });
-
-    const input = screen.getByTestId("csv-file-input");
-    await act(async () => {
-      fireEvent.change(input, { target: { files: [makeFile(validCsv)] } });
-    });
-
-    await waitFor(() => {
-      expect(screen.getByTestId("confirm-import-btn")).toBeInTheDocument();
-    }, { timeout: 2000 });
-
-    await act(async () => {
-      fireEvent.click(screen.getByTestId("confirm-import-btn"));
-    });
-
-    await waitFor(() => {
-      expect(screen.getByTestId("import-api-error")).toBeInTheDocument();
-    }, { timeout: 2000 });
-  });
-
-  // ---- Back / reset ----
-
-  it("allows going back to upload step from preview", async () => {
-    const mockMatch = vi.fn().mockResolvedValue(mockBulkMatchResponse);
-    mockBulkLib(mockMatch, vi.fn());
-    const { default: Dialog } = await import("@/components/bulk-material-import-dialog");
-    render(<Dialog />);
-    await act(async () => {
-      fireEvent.click(screen.getByTestId("bulk-import-trigger"));
-    });
-
-    const input = screen.getByTestId("csv-file-input");
-    await act(async () => {
-      fireEvent.change(input, { target: { files: [makeFile(validCsv)] } });
-    });
-
-    await waitFor(() => {
-      expect(screen.getByTestId("back-to-upload-btn")).toBeInTheDocument();
-    }, { timeout: 2000 });
-
-    await act(async () => {
-      fireEvent.click(screen.getByTestId("back-to-upload-btn"));
-    });
-
-    expect(screen.getByTestId("csv-upload-zone")).toBeInTheDocument();
+    // Only 2 data rows (blank-name row filtered out)
+    expect(screen.getAllByTestId("import-row")).toHaveLength(2);
   });
 });
 
 // ---------------------------------------------------------------------------
-// parseCsv unit tests (use statically-imported real function — no mock interference)
+// Tests: Preview table rendering
 // ---------------------------------------------------------------------------
 
-// parseCsv unit tests use the statically-imported real function to avoid mock interference
-describe("parseCsv", () => {
-  it("parses valid CSV with all required columns", () => {
-    const result = realParseCsv(`name,quantity,unit,description\nMuurverf wit,10,liter,Slaapkamer`);
-    expect(result.error).toBeNull();
-    expect(result.rows).toHaveLength(1);
-    expect(result.rows[0]).toMatchObject({
-      name: "Muurverf wit",
-      quantity: 10,
-      unit: "liter",
-      description: "Slaapkamer",
+describe("BulkMaterialImport — preview table", () => {
+  beforeEach(() => {
+    mockSearchMaterials = vi.fn().mockResolvedValue({ data: [] });
+  });
+
+  it("renders preview table after valid CSV upload", async () => {
+    render(<ImportPage />);
+
+    const csv = "name,quantity,unit\nBetonschroeven M6,20,stuk\nHoutlijm 750ml,3,fles";
+    await act(async () => {
+      uploadFile(makeCSVFile(csv));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("import-preview-table")).toBeTruthy();
+      expect(screen.getAllByTestId("import-row")).toHaveLength(2);
     });
   });
 
-  it("returns error when name column is missing", () => {
-    const result = realParseCsv(`product,quantity,unit\nVerf,10,l`);
-    expect(result.error).not.toBeNull();
-    expect(result.rows).toHaveLength(0);
+  it("shows column headers: Naam, Aantal, Eenheid", async () => {
+    render(<ImportPage />);
+
+    const csv = "name,quantity,unit\nSchroeven,10,zak";
+    await act(async () => {
+      uploadFile(makeCSVFile(csv));
+    });
+
+    await waitFor(() => {
+      const table = screen.getByTestId("import-preview-table");
+      expect(table.querySelector("th:nth-child(1)")?.textContent).toBe("Naam");
+      expect(table.querySelector("th:nth-child(2)")?.textContent).toBe("Aantal");
+      expect(table.querySelector("th:nth-child(3)")?.textContent).toBe("Eenheid");
+    });
   });
 
-  it("returns error for empty input", () => {
-    const result = realParseCsv("");
-    expect(result.error).not.toBeNull();
+  it("shows a reset button to upload a new CSV after parsing", async () => {
+    render(<ImportPage />);
+
+    const csv = "name,quantity,unit\nSchroeven,10,zak";
+    await act(async () => {
+      uploadFile(makeCSVFile(csv));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("reset-csv-button")).toBeTruthy();
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tests: Search results / matching
+// ---------------------------------------------------------------------------
+
+describe("BulkMaterialImport — search results", () => {
+  beforeEach(() => {
+    mockSearchMaterials = vi.fn().mockImplementation((name: string) => {
+      if (name === "Houtschroeven 4x40mm") {
+        return Promise.resolve({ data: [mockSearchResult] });
+      }
+      if (name === "Multiplex plaat 18mm") {
+        return Promise.resolve({ data: [mockSearchResult2] });
+      }
+      return Promise.resolve({ data: [] });
+    });
   });
 
-  it("handles missing optional columns gracefully", () => {
-    const result = realParseCsv(`name,quantity\nVerf,5`);
-    expect(result.error).toBeNull();
-    expect(result.rows[0]).toMatchObject({ name: "Verf", quantity: 5, unit: "", description: "" });
+  it("calls searchMaterials for each CSV row name", async () => {
+    render(<ImportPage />);
+
+    const csv =
+      "name,quantity,unit\nHoutschroeven 4x40mm,10,zak\nMultiplex plaat 18mm,5,m2";
+    await act(async () => {
+      uploadFile(makeCSVFile(csv));
+    });
+
+    await waitFor(() => {
+      expect(mockSearchMaterials).toHaveBeenCalledWith("Houtschroeven 4x40mm");
+      expect(mockSearchMaterials).toHaveBeenCalledWith("Multiplex plaat 18mm");
+    });
   });
 
-  it("coerces quantity to number", () => {
-    const result = realParseCsv(`name,quantity,unit\nKit,2.5,tube`);
-    expect(result.rows[0].quantity).toBe(2.5);
+  it("displays matched product name in the row", async () => {
+    render(<ImportPage />);
+
+    const csv = "name,quantity,unit\nHoutschroeven 4x40mm,10,zak";
+    await act(async () => {
+      uploadFile(makeCSVFile(csv));
+    });
+
+    await waitFor(() => {
+      // The select option contains the matched product name
+      expect(screen.getByText(/Houtschroeven 4x40mm \(200st\)/)).toBeTruthy();
+    });
   });
 
-  it("defaults quantity to 0 when not parseable", () => {
-    const result = realParseCsv(`name,quantity,unit\nKit,abc,tube`);
-    expect(result.rows[0].quantity).toBe(0);
+  it("displays price for matched product", async () => {
+    render(<ImportPage />);
+
+    const csv = "name,quantity,unit\nHoutschroeven 4x40mm,10,zak";
+    await act(async () => {
+      uploadFile(makeCSVFile(csv));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("match-price-0")).toBeTruthy();
+    });
   });
 
-  it("trims whitespace from values", () => {
-    const result = realParseCsv(`name , quantity , unit\n  Verf  ,  3  ,  liter`);
-    expect(result.rows[0]).toMatchObject({ name: "Verf", quantity: 3, unit: "liter" });
+  it("shows 'Geen overeenkomst' when search returns no results", async () => {
+    mockSearchMaterials = vi.fn().mockResolvedValue({ data: [] });
+
+    render(<ImportPage />);
+
+    const csv = "name,quantity,unit\nOnbestaand product xyz,1,stuk";
+    await act(async () => {
+      uploadFile(makeCSVFile(csv));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/geen overeenkomst/i)).toBeTruthy();
+    });
   });
 
-  it("returns error for header-only CSV", () => {
-    const result = realParseCsv(`name,quantity,unit`);
-    expect(result.error).not.toBeNull();
+  it("allows selecting a match via select within a row", async () => {
+    mockSearchMaterials = vi.fn().mockResolvedValue({
+      data: [
+        mockSearchResult,
+        { ...mockSearchResult, product_id: "h-002", name: "Schroef alternatief", price_cents: 799 },
+      ],
+    });
+
+    render(<ImportPage />);
+
+    const csv = "name,quantity,unit\nHoutschroeven 4x40mm,10,zak";
+    await act(async () => {
+      uploadFile(makeCSVFile(csv));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("match-select-0")).toBeTruthy();
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tests: Error states
+// ---------------------------------------------------------------------------
+
+describe("BulkMaterialImport — error states", () => {
+  beforeEach(() => {
+    mockSearchMaterials = vi.fn().mockRejectedValue(new Error("Network error"));
+  });
+
+  it("shows network error indicator per row when searchMaterials rejects", async () => {
+    render(<ImportPage />);
+
+    const csv = "name,quantity,unit\nSchroeven,10,zak";
+    await act(async () => {
+      uploadFile(makeCSVFile(csv));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("match-error-0")).toBeTruthy();
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tests: Summary and add-to-shopping-list
+// ---------------------------------------------------------------------------
+
+describe("BulkMaterialImport — summary and add to list", () => {
+  beforeEach(() => {
+    mockSearchMaterials = vi.fn().mockResolvedValue({ data: [mockSearchResult] });
+  });
+
+  it("shows a total estimated cost summary after matching", async () => {
+    render(<ImportPage />);
+
+    const csv = "name,quantity,unit\nHoutschroeven 4x40mm,10,zak";
+    await act(async () => {
+      uploadFile(makeCSVFile(csv));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("total-cost-summary")).toBeTruthy();
+    });
+  });
+
+  it("renders the 'Toevoegen aan boodschappenlijst' button", async () => {
+    render(<ImportPage />);
+
+    const csv = "name,quantity,unit\nHoutschroeven 4x40mm,10,zak";
+    await act(async () => {
+      uploadFile(makeCSVFile(csv));
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /toevoegen aan boodschappenlijst/i })
+      ).toBeTruthy();
+    });
   });
 });

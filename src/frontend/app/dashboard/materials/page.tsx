@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import { Search, ExternalLink } from "lucide-react";
+import Link from "next/link";
+import { Search, ExternalLink, Upload } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { estimateMaterials, type MaterialResult } from "@/lib/materials";
 import BulkMaterialImportDialog from "@/components/bulk-material-import-dialog";
@@ -238,6 +239,20 @@ export default function MaterialsPage() {
 
   return (
     <div className="space-y-8">
+      {/* ------------------------------------------------------------------ */}
+      {/* BULK IMPORT LINK                                                    */}
+      {/* ------------------------------------------------------------------ */}
+      <div className="flex justify-end">
+        <Link
+          href="/dashboard/materials/import"
+          data-testid="bulk-import-link"
+          className="flex items-center gap-2 rounded-md border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-muted"
+        >
+          <Upload className="h-4 w-4" />
+          Bulkimport via CSV
+        </Link>
+      </div>
+
       {/* ------------------------------------------------------------------ */}
       {/* CALCULATOR SECTION                                                  */}
       {/* ------------------------------------------------------------------ */}

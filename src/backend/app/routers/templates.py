@@ -8,7 +8,7 @@ from app.models.project import Phase, Project, Task
 from app.models.template import ProjectTemplate
 from app.models.user import User
 from app.routers.auth import get_current_user
-from app.schemas.project import PhaseResponse, ProjectResponse
+from app.schemas.project import ProjectResponse
 from app.schemas.template import (
     CreateFromTemplateRequest,
     FromProjectRequest,
@@ -89,15 +89,11 @@ async def list_templates(
     if category is not None:
         filters.append(ProjectTemplate.category == category)
 
-    count_result = await db.execute(
-        select(func.count()).select_from(ProjectTemplate).where(*filters)
-    )
+    count_result = await db.execute(select(func.count()).select_from(ProjectTemplate).where(*filters))
     total = count_result.scalar_one()
 
     offset = (page - 1) * per_page
-    result = await db.execute(
-        select(ProjectTemplate).where(*filters).offset(offset).limit(per_page)
-    )
+    result = await db.execute(select(ProjectTemplate).where(*filters).offset(offset).limit(per_page))
     templates = result.scalars().all()
 
     return ProjectTemplateListResponse(
@@ -295,8 +291,6 @@ async def instantiate_template(
     await db.commit()
 
     result = await db.execute(
-        select(Project)
-        .where(Project.id == project.id)
-        .options(selectinload(Project.phases).selectinload(Phase.tasks))
+        select(Project).where(Project.id == project.id).options(selectinload(Project.phases).selectinload(Phase.tasks))
     )
     return ProjectResponse.model_validate(result.scalar_one())
