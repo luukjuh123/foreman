@@ -66,12 +66,15 @@ class ProjectHealthCalculator:
             and getattr(t, "end_date", None) is not None
             and t.end_date < self.today
         )
+        # Sum labor_cost_cents from tasks; fall back to actual_spend_cents if tasks don't have it.
+        spent_cents = sum(getattr(t, "labor_cost_cents", 0) for t in self.tasks) or self.actual_spend_cents
+
         return HealthFactors(
             total_tasks=total,
             done_tasks=done,
             overdue_count=overdue,
             budget_cents=self.budget_cents,
-            spent_cents=self.actual_spend_cents,
+            spent_cents=spent_cents,
             start_date=self.start_date,
             end_date=self.end_date,
             today=self.today,

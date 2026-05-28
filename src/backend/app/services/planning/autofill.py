@@ -127,7 +127,7 @@ def compute_schedule(
             reasoning += " Duration estimated using default fallback (no historical data)."
 
         if weather_skipped:
-            reasoning += f" Start delayed due to poor weather forecast on original start date."
+            reasoning += " Start delayed due to poor weather forecast on original start date."
 
         proposals.append(
             TaskScheduleProposal(

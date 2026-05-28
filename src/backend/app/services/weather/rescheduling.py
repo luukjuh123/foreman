@@ -14,7 +14,7 @@ Bad weather thresholds (construction context):
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date
 
 from app.services.weather.client import WeatherDay
 
@@ -69,9 +69,7 @@ def is_bad_weather(day: WeatherDay) -> bool:
         return True
     if day.wind_speed_kmh > _WIND_KMH_THRESHOLD:
         return True
-    if day.temp_min <= _FROST_C_THRESHOLD:
-        return True
-    return False
+    return day.temp_min <= _FROST_C_THRESHOLD
 
 
 def weather_risk_type(day: WeatherDay) -> str:

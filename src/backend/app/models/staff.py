@@ -30,8 +30,12 @@ class Staff(Base):
     )
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    availability: Mapped[list["StaffAvailability"]] = relationship(back_populates="staff", cascade="all, delete-orphan")
-    certifications: Mapped[list["StaffCertification"]] = relationship(back_populates="staff", cascade="all, delete-orphan")
+    availability: Mapped[list["StaffAvailability"]] = relationship(
+        back_populates="staff", cascade="all, delete-orphan"
+    )
+    certifications: Mapped[list["StaffCertification"]] = relationship(
+        back_populates="staff", cascade="all, delete-orphan"
+    )
 
     __table_args__ = (CheckConstraint("hourly_rate_cents >= 0", name="ck_staff_hourly_rate_non_negative"),)
 

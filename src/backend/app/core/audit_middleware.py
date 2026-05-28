@@ -6,6 +6,7 @@ conflict that BaseHTTPMiddleware has with StaticPool sessions in tests.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import re
 import uuid
@@ -51,12 +52,12 @@ def _parse_user_id(headers: list[tuple[bytes, bytes]]) -> uuid.UUID | None:
                 return None
             token = auth[7:]
             try:
-                from app.core.security import decode_token  # noqa: PLC0415
+                from app.core.security import decode_token
 
                 payload = decode_token(token, expected_type="access")
                 raw = payload.get("sub")
                 return uuid.UUID(raw) if raw else None
-            except Exception:  # noqa: BLE001
+            except Exception:
                 return None
     return None
 
@@ -100,10 +101,10 @@ def _get_session_factory(app: Any) -> Any | None:
         if sf is not None:
             return sf
     try:
-        from app.core.database import _get_session_factory as _default  # noqa: PLC0415
+        from app.core.database import _get_session_factory as _default
 
         return _default()
-    except Exception:  # noqa: BLE001
+    except Exception:
         return None
 
 
@@ -111,11 +112,12 @@ async def _fetch_entity_snapshot(
     sf: Any, entity_type: str, entity_id: uuid.UUID
 ) -> dict[str, Any] | None:
     """Fetch a shallow snapshot of an entity row before mutation."""
-    from sqlalchemy import inspect as sa_inspect, select  # noqa: PLC0415
+    from sqlalchemy import inspect as sa_inspect
+    from sqlalchemy import select
 
     model_map: dict[str, Any] = {}
     try:
-        from app.models.project import Project  # noqa: PLC0415
+        from app.models.project import Project
 
         model_map["project"] = Project
     except ImportError:
@@ -141,7 +143,7 @@ async def _fetch_entity_snapshot(
                     val = val.isoformat()
                 snapshot[col.key] = val
             return snapshot
-    except Exception:  # noqa: BLE001
+    except Exception:
         return None
 
 
@@ -156,7 +158,7 @@ async def _persist_audit_entry(
     ip_address: str | None,
 ) -> None:
     """Write an AuditLog row using a fresh session."""
-    from app.models.audit_log import AuditLog  # noqa: PLC0415
+    from app.models.audit_log import AuditLog
 
     try:
         async with sf() as db:
@@ -171,8 +173,8 @@ async def _persist_audit_entry(
             )
             db.add(entry)
             await db.commit()
-    except Exception as exc:  # noqa: BLE001
-        import logging  # noqa: PLC0415
+    except Exception as exc:
+        import logging
 
         logging.getLogger("foreman.audit").warning("Audit persist failed: %s", exc)
 
@@ -271,10 +273,8 @@ class AuditLogMiddleware:
             parsed = _safe_json(response_body)
             after_data = parsed
             if entity_id is None and parsed and "id" in parsed:
-                try:
+                with contextlib.suppress(ValueError, AttributeError):
                     entity_id = uuid.UUID(str(parsed["id"]))
-                except (ValueError, AttributeError):
-                    pass
         elif action == "update":
             after_data = _safe_json(response_body)
         # delete: after_data stays None

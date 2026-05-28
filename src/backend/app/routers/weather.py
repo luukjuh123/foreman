@@ -22,9 +22,9 @@ from app.models.project import Phase, Project, Task
 from app.models.user import User
 from app.routers.auth import get_current_user
 from app.schemas.weather import (
-    RescheduleSuggestion,
     RescheduleRequest,
     RescheduleResponse,
+    RescheduleSuggestion,
     WeatherDayResponse,
     WeatherRiskResponse,
 )
@@ -190,7 +190,6 @@ async def get_reschedule_suggestions(
             task_start_iso = task.start_date.isoformat()
             bad_day = None
             span = (task.end_date - task.start_date).days + 1
-            from datetime import date as _date
             for i in range(span):
                 check_date = task.start_date + timedelta(days=i)
                 wd = forecast_map.get(check_date.isoformat())

@@ -16,14 +16,12 @@ from datetime import date
 
 from app.core.database import get_db
 from app.models.export_history import ExportHistory
-from app.models.invoice import Customer
-from app.models.finance import Account, JournalEntry, JournalLine
-from app.models.invoice import Invoice
+from app.models.finance import Account, JournalEntry
+from app.models.invoice import Customer, Invoice
 from app.models.user import User
 from app.routers.auth import get_current_user
 from app.schemas.export import (
     CSVExportRequest,
-    ExportFormat,
     ExportHistoryResponse,
     MT940ExportRequest,
 )
