@@ -6,18 +6,18 @@ from app.core.logging import RequestLoggingMiddleware, configure_logging
 from app.core.rate_limit_middleware import RateLimitMiddleware
 from app.routers import (
     agenda,
-    btw,
     ai_planning,
     analytics,
     assignments,
     audit,
     audit_log,
     auth,
-    documents,
     billing,
+    btw,
     customers,
     documents,
     equipment,
+    exports,
     financials,
     gps_checkin,
     inbound,
@@ -105,6 +105,12 @@ def create_app() -> FastAPI:
     app.include_router(portal.router, prefix="/api/v1", tags=["portal"])
     app.include_router(gps_checkin.router, prefix="/api/v1/projects", tags=["gps-checkin"])
     app.include_router(audit_log.router, prefix="/api/v1/audit-log", tags=["audit-log"])
+    app.include_router(analytics.router, prefix="/api/v1/analytics", tags=["analytics"])
+    app.include_router(audit.router, prefix="/api/v1/audit", tags=["audit"])
+    app.include_router(exports.router, prefix="/api/v1/exports", tags=["exports"])
+    app.include_router(punch_items.router, prefix="/api/v1/projects", tags=["punch-items"])
+    app.include_router(safety.router, prefix="/api/v1/safety", tags=["safety"])
+    app.include_router(websocket.router, prefix="/api/v1/ws", tags=["websocket"])
 
     @app.get("/healthz", tags=["health"])
     async def health_check() -> dict:

@@ -1,6 +1,5 @@
 """Audit log router — read-only list of user actions."""
 
-import uuid
 from datetime import datetime
 
 from app.core.database import get_db

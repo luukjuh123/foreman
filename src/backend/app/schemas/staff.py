@@ -4,7 +4,6 @@ import uuid
 from datetime import date, datetime, time
 from typing import Literal
 
-from app.models.staff import CERT_TYPES
 from pydantic import BaseModel, Field, model_validator
 
 

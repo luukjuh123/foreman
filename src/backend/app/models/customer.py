@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import typing
 import uuid
 from datetime import datetime
 
 from app.core.database import Base
-from sqlalchemy import DateTime, ForeignKey, String, Text, func
+from sqlalchemy import DateTime, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 
@@ -14,7 +15,7 @@ class Customer(Base):
     """A customer/client scoped per owner."""
 
     __tablename__ = "customers"
-    __table_args__ = {"extend_existing": True}
+    __table_args__: typing.ClassVar[dict] = {"extend_existing": True}
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     owner_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True, index=True)

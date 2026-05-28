@@ -87,7 +87,7 @@ class SubcontractorResponse(BaseModel):
     model_config = {"from_attributes": True}
 
     @classmethod
-    def model_validate(cls, obj, *args, **kwargs):  # type: ignore[override]
+    def model_validate(cls, obj, *args: object, **kwargs: object):  # type: ignore[override]
         if hasattr(obj, "specialties_json"):
             specialties = json.loads(obj.specialties_json or "[]")
             certifications = list(obj.certifications) if hasattr(obj, "certifications") else []

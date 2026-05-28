@@ -7,11 +7,11 @@ import uuid
 from datetime import date, datetime
 
 from app.core.database import Base
-from sqlalchemy import JSON, Boolean, Date, DateTime, Enum, ForeignKey, String, Text, func
+from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 
-class CertType(str, enum.Enum):
+class CertType(enum.StrEnum):
     VCA_BASIS = "VCA_BASIS"
     VCA_VOL = "VCA_VOL"
     BHV = "BHV"
@@ -21,13 +21,13 @@ class CertType(str, enum.Enum):
     OTHER = "OTHER"
 
 
-class CertStatus(str, enum.Enum):
+class CertStatus(enum.StrEnum):
     active = "active"
     expiring_soon = "expiring_soon"
     expired = "expired"
 
 
-class IncidentSeverity(str, enum.Enum):
+class IncidentSeverity(enum.StrEnum):
     near_miss = "near_miss"
     minor = "minor"
     major = "major"
