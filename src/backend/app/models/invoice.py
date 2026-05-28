@@ -1,7 +1,10 @@
-"""Invoice domain models: Customer, Invoice, InvoiceLine, InvoiceCounter.
+"""Invoice domain models: Invoice, InvoiceLine, InvoiceCounter.
 
 Money is stored as integer euro cents.
 VAT rates are stored as integer basis points (e.g. 2100 = 21%).
+
+The Customer model lives in app.models.customer and is imported here for
+relationship declarations and re-export convenience.
 """
 
 from __future__ import annotations
@@ -10,6 +13,7 @@ import uuid
 from datetime import date, datetime
 
 from app.core.database import Base
+from app.models.customer import Customer  # noqa: F401 — re-exported for back-compat
 from sqlalchemy import (
     Date,
     DateTime,
@@ -28,33 +32,6 @@ ALLOWED_VAT_RATES_BP: tuple[int, ...] = (0, 900, 2100)
 
 # Invoice lifecycle states.
 INVOICE_STATUSES: tuple[str, ...] = ("draft", "sent", "paid", "overdue", "cancelled")
-
-
-class Customer(Base):
-    """Customer / billing party, shared by invoices and standalone customer CRUD."""
-
-    __tablename__ = "customers"
-
-    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    owner_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
-    name: Mapped[str] = mapped_column(String(255), nullable=False)
-    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    kvk_number: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    vat_number: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    btw_number: Mapped[str | None] = mapped_column(String(30), nullable=True)
-    address: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    address_line1: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    address_line2: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    postal_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    city: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    country_code: Mapped[str] = mapped_column(String(2), default="NL")
-    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
-    )
-    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class Invoice(Base):
