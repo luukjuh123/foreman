@@ -108,8 +108,9 @@ export default function DashboardPage() {
       listProjects(1, 100),
       apiFetch<InvoiceListData>("/invoices/?per_page=200"),
       apiFetch<StaffUtilization>("/staff/utilization"),
+      agendaFetch,
     ])
-      .then(([projectsRes, invoicesRes, utilizationRes]) => {
+      .then(([projectsRes, invoicesRes, utilizationRes, agendaRes]) => {
         if (!cancelled) {
           const invoices: InvoiceSummary[] = (invoicesRes as { data?: { data?: InvoiceSummary[] } })?.data?.data ?? [];
           const utilization: StaffUtilization = (utilizationRes as StaffUtilization) ?? {
@@ -118,6 +119,25 @@ export default function DashboardPage() {
             available_hours: 0,
           };
           setStats(computeStats(projectsRes.data, invoices, utilization));
+
+          // Populate recent activity: sort by updated_at desc, cap at 5
+          const sorted = [...projectsRes.data].sort((a, b) => {
+            const aTime = (a as RecentProject).updated_at ?? "";
+            const bTime = (b as RecentProject).updated_at ?? "";
+            return bTime.localeCompare(aTime);
+          });
+          setRecentProjects(sorted.slice(0, 5));
+
+          // Populate upcoming tasks from agenda (exclude done tasks)
+          if (agendaRes) {
+            const tasks = (agendaRes.days ?? []).flatMap((day) =>
+              (day.tasks ?? [])
+                .filter((t) => t.status !== "done")
+                .map((t) => ({ ...t, date: day.date }))
+            );
+            setUpcomingTasks(tasks);
+          }
+
           setLoading(false);
         }
       })
