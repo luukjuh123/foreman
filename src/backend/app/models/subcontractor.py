@@ -49,7 +49,7 @@ class Subcontractor(Base):
     hourly_rate_cents: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     # Fixed rate in euro cents (optional alternative to hourly).
     fixed_rate_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    # Rating 1–5; NULL means unrated.
+    # Rating 1-5; NULL means unrated.
     rating: Mapped[int | None] = mapped_column(Integer, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
@@ -59,13 +59,13 @@ class Subcontractor(Base):
     )
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    certifications: Mapped[list["SubcontractorCertification"]] = relationship(
+    certifications: Mapped[list[SubcontractorCertification]] = relationship(
         back_populates="subcontractor", cascade="all, delete-orphan"
     )
-    assignments: Mapped[list["SubcontractorAssignment"]] = relationship(
+    assignments: Mapped[list[SubcontractorAssignment]] = relationship(
         back_populates="subcontractor", cascade="all, delete-orphan"
     )
-    invoices: Mapped[list["SubcontractorInvoice"]] = relationship(
+    invoices: Mapped[list[SubcontractorInvoice]] = relationship(
         back_populates="subcontractor", cascade="all, delete-orphan"
     )
 
@@ -89,7 +89,7 @@ class SubcontractorCertification(Base):
     expiry_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    subcontractor: Mapped["Subcontractor"] = relationship(back_populates="certifications")
+    subcontractor: Mapped[Subcontractor] = relationship(back_populates="certifications")
 
     __table_args__ = (CheckConstraint("cert_type IN ('VCA','BRL')", name="ck_sub_cert_type"),)
 
@@ -133,7 +133,7 @@ class SubcontractorAssignment(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
-    subcontractor: Mapped["Subcontractor"] = relationship(back_populates="assignments")
+    subcontractor: Mapped[Subcontractor] = relationship(back_populates="assignments")
 
     __table_args__ = (
         CheckConstraint("estimated_hours >= 0", name="ck_sub_assign_est_hours_non_neg"),
@@ -185,7 +185,7 @@ class SubcontractorInvoice(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
-    subcontractor: Mapped["Subcontractor"] = relationship(back_populates="invoices")
+    subcontractor: Mapped[Subcontractor] = relationship(back_populates="invoices")
 
     __table_args__ = (
         CheckConstraint("amount_cents >= 0", name="ck_sub_inv_amount_non_neg"),

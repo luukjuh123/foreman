@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, timedelta
 
 from app.core.database import get_db
 from app.models.safety import RIEChecklist, SafetyCertification, SafetyIncident

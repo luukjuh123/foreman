@@ -12,13 +12,13 @@ from __future__ import annotations
 import csv
 import io
 from datetime import date
-from typing import Any
+from typing import Any, ClassVar
 
 
 class CSVJournalFormatter:
     """Format journal entry lines as Exact Online-compatible CSV."""
 
-    HEADERS = [
+    HEADERS: ClassVar[list[str]] = [
         "Datum",
         "Grootboekrekening",
         "Grootboekrekeningnaam",
@@ -70,7 +70,7 @@ class CSVJournalFormatter:
 class CSVInvoiceFormatter:
     """Format invoices as a Dutch-locale summary CSV."""
 
-    HEADERS = [
+    HEADERS: ClassVar[list[str]] = [
         "Factuurnummer",
         "Klant",
         "Factuurdatum",

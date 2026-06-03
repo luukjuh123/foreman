@@ -3,8 +3,8 @@
 import logging
 from datetime import date, timedelta
 
-from app.core.database import get_db
 from app.core.config import settings
+from app.core.database import get_db
 from app.models.project import Phase, Project, Task
 from app.models.user import User
 from app.routers.auth import get_current_user

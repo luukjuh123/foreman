@@ -13,13 +13,12 @@ from __future__ import annotations
 
 import calendar
 import uuid
-from datetime import date
 from dataclasses import dataclass
-
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import date
 
 from app.models.invoice import Invoice, InvoiceLine
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @dataclass

@@ -8,7 +8,6 @@ from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
 
-
 # ---------------------------------------------------------------------------
 # Certification schemas
 # ---------------------------------------------------------------------------
@@ -28,7 +27,7 @@ class CertificationCreate(BaseModel):
     document_url: str | None = None
 
     @model_validator(mode="after")
-    def _check_cert_type(self) -> "CertificationCreate":
+    def _check_cert_type(self) -> CertificationCreate:
         if self.cert_type not in _CERT_TYPES:
             raise ValueError(f"cert_type must be one of {sorted(_CERT_TYPES)}")
         return self
@@ -84,7 +83,7 @@ class IncidentCreate(BaseModel):
     reported_by_user_id: uuid.UUID | None = None
 
     @model_validator(mode="after")
-    def _check_severity(self) -> "IncidentCreate":
+    def _check_severity(self) -> IncidentCreate:
         if self.severity not in _SEVERITIES:
             raise ValueError(f"severity must be one of {sorted(_SEVERITIES)}")
         return self

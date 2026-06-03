@@ -22,18 +22,11 @@ from app.schemas.staff import (
     StaffUtilizationResponse,
 )
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 router = APIRouter()
-
-
-class StaffUtilizationResponse(BaseModel):
-    utilization_rate: float  # 0-100 percent (capped at 100)
-    assigned_hours: float
-    available_hours: float
 
 
 async def _get_owned_staff_or_404(staff_id: uuid.UUID, user: User, db: AsyncSession) -> Staff:
@@ -64,7 +57,7 @@ async def staff_utilization(
 ) -> StaffUtilizationResponse:
     """Return the staff utilization rate for the current calendar week.
 
-    utilization_rate = (assigned_hours / available_hours) × 100, capped at 100%.
+    utilization_percent = (assigned_hours / available_hours) × 100, capped at 100%.
     available_hours = sum of weekly_hours_target for all active staff.
     assigned_hours = sum of hours of assignments overlapping this Mon–Sun.
     """
@@ -84,7 +77,7 @@ async def staff_utilization(
 
     if available_hours == 0.0:
         return StaffUtilizationResponse(
-            utilization_rate=0.0,
+            utilization_percent=0.0,
             assigned_hours=0.0,
             available_hours=0.0,
         )
@@ -101,7 +94,7 @@ async def staff_utilization(
 
     if not owned_staff_ids:
         return StaffUtilizationResponse(
-            utilization_rate=0.0,
+            utilization_percent=0.0,
             assigned_hours=0.0,
             available_hours=available_hours,
         )
@@ -131,10 +124,10 @@ async def staff_utilization(
         if overlap_end > overlap_start:
             assigned_hours += (overlap_end - overlap_start).total_seconds() / 3600.0
 
-    utilization_rate = min(100.0, (assigned_hours / available_hours) * 100.0)
+    utilization_percent = min(100.0, (assigned_hours / available_hours) * 100.0)
 
     return StaffUtilizationResponse(
-        utilization_rate=round(utilization_rate, 2),
+        utilization_percent=round(utilization_percent, 2),
         assigned_hours=round(assigned_hours, 2),
         available_hours=round(available_hours, 2),
     )
