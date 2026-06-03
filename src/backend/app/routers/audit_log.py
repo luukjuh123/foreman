@@ -37,17 +37,11 @@ async def list_audit_log(
     if date_to:
         filters.append(AuditLog.created_at <= date_to)
 
-    count_result = await db.execute(
-        select(func.count()).select_from(AuditLog).where(*filters)
-    )
+    count_result = await db.execute(select(func.count()).select_from(AuditLog).where(*filters))
     total = count_result.scalar_one()
 
     result = await db.execute(
-        select(AuditLog)
-        .where(*filters)
-        .order_by(AuditLog.created_at.desc())
-        .offset(offset)
-        .limit(per_page)
+        select(AuditLog).where(*filters).order_by(AuditLog.created_at.desc()).offset(offset).limit(per_page)
     )
     entries = result.scalars().all()
 

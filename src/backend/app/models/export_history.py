@@ -21,8 +21,6 @@ class ExportHistory(Base):
     owner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
     format: Mapped[str] = mapped_column(String(20), nullable=False)
     date_from: Mapped[str] = mapped_column(String(10), nullable=False)  # ISO date string
-    date_to: Mapped[str] = mapped_column(String(10), nullable=False)    # ISO date string
+    date_to: Mapped[str] = mapped_column(String(10), nullable=False)  # ISO date string
     row_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    exported_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
+    exported_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)

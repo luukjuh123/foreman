@@ -69,11 +69,14 @@ async def websocket_endpoint(
     await manager.connect(websocket, project_id_str, user_id_str)
 
     # Announce presence to all connected clients on this project.
-    await manager.broadcast(project_id_str, {
-        "type": "presence",
-        "project_id": project_id_str,
-        "connected_users": manager.presence(project_id_str),
-    })
+    await manager.broadcast(
+        project_id_str,
+        {
+            "type": "presence",
+            "project_id": project_id_str,
+            "connected_users": manager.presence(project_id_str),
+        },
+    )
 
     try:
         while True:
@@ -85,11 +88,14 @@ async def websocket_endpoint(
     finally:
         manager.disconnect(websocket, project_id_str, user_id_str)
         # Broadcast updated presence after disconnect.
-        await manager.broadcast(project_id_str, {
-            "type": "presence",
-            "project_id": project_id_str,
-            "connected_users": manager.presence(project_id_str),
-        })
+        await manager.broadcast(
+            project_id_str,
+            {
+                "type": "presence",
+                "project_id": project_id_str,
+                "connected_users": manager.presence(project_id_str),
+            },
+        )
 
 
 @router.get("/ws/{project_id}/presence")
@@ -99,7 +105,9 @@ async def get_presence(
 ) -> JSONResponse:
     """Return the list of users currently connected to the project WebSocket."""
     project_id_str = str(project_id)
-    return JSONResponse({
-        "project_id": project_id_str,
-        "connected_users": manager.presence(project_id_str),
-    })
+    return JSONResponse(
+        {
+            "project_id": project_id_str,
+            "connected_users": manager.presence(project_id_str),
+        }
+    )

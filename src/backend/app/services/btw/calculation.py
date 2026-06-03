@@ -54,15 +54,12 @@ async def calculate_btw_boxes(
     start, end = _quarter_date_range(year, quarter)
 
     # Load all active invoices in the quarter for this owner.
-    stmt = (
-        select(Invoice)
-        .where(
-            Invoice.owner_id == owner_id,
-            Invoice.issue_date >= start,
-            Invoice.issue_date <= end,
-            Invoice.deleted_at.is_(None),
-            Invoice.status != "cancelled",
-        )
+    stmt = select(Invoice).where(
+        Invoice.owner_id == owner_id,
+        Invoice.issue_date >= start,
+        Invoice.issue_date <= end,
+        Invoice.deleted_at.is_(None),
+        Invoice.status != "cancelled",
     )
     result = await db.execute(stmt)
     invoices = result.scalars().all()

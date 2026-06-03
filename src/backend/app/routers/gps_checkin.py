@@ -27,9 +27,7 @@ router = APIRouter()
 
 
 async def _get_owned_project(project_id: uuid.UUID, user: User, db: AsyncSession) -> Project:
-    result = await db.execute(
-        select(Project).where(Project.id == project_id, Project.deleted_at.is_(None))
-    )
+    result = await db.execute(select(Project).where(Project.id == project_id, Project.deleted_at.is_(None)))
     project = result.scalar_one_or_none()
     if project is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
@@ -58,9 +56,7 @@ async def create_geofence(
 
     # Upsert: replace any existing geofence for this project.
     existing = (
-        await db.execute(
-            select(ProjectGeofence).where(ProjectGeofence.project_id == project_id)
-        )
+        await db.execute(select(ProjectGeofence).where(ProjectGeofence.project_id == project_id))
     ).scalar_one_or_none()
 
     if existing is not None:
@@ -95,9 +91,7 @@ async def get_geofence(
     await _get_owned_project(project_id, user, db)
 
     fence = (
-        await db.execute(
-            select(ProjectGeofence).where(ProjectGeofence.project_id == project_id)
-        )
+        await db.execute(select(ProjectGeofence).where(ProjectGeofence.project_id == project_id))
     ).scalar_one_or_none()
 
     if fence is None:
@@ -125,9 +119,7 @@ async def checkin(
     await _get_owned_project(project_id, user, db)
 
     fence = (
-        await db.execute(
-            select(ProjectGeofence).where(ProjectGeofence.project_id == project_id)
-        )
+        await db.execute(select(ProjectGeofence).where(ProjectGeofence.project_id == project_id))
     ).scalar_one_or_none()
     if fence is None:
         raise HTTPException(
@@ -234,9 +226,7 @@ async def attendance_report(
     await _get_owned_project(project_id, user, db)
 
     result = await db.execute(
-        select(AttendanceLog)
-        .where(AttendanceLog.project_id == project_id)
-        .order_by(AttendanceLog.checked_in_at)
+        select(AttendanceLog).where(AttendanceLog.project_id == project_id).order_by(AttendanceLog.checked_in_at)
     )
     logs = result.scalars().all()
     return AttendanceListResponse(data=[AttendanceLogResponse.model_validate(e) for e in logs])
