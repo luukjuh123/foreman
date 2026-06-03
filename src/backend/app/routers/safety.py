@@ -54,9 +54,7 @@ async def _get_cert_or_404(cert_id: uuid.UUID, owner_id: uuid.UUID, db: AsyncSes
     return row
 
 
-async def _get_incident_or_404(
-    incident_id: uuid.UUID, owner_id: uuid.UUID, db: AsyncSession
-) -> SafetyIncident:
+async def _get_incident_or_404(incident_id: uuid.UUID, owner_id: uuid.UUID, db: AsyncSession) -> SafetyIncident:
     row = (
         await db.execute(
             select(SafetyIncident).where(
@@ -99,14 +97,18 @@ async def list_expiring_certifications(
     today = date.today()
     cutoff = today + timedelta(days=days)
     rows = (
-        await db.execute(
-            select(SafetyCertification).where(
-                SafetyCertification.owner_id == current_user.id,
-                SafetyCertification.expiry_date >= today,
-                SafetyCertification.expiry_date <= cutoff,
+        (
+            await db.execute(
+                select(SafetyCertification).where(
+                    SafetyCertification.owner_id == current_user.id,
+                    SafetyCertification.expiry_date >= today,
+                    SafetyCertification.expiry_date <= cutoff,
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     return [CertificationResponse.model_validate(r) for r in rows]
 
 
@@ -128,15 +130,13 @@ async def list_certifications(
     if cert_status is not None:
         conditions.append(SafetyCertification.status == cert_status)
 
-    total = (
-        await db.execute(select(func.count()).select_from(SafetyCertification).where(*conditions))
-    ).scalar_one()
+    total = (await db.execute(select(func.count()).select_from(SafetyCertification).where(*conditions))).scalar_one()
     offset = (page - 1) * per_page
     rows = (
-        await db.execute(
-            select(SafetyCertification).where(*conditions).offset(offset).limit(per_page)
-        )
-    ).scalars().all()
+        (await db.execute(select(SafetyCertification).where(*conditions).offset(offset).limit(per_page)))
+        .scalars()
+        .all()
+    )
 
     return CertificationListResponse(
         data=[CertificationResponse.model_validate(r) for r in rows],
@@ -220,11 +220,7 @@ async def get_incident_stats(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> IncidentStatsResponse:
-    rows = (
-        await db.execute(
-            select(SafetyIncident).where(SafetyIncident.owner_id == current_user.id)
-        )
-    ).scalars().all()
+    rows = (await db.execute(select(SafetyIncident).where(SafetyIncident.owner_id == current_user.id))).scalars().all()
 
     by_severity: dict[str, int] = {}
     by_project: dict[str, int] = {}
@@ -255,13 +251,9 @@ async def list_incidents(
     if severity is not None:
         conditions.append(SafetyIncident.severity == severity)
 
-    total = (
-        await db.execute(select(func.count()).select_from(SafetyIncident).where(*conditions))
-    ).scalar_one()
+    total = (await db.execute(select(func.count()).select_from(SafetyIncident).where(*conditions))).scalar_one()
     offset = (page - 1) * per_page
-    rows = (
-        await db.execute(select(SafetyIncident).where(*conditions).offset(offset).limit(per_page))
-    ).scalars().all()
+    rows = (await db.execute(select(SafetyIncident).where(*conditions).offset(offset).limit(per_page))).scalars().all()
 
     return IncidentListResponse(
         data=[IncidentResponse.model_validate(r) for r in rows],
@@ -345,13 +337,9 @@ async def list_rie(
     if project_id is not None:
         conditions.append(RIEChecklist.project_id == project_id)
 
-    total = (
-        await db.execute(select(func.count()).select_from(RIEChecklist).where(*conditions))
-    ).scalar_one()
+    total = (await db.execute(select(func.count()).select_from(RIEChecklist).where(*conditions))).scalar_one()
     offset = (page - 1) * per_page
-    rows = (
-        await db.execute(select(RIEChecklist).where(*conditions).offset(offset).limit(per_page))
-    ).scalars().all()
+    rows = (await db.execute(select(RIEChecklist).where(*conditions).offset(offset).limit(per_page))).scalars().all()
 
     return RIEListResponse(
         data=[RIEResponse.model_validate(r) for r in rows],
@@ -430,7 +418,9 @@ async def get_dashboard(
 
     expiring_count = (
         await db.execute(
-            select(func.count()).select_from(SafetyCertification).where(
+            select(func.count())
+            .select_from(SafetyCertification)
+            .where(
                 SafetyCertification.owner_id == current_user.id,
                 SafetyCertification.expiry_date >= today,
                 SafetyCertification.expiry_date <= cutoff,
@@ -440,7 +430,9 @@ async def get_dashboard(
 
     open_incidents_count = (
         await db.execute(
-            select(func.count()).select_from(SafetyIncident).where(
+            select(func.count())
+            .select_from(SafetyIncident)
+            .where(
                 SafetyIncident.owner_id == current_user.id,
                 SafetyIncident.resolved_at.is_(None),
             )
@@ -449,7 +441,9 @@ async def get_dashboard(
 
     incomplete_checklists_count = (
         await db.execute(
-            select(func.count()).select_from(RIEChecklist).where(
+            select(func.count())
+            .select_from(RIEChecklist)
+            .where(
                 RIEChecklist.owner_id == current_user.id,
                 RIEChecklist.completed_at.is_(None),
             )

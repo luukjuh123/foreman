@@ -41,9 +41,16 @@ const mockProjectList = {
   per_page: 100,
 };
 
-/** Compute the Monday of the week containing today, matching the component's getMondayOf logic. */
-function getCurrentWeekMonday(): Date {
-  const d = new Date();
+// The system clock is pinned to this date in beforeEach (see vi.setSystemTime),
+// so the component's getMondayOf(new Date()) renders the week of 2026-05-18.
+// Assignment dates must be derived from this same fixed reference — NOT from the
+// real wall-clock at import time — or they land in a different week and never
+// appear in the rendered grid.
+const PINNED_NOW = new Date("2026-05-20T10:00:00");
+
+/** Compute the Monday of the week containing the given date, matching the component's getMondayOf logic. */
+function getWeekMonday(ref: Date): Date {
+  const d = new Date(ref);
   const day = d.getDay();
   const diff = day === 0 ? -6 : 1 - day;
   d.setDate(d.getDate() + diff);
@@ -55,8 +62,8 @@ function toISODate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-// Compute assignment dates at runtime so they always fall in the current week.
-const monday = getCurrentWeekMonday();
+// Compute assignment dates from the pinned reference so they fall in the rendered week.
+const monday = getWeekMonday(PINNED_NOW);
 const tuesday = new Date(monday);
 tuesday.setDate(monday.getDate() + 1);
 
@@ -105,7 +112,7 @@ describe("StaffSchedulePage", () => {
     // Pin system time to the week of 2026-05-18 so getMondayOf(new Date())
     // returns 2026-05-18, matching the mock assignment dates.
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    vi.setSystemTime(new Date("2026-05-20T10:00:00"));
+    vi.setSystemTime(PINNED_NOW);
   });
 
   afterEach(() => {

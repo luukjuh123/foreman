@@ -15,9 +15,7 @@ class PunchItem(Base):
     project_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    task_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("tasks.id", ondelete="SET NULL"), nullable=True, index=True
-    )
+    task_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tasks.id", ondelete="SET NULL"), nullable=True, index=True)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     # open | fixed | verified
     status: Mapped[str] = mapped_column(String(20), nullable=False, server_default="open")

@@ -102,6 +102,23 @@ async function getApiFetch() {
   return vi.mocked(apiFetch);
 }
 
+// Route apiFetch by URL so call ordering between sibling components
+// (e.g. the punch-list tab fetching on mount) does not consume the
+// mock reserved for the subcontractor list.
+const EMPTY_LIST = { data: [], total: 0, page: 1, per_page: 20 };
+
+function routeApiFetch(
+  apiFetch: ReturnType<typeof vi.fn>,
+  subListResponse: unknown
+) {
+  apiFetch.mockImplementation((path: string) => {
+    if (path.startsWith("/subcontractors/?")) {
+      return Promise.resolve(subListResponse);
+    }
+    return Promise.resolve(EMPTY_LIST);
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Tests: subcontractor picker on phase card
 // ---------------------------------------------------------------------------
@@ -165,14 +182,13 @@ describe("ProjectDetailPage — subcontractor assignment", () => {
     const getProject = await getGetProject();
     const apiFetch = await getApiFetch();
     getProject.mockResolvedValue(makeProject([makePhase()]));
-    apiFetch
-      .mockResolvedValueOnce(
-        makeSubListResponse([
-          makeSub({ id: "s1", company_name: "Loodgieters BV" }),
-          makeSub({ id: "s2", company_name: "Schilder & Zn" }),
-        ])
-      )
-      .mockResolvedValue({ data: [], total: 0, page: 1, per_page: 20 });
+    routeApiFetch(
+      apiFetch,
+      makeSubListResponse([
+        makeSub({ id: "s1", company_name: "Loodgieters BV" }),
+        makeSub({ id: "s2", company_name: "Schilder & Zn" }),
+      ])
+    );
 
     const { default: ProjectDetailPage } = await import(
       "@/app/dashboard/projects/[id]/page"
@@ -234,11 +250,10 @@ describe("ProjectDetailPage — subcontractor assignment", () => {
     const getProject = await getGetProject();
     const apiFetch = await getApiFetch();
     getProject.mockResolvedValue(makeProject([makePhase()]));
-    apiFetch
-      .mockResolvedValueOnce(
-        makeSubListResponse([makeSub({ id: "s1", company_name: "Loodgieters BV" })])
-      )
-      .mockResolvedValue({ data: [], total: 0, page: 1, per_page: 20 });
+    routeApiFetch(
+      apiFetch,
+      makeSubListResponse([makeSub({ id: "s1", company_name: "Loodgieters BV" })])
+    );
 
     const { default: ProjectDetailPage } = await import(
       "@/app/dashboard/projects/[id]/page"

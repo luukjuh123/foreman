@@ -120,9 +120,7 @@ async def export_mt940(
 
     # Running balance
     start_balance_cents = 0
-    end_balance_cents = sum(
-        t["amount_cents"] if t["is_credit"] else -t["amount_cents"] for t in transactions
-    )
+    end_balance_cents = sum(t["amount_cents"] if t["is_credit"] else -t["amount_cents"] for t in transactions)
 
     fmt = MT940Formatter(
         account_number=payload.account_number,
@@ -267,8 +265,6 @@ async def export_history(
 ) -> list[ExportHistory]:
     """Return export history for the current user, newest first."""
     result = await db.execute(
-        select(ExportHistory)
-        .where(ExportHistory.owner_id == user.id)
-        .order_by(ExportHistory.exported_at.desc())
+        select(ExportHistory).where(ExportHistory.owner_id == user.id).order_by(ExportHistory.exported_at.desc())
     )
     return list(result.scalars().all())

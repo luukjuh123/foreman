@@ -127,9 +127,7 @@ async def create_subcontractor(
     db.add(sub)
     await db.commit()
     result = await db.execute(
-        select(Subcontractor)
-        .where(Subcontractor.id == sub.id)
-        .options(selectinload(Subcontractor.certifications))
+        select(Subcontractor).where(Subcontractor.id == sub.id).options(selectinload(Subcontractor.certifications))
     )
     return SubcontractorResponse.model_validate(result.scalar_one())
 
@@ -159,9 +157,7 @@ async def update_subcontractor(
         setattr(sub, field, value)
     await db.commit()
     result = await db.execute(
-        select(Subcontractor)
-        .where(Subcontractor.id == sub.id)
-        .options(selectinload(Subcontractor.certifications))
+        select(Subcontractor).where(Subcontractor.id == sub.id).options(selectinload(Subcontractor.certifications))
     )
     return SubcontractorResponse.model_validate(result.scalar_one())
 
@@ -226,13 +222,7 @@ async def list_assignments(
     count = (await db.execute(select(func.count()).select_from(base_query.subquery()))).scalar_one()
     offset = (page - 1) * per_page
     rows = (
-        (
-            await db.execute(
-                base_query.order_by(SubcontractorAssignment.created_at.asc())
-                .offset(offset)
-                .limit(per_page)
-            )
-        )
+        (await db.execute(base_query.order_by(SubcontractorAssignment.created_at.asc()).offset(offset).limit(per_page)))
         .scalars()
         .all()
     )
@@ -333,13 +323,7 @@ async def list_subcontractor_invoices(
     count = (await db.execute(select(func.count()).select_from(base_query.subquery()))).scalar_one()
     offset = (page - 1) * per_page
     rows = (
-        (
-            await db.execute(
-                base_query.order_by(SubcontractorInvoice.invoice_date.asc())
-                .offset(offset)
-                .limit(per_page)
-            )
-        )
+        (await db.execute(base_query.order_by(SubcontractorInvoice.invoice_date.asc()).offset(offset).limit(per_page)))
         .scalars()
         .all()
     )
