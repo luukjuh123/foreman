@@ -285,7 +285,9 @@ async def get_compliance_overview_early(
 
     total_staff = (
         await db.execute(
-            select(func.count()).select_from(Staff).where(
+            select(func.count())
+            .select_from(Staff)
+            .where(
                 Staff.owner_id == current_user.id,
                 Staff.deleted_at.is_(None),
             )
@@ -309,9 +311,7 @@ async def get_compliance_overview_early(
             valid_count=0,
         )
 
-    all_certs_result = await db.execute(
-        select(StaffCertification).where(StaffCertification.staff_id.in_(owned_ids))
-    )
+    all_certs_result = await db.execute(select(StaffCertification).where(StaffCertification.staff_id.in_(owned_ids)))
     all_certs = all_certs_result.scalars().all()
 
     expired_count = sum(1 for c in all_certs if c.expires_at <= today)

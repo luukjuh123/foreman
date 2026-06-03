@@ -41,24 +41,11 @@ const mockProjectList = {
   per_page: 100,
 };
 
-/** Compute the Monday of the week containing today, matching the component's getMondayOf logic. */
-function getCurrentWeekMonday(): Date {
-  const d = new Date();
-  const day = d.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  d.setDate(d.getDate() + diff);
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
-function toISODate(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
-
-// Compute assignment dates at runtime so they always fall in the current week.
-const monday = getCurrentWeekMonday();
-const tuesday = new Date(monday);
-tuesday.setDate(monday.getDate() + 1);
+// Assignment dates are hardcoded to match the faked system time (2026-05-20 → week of 2026-05-18).
+// The beforeEach pins vi.setSystemTime(new Date("2026-05-20T10:00:00")); getMondayOf returns 2026-05-18.
+// 2026-05-18 is a Monday, 2026-05-19 is a Tuesday.
+const FAKED_MONDAY = "2026-05-18";
+const FAKED_TUESDAY = "2026-05-19";
 
 const mockAssignmentsStaff1 = [
   {
@@ -66,8 +53,8 @@ const mockAssignmentsStaff1 = [
     staff_id: "staff-1",
     project_id: "proj-1",
     task_id: null,
-    start_at: `${toISODate(monday)}T08:00:00`,
-    end_at: `${toISODate(monday)}T16:00:00`,
+    start_at: `${FAKED_MONDAY}T08:00:00`,
+    end_at: `${FAKED_MONDAY}T16:00:00`,
     notes: null,
     created_at: "2026-05-01T00:00:00",
   },
@@ -79,8 +66,8 @@ const mockAssignmentsStaff2 = [
     staff_id: "staff-2",
     project_id: "proj-2",
     task_id: null,
-    start_at: `${toISODate(tuesday)}T08:00:00`,
-    end_at: `${toISODate(tuesday)}T16:00:00`,
+    start_at: `${FAKED_TUESDAY}T08:00:00`,
+    end_at: `${FAKED_TUESDAY}T16:00:00`,
     notes: null,
     created_at: "2026-05-01T00:00:00",
   },

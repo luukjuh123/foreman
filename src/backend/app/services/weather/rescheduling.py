@@ -26,22 +26,22 @@ from app.services.weather.client import WeatherDay
 # (case-insensitive). These cover the most common outdoor construction processes
 # in Dutch bouwbedrijven.
 OUTDOOR_SENSITIVE_KEYWORDS: list[str] = [
-    "dak",        # roofing (dakdekken, dakpannen, etc.)
-    "schilder",   # painting (schilderwerk)
-    "beton",      # concrete (betonvloer, beton storten)
-    "stucco",     # stucco / plaster exterior
-    "stuc",       # stucen / stucwerk
-    "voeg",       # pointing / voegwerk
-    "metsel",     # masonry / metselwerk
+    "dak",  # roofing (dakdekken, dakpannen, etc.)
+    "schilder",  # painting (schilderwerk)
+    "beton",  # concrete (betonvloer, beton storten)
+    "stucco",  # stucco / plaster exterior
+    "stuc",  # stucen / stucwerk
+    "voeg",  # pointing / voegwerk
+    "metsel",  # masonry / metselwerk
     "fundament",  # foundation work
-    "grond",      # groundwork (grondwerk, grondverzet)
-    "bestrating", # paving
-    "asfalt",     # asphalt
+    "grond",  # groundwork (grondwerk, grondverzet)
+    "bestrating",  # paving
+    "asfalt",  # asphalt
     "riolering",  # drainage / sewer
-    "gevel",      # facade work (gevelbekleding, gevelrenovatie)
-    "isolatie",   # exterior insulation
-    "kozijn",     # window/door frames (often outdoor install)
-    "straat",     # street/road work
+    "gevel",  # facade work (gevelbekleding, gevelrenovatie)
+    "isolatie",  # exterior insulation
+    "kozijn",  # window/door frames (often outdoor install)
+    "straat",  # street/road work
 ]
 
 # Weather thresholds for rescheduling (slightly more lenient than risk thresholds

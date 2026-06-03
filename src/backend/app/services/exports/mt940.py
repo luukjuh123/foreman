@@ -67,9 +67,7 @@ class MT940Formatter:
 
         # :62F: Closing Balance
         sign = "C" if end_balance_cents >= 0 else "D"
-        lines.append(
-            f":62F:{sign}{statement_date.strftime('%y%m%d')}EUR{self._format_amount(abs(end_balance_cents))}"
-        )
+        lines.append(f":62F:{sign}{statement_date.strftime('%y%m%d')}EUR{self._format_amount(abs(end_balance_cents))}")
 
         return "\r\n".join(lines) + "\r\n"
 

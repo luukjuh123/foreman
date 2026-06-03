@@ -109,7 +109,7 @@ export default function DashboardPage() {
       apiFetch<InvoiceListData>("/invoices/?per_page=200"),
       apiFetch<StaffUtilization>("/staff/utilization"),
     ])
-      .then(([projectsRes, invoicesRes, utilizationRes]) => {
+      .then(async ([projectsRes, invoicesRes, utilizationRes]) => {
         if (!cancelled) {
           const invoices: InvoiceSummary[] = (invoicesRes as { data?: { data?: InvoiceSummary[] } })?.data?.data ?? [];
           const utilization: StaffUtilization = (utilizationRes as StaffUtilization) ?? {
@@ -118,6 +118,29 @@ export default function DashboardPage() {
             available_hours: 0,
           };
           setStats(computeStats(projectsRes.data, invoices, utilization));
+
+          // Populate recent projects (sorted by updated_at desc, max 5)
+          const sorted = [...projectsRes.data].sort((a, b) => {
+            const ta = (a as RecentProject).updated_at ?? "";
+            const tb = (b as RecentProject).updated_at ?? "";
+            return tb.localeCompare(ta);
+          });
+          setRecentProjects(sorted.slice(0, 5));
+
+          // Populate upcoming tasks from agenda
+          const agenda = await agendaFetch;
+          if (!cancelled && agenda) {
+            const tasks: Array<AgendaTask & { date: string }> = [];
+            for (const day of agenda.days) {
+              for (const task of day.tasks) {
+                if (task.status !== "done") {
+                  tasks.push({ ...task, date: day.date });
+                }
+              }
+            }
+            setUpcomingTasks(tasks);
+          }
+
           setLoading(false);
         }
       })
