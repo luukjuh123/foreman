@@ -28,12 +28,8 @@ router = APIRouter()
 _RESOLVED_STATUSES = {"fixed", "verified"}
 
 
-async def _get_project_owned(
-    project_id: uuid.UUID, user: User, db: AsyncSession
-) -> Project:
-    result = await db.execute(
-        select(Project).where(Project.id == project_id, Project.deleted_at.is_(None))
-    )
+async def _get_project_owned(project_id: uuid.UUID, user: User, db: AsyncSession) -> Project:
+    result = await db.execute(select(Project).where(Project.id == project_id, Project.deleted_at.is_(None)))
     project = result.scalar_one_or_none()
     if project is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
@@ -43,9 +39,7 @@ async def _get_project_owned(
 
 
 async def _get_item_or_404(project_id: uuid.UUID, item_id: uuid.UUID, db: AsyncSession) -> PunchItem:
-    result = await db.execute(
-        select(PunchItem).where(PunchItem.id == item_id, PunchItem.project_id == project_id)
-    )
+    result = await db.execute(select(PunchItem).where(PunchItem.id == item_id, PunchItem.project_id == project_id))
     item = result.scalar_one_or_none()
     if item is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Punch item not found")
@@ -82,15 +76,9 @@ async def punch_items_summary(
         select(
             PunchItem.task_id,
             func.count().label("total"),
-            func.sum(
-                case((PunchItem.status == "open", 1), else_=0)
-            ).label("open_count"),
-            func.sum(
-                case((PunchItem.status == "fixed", 1), else_=0)
-            ).label("fixed_count"),
-            func.sum(
-                case((PunchItem.status == "verified", 1), else_=0)
-            ).label("verified_count"),
+            func.sum(case((PunchItem.status == "open", 1), else_=0)).label("open_count"),
+            func.sum(case((PunchItem.status == "fixed", 1), else_=0)).label("fixed_count"),
+            func.sum(case((PunchItem.status == "verified", 1), else_=0)).label("verified_count"),
         )
         .where(PunchItem.project_id == project_id)
         .group_by(PunchItem.task_id)

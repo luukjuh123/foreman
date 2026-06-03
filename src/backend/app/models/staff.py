@@ -30,9 +30,7 @@ class Staff(Base):
     )
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    availability: Mapped[list["StaffAvailability"]] = relationship(
-        back_populates="staff", cascade="all, delete-orphan"
-    )
+    availability: Mapped[list["StaffAvailability"]] = relationship(back_populates="staff", cascade="all, delete-orphan")
     certifications: Mapped[list["StaffCertification"]] = relationship(
         back_populates="staff", cascade="all, delete-orphan"
     )
@@ -70,9 +68,7 @@ class StaffCertification(Base):
     __tablename__ = "staff_certifications"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    staff_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("staff.id", ondelete="CASCADE"), nullable=False, index=True
-    )
+    staff_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("staff.id", ondelete="CASCADE"), nullable=False, index=True)
     cert_type: Mapped[str] = mapped_column(String(50), nullable=False)
     cert_name: Mapped[str] = mapped_column(String(255), nullable=False)
     issued_at: Mapped[date] = mapped_column(Date, nullable=False)

@@ -166,9 +166,7 @@ async def get_reschedule_suggestions(
 
     # Fetch forecast
     try:
-        forecast = await weather_service.get_forecast(
-            lat=project.location_lat, lon=project.location_lon
-        )
+        forecast = await weather_service.get_forecast(lat=project.location_lat, lon=project.location_lon)
     except Exception:
         log.warning("Weather fetch failed for project %s; skipping rescheduling", project_id)
         return []

@@ -39,9 +39,7 @@ _ENTITY_MAP: dict[str, str] = {
 }
 
 _WRITE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
-_UUID_RE = re.compile(
-    r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.IGNORECASE
-)
+_UUID_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.IGNORECASE)
 
 
 def _parse_user_id(headers: list[tuple[bytes, bytes]]) -> uuid.UUID | None:
@@ -75,9 +73,7 @@ def _parse_entity_info(path: str) -> tuple[str | None, uuid.UUID | None]:
 
 
 def _method_to_action(method: str) -> str:
-    return {"POST": "create", "PUT": "update", "PATCH": "update", "DELETE": "delete"}.get(
-        method, method.lower()
-    )
+    return {"POST": "create", "PUT": "update", "PATCH": "update", "DELETE": "delete"}.get(method, method.lower())
 
 
 def _safe_json(body: bytes) -> dict[str, Any] | None:
@@ -108,9 +104,7 @@ def _get_session_factory(app: Any) -> Any | None:
         return None
 
 
-async def _fetch_entity_snapshot(
-    sf: Any, entity_type: str, entity_id: uuid.UUID
-) -> dict[str, Any] | None:
+async def _fetch_entity_snapshot(sf: Any, entity_type: str, entity_id: uuid.UUID) -> dict[str, Any] | None:
     """Fetch a shallow snapshot of an entity row before mutation."""
     from sqlalchemy import inspect as sa_inspect
     from sqlalchemy import select
@@ -246,16 +240,20 @@ class AuditLogMiddleware:
                     response_body_parts.append(chunk)
                 if not message.get("more_body", False):
                     # Complete body received — forward start + body
-                    await send({
-                        "type": "http.response.start",
-                        "status": status_code,
-                        "headers": response_headers,
-                    })
-                    await send({
-                        "type": "http.response.body",
-                        "body": b"".join(response_body_parts),
-                        "more_body": False,
-                    })
+                    await send(
+                        {
+                            "type": "http.response.start",
+                            "status": status_code,
+                            "headers": response_headers,
+                        }
+                    )
+                    await send(
+                        {
+                            "type": "http.response.body",
+                            "body": b"".join(response_body_parts),
+                            "more_body": False,
+                        }
+                    )
             else:
                 await send(message)
 
