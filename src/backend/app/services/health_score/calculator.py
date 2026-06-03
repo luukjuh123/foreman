@@ -66,12 +66,17 @@ class ProjectHealthCalculator:
             and getattr(t, "end_date", None) is not None
             and t.end_date < self.today
         )
+        # Spend is the sum of per-task labor cost (the canonical measure); fall
+        # back to a project-level actual_spend_cents only when tasks carry no
+        # labor cost data.
+        spent_from_tasks = sum(getattr(t, "labor_cost_cents", 0) or 0 for t in self.tasks)
+        spent_cents = spent_from_tasks if spent_from_tasks else self.actual_spend_cents
         return HealthFactors(
             total_tasks=total,
             done_tasks=done,
             overdue_count=overdue,
             budget_cents=self.budget_cents,
-            spent_cents=self.actual_spend_cents,
+            spent_cents=spent_cents,
             start_date=self.start_date,
             end_date=self.end_date,
             today=self.today,

@@ -33,7 +33,7 @@ async def _get_ws_user(token: str, db: AsyncSession) -> User | None:
     return result.scalar_one_or_none()
 
 
-@router.websocket("/ws/{project_id}")
+@router.websocket("/{project_id}")
 async def websocket_endpoint(
     websocket: WebSocket,
     project_id: uuid.UUID,
@@ -98,7 +98,7 @@ async def websocket_endpoint(
         )
 
 
-@router.get("/ws/{project_id}/presence")
+@router.get("/{project_id}/presence")
 async def get_presence(
     project_id: uuid.UUID,
     _user: User = Depends(get_current_user),

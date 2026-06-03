@@ -7,10 +7,16 @@ import { FolderKanban, AlertCircle, TrendingUp, Receipt, Users } from "lucide-re
 import { listProjects, formatBudget } from "@/lib/projects";
 import { apiFetch } from "@/lib/api";
 import type { ProjectResponse, AgendaTask } from "@/lib/types";
-import { formatDate } from "@/lib/projects";
 import { fetchWeekAgenda } from "@/lib/agenda";
 
 const ONBOARDING_KEY = "foreman_onboarding_done";
+
+/** Format an ISO date as Dutch dd-MM-yyyy. */
+function formatDate(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const [y, m, d] = iso.split("T")[0].split("-");
+  return `${d}-${m}-${y}`;
+}
 
 interface RecentProject {
   id: string;
@@ -120,23 +126,22 @@ export default function DashboardPage() {
           };
           setStats(computeStats(projectsRes.data, invoices, utilization));
 
-          // Populate recent activity: sort by updated_at desc, cap at 5
-          const sorted = [...projectsRes.data].sort((a, b) => {
-            const aTime = (a as RecentProject).updated_at ?? "";
-            const bTime = (b as RecentProject).updated_at ?? "";
-            return bTime.localeCompare(aTime);
-          });
-          setRecentProjects(sorted.slice(0, 5));
+          // Recent activity: most-recently-updated projects (max 5)
+          const recent = [...projectsRes.data]
+            .sort((a, b) => {
+              const at = (a as RecentProject).updated_at ?? "";
+              const bt = (b as RecentProject).updated_at ?? "";
+              return bt.localeCompare(at);
+            })
+            .slice(0, 5)
+            .map((p) => ({ id: p.id, name: p.name, updated_at: (p as RecentProject).updated_at ?? null }));
+          setRecentProjects(recent);
 
-          // Populate upcoming tasks from agenda (exclude done tasks)
-          if (agendaRes) {
-            const tasks = (agendaRes.days ?? []).flatMap((day) =>
-              (day.tasks ?? [])
-                .filter((t) => t.status !== "done")
-                .map((t) => ({ ...t, date: day.date }))
-            );
-            setUpcomingTasks(tasks);
-          }
+          // Upcoming tasks: flatten agenda days, exclude completed tasks
+          const upcoming = (agendaRes?.days ?? [])
+            .flatMap((day) => day.tasks.map((t) => ({ ...t, date: day.date })))
+            .filter((t) => t.status !== "done");
+          setUpcomingTasks(upcoming);
 
           setLoading(false);
         }
