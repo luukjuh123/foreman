@@ -471,6 +471,7 @@ describe("Dashboard page — Aankomende Taken feed", () => {
     vi.doMock("@/lib/projects", () => ({
       listProjects: vi.fn().mockResolvedValue({ data: [], total: 0, page: 1, per_page: 20 }),
       formatBudget: (c: number) => `€${(c / 100).toFixed(2)}`,
+      formatDate: (d: string | null) => d ?? "",
     }));
     vi.doMock("@/lib/api", () => ({ apiFetch: vi.fn().mockImplementation(baseApiFetch) }));
     vi.doMock("@/lib/agenda", () => ({
