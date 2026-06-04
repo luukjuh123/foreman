@@ -91,9 +91,46 @@ jobs:
       - run: npm ci
       - run: npm run build
 
+  backend-security:
+    name: Backend security audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.12'
+      - run: uv sync --frozen
+      - run: uv run --with pip-audit pip-audit
+
+  frontend-security:
+    name: Frontend security audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: src/frontend/package-lock.json
+      - run: npm ci
+      - run: npm audit --audit-level=high
+
+  security:
+    name: Security gate
+    needs: [backend-security, frontend-security]
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "All security checks passed"
+
   docker-backend:
     name: Docker build (backend)
-    needs: backend-test
+    needs: [backend-test, security]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -116,7 +153,7 @@ jobs:
 
   docker-frontend:
     name: Docker build (frontend)
-    needs: frontend-build
+    needs: [frontend-build, security]
     runs-on: ubuntu-latest
     permissions:
       contents: read
