@@ -331,9 +331,16 @@ describe("ExportPage CSV download", () => {
     revokeObjectURLSpy = vi.fn();
     clickSpy = vi.fn();
 
-    Object.defineProperty(window, "URL", {
+    // Preserve the URL constructor while mocking only the static methods
+    Object.defineProperty(URL, "createObjectURL", {
       writable: true,
-      value: { createObjectURL: createObjectURLSpy, revokeObjectURL: revokeObjectURLSpy },
+      configurable: true,
+      value: createObjectURLSpy,
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      writable: true,
+      configurable: true,
+      value: revokeObjectURLSpy,
     });
 
     // Spy on HTMLAnchorElement.prototype.click so we don't need to intercept createElement
