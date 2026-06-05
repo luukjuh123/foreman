@@ -14,7 +14,7 @@ import {
 // Types
 // ---------------------------------------------------------------------------
 
-export interface CsvRow {
+interface CsvRow {
   name: string;
   quantity: string;
   unit: string;
@@ -26,7 +26,7 @@ type MatchState =
   | { status: "error"; message: string }
   | { status: "done"; results: MaterialResult[] };
 
-export interface ImportRow {
+interface ImportRow {
   csvRow: CsvRow;
   matchState: MatchState;
   selectedIndex: number; // index into matchState.results (when done)
@@ -36,7 +36,7 @@ export interface ImportRow {
 // CSV parser
 // ---------------------------------------------------------------------------
 
-export function parseCSV(text: string): CsvRow[] | { error: string } {
+function parseCSV(text: string): CsvRow[] | { error: string } {
   const trimmed = text.trim();
   if (!trimmed) {
     return { error: "Het bestand is leeg." };

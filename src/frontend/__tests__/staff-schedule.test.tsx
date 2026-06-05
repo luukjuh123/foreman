@@ -41,31 +41,11 @@ const mockProjectList = {
   per_page: 100,
 };
 
-// The system clock is pinned to this date in beforeEach (see vi.setSystemTime),
-// so the component's getMondayOf(new Date()) renders the week of 2026-05-18.
-// Assignment dates must be derived from this same fixed reference — NOT from the
-// real wall-clock at import time — or they land in a different week and never
-// appear in the rendered grid.
-const PINNED_NOW = new Date("2026-05-20T10:00:00");
-
-/** Compute the Monday of the week containing the given date, matching the component's getMondayOf logic. */
-function getWeekMonday(ref: Date): Date {
-  const d = new Date(ref);
-  const day = d.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  d.setDate(d.getDate() + diff);
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
-function toISODate(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
-
-// Compute assignment dates from the pinned reference so they fall in the rendered week.
-const monday = getWeekMonday(PINNED_NOW);
-const tuesday = new Date(monday);
-tuesday.setDate(monday.getDate() + 1);
+// Assignment dates are hardcoded to match the faked system time (2026-05-20 → week of 2026-05-18).
+// The beforeEach pins vi.setSystemTime(new Date("2026-05-20T10:00:00")); getMondayOf returns 2026-05-18.
+// 2026-05-18 is a Monday, 2026-05-19 is a Tuesday.
+const FAKED_MONDAY = "2026-05-18";
+const FAKED_TUESDAY = "2026-05-19";
 
 const mockAssignmentsStaff1 = [
   {
@@ -73,8 +53,8 @@ const mockAssignmentsStaff1 = [
     staff_id: "staff-1",
     project_id: "proj-1",
     task_id: null,
-    start_at: `${toISODate(monday)}T08:00:00`,
-    end_at: `${toISODate(monday)}T16:00:00`,
+    start_at: `${FAKED_MONDAY}T08:00:00`,
+    end_at: `${FAKED_MONDAY}T16:00:00`,
     notes: null,
     created_at: "2026-05-01T00:00:00",
   },
@@ -86,8 +66,8 @@ const mockAssignmentsStaff2 = [
     staff_id: "staff-2",
     project_id: "proj-2",
     task_id: null,
-    start_at: `${toISODate(tuesday)}T08:00:00`,
-    end_at: `${toISODate(tuesday)}T16:00:00`,
+    start_at: `${FAKED_TUESDAY}T08:00:00`,
+    end_at: `${FAKED_TUESDAY}T16:00:00`,
     notes: null,
     created_at: "2026-05-01T00:00:00",
   },

@@ -130,7 +130,12 @@ describe("ProjectDetailPage — subcontractor assignment", () => {
     const getProject = await getGetProject();
     const apiFetch = await getApiFetch();
     getProject.mockResolvedValue(makeProject([makePhase()]));
-    apiFetch.mockResolvedValue(makeSubListResponse([makeSub()]));
+    apiFetch.mockImplementation((path: string) => {
+      if (path.includes("/subcontractors/")) {
+        return Promise.resolve(makeSubListResponse([makeSub()]));
+      }
+      return Promise.resolve({ data: [], total: 0, page: 1, per_page: 20 });
+    });
 
     const { default: ProjectDetailPage } = await import(
       "@/app/dashboard/projects/[id]/page"
@@ -151,10 +156,12 @@ describe("ProjectDetailPage — subcontractor assignment", () => {
     const getProject = await getGetProject();
     const apiFetch = await getApiFetch();
     getProject.mockResolvedValue(makeProject([makePhase()]));
-    // First call: subcontractor list; subsequent: assignment list
-    apiFetch
-      .mockResolvedValueOnce(makeSubListResponse([makeSub({ company_name: "Loodgieters BV" })]))
-      .mockResolvedValue({ data: [], total: 0, page: 1, per_page: 20 });
+    apiFetch.mockImplementation((path: string) => {
+      if (path.includes("/subcontractors/")) {
+        return Promise.resolve(makeSubListResponse([makeSub({ company_name: "Loodgieters BV" })]));
+      }
+      return Promise.resolve({ data: [], total: 0, page: 1, per_page: 20 });
+    });
 
     const { default: ProjectDetailPage } = await import(
       "@/app/dashboard/projects/[id]/page"
@@ -182,13 +189,17 @@ describe("ProjectDetailPage — subcontractor assignment", () => {
     const getProject = await getGetProject();
     const apiFetch = await getApiFetch();
     getProject.mockResolvedValue(makeProject([makePhase()]));
-    routeApiFetch(
-      apiFetch,
-      makeSubListResponse([
-        makeSub({ id: "s1", company_name: "Loodgieters BV" }),
-        makeSub({ id: "s2", company_name: "Schilder & Zn" }),
-      ])
-    );
+    apiFetch.mockImplementation((path: string) => {
+      if (path.includes("/subcontractors/")) {
+        return Promise.resolve(
+          makeSubListResponse([
+            makeSub({ id: "s1", company_name: "Loodgieters BV" }),
+            makeSub({ id: "s2", company_name: "Schilder & Zn" }),
+          ])
+        );
+      }
+      return Promise.resolve({ data: [], total: 0, page: 1, per_page: 20 });
+    });
 
     const { default: ProjectDetailPage } = await import(
       "@/app/dashboard/projects/[id]/page"
@@ -215,9 +226,12 @@ describe("ProjectDetailPage — subcontractor assignment", () => {
     const getProject = await getGetProject();
     const apiFetch = await getApiFetch();
     getProject.mockResolvedValue(makeProject([makePhase()]));
-    apiFetch
-      .mockResolvedValueOnce(makeSubListResponse([makeSub()]))
-      .mockResolvedValue({ data: [], total: 0, page: 1, per_page: 20 });
+    apiFetch.mockImplementation((path: string) => {
+      if (path.includes("/subcontractors/")) {
+        return Promise.resolve(makeSubListResponse([makeSub()]));
+      }
+      return Promise.resolve({ data: [], total: 0, page: 1, per_page: 20 });
+    });
 
     const { default: ProjectDetailPage } = await import(
       "@/app/dashboard/projects/[id]/page"
@@ -250,10 +264,12 @@ describe("ProjectDetailPage — subcontractor assignment", () => {
     const getProject = await getGetProject();
     const apiFetch = await getApiFetch();
     getProject.mockResolvedValue(makeProject([makePhase()]));
-    routeApiFetch(
-      apiFetch,
-      makeSubListResponse([makeSub({ id: "s1", company_name: "Loodgieters BV" })])
-    );
+    apiFetch.mockImplementation((path: string) => {
+      if (path.includes("/subcontractors/")) {
+        return Promise.resolve(makeSubListResponse([makeSub({ id: "s1", company_name: "Loodgieters BV" })]));
+      }
+      return Promise.resolve({ data: [], total: 0, page: 1, per_page: 20 });
+    });
 
     const { default: ProjectDetailPage } = await import(
       "@/app/dashboard/projects/[id]/page"

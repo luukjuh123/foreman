@@ -400,7 +400,7 @@ describe("Dashboard page — Recente Activiteit feed", () => {
     vi.doMock("@/lib/projects", () => ({
       listProjects: vi.fn().mockResolvedValue({ data: projects, total: 2, page: 1, per_page: 20 }),
       formatBudget: (c: number) => `€${(c / 100).toFixed(2)}`,
-      formatDate: (d: string) => d,
+      formatDate: (d: string | null) => d ?? "",
     }));
     vi.doMock("@/lib/api", () => ({ apiFetch: vi.fn().mockImplementation(baseApiFetch) }));
     vi.doMock("@/lib/agenda", () => ({ fetchWeekAgenda: vi.fn().mockResolvedValue({ week_start: "2026-05-26", week_end: "2026-06-01", days: [] }) }));
@@ -422,7 +422,7 @@ describe("Dashboard page — Recente Activiteit feed", () => {
     vi.doMock("@/lib/projects", () => ({
       listProjects: vi.fn().mockResolvedValue({ data: projects, total: 8, page: 1, per_page: 20 }),
       formatBudget: (c: number) => `€${(c / 100).toFixed(2)}`,
-      formatDate: (d: string) => d,
+      formatDate: (d: string | null) => d ?? "",
     }));
     vi.doMock("@/lib/api", () => ({ apiFetch: vi.fn().mockImplementation(baseApiFetch) }));
     vi.doMock("@/lib/agenda", () => ({ fetchWeekAgenda: vi.fn().mockResolvedValue({ week_start: "2026-05-26", week_end: "2026-06-01", days: [] }) }));
@@ -471,7 +471,7 @@ describe("Dashboard page — Aankomende Taken feed", () => {
     vi.doMock("@/lib/projects", () => ({
       listProjects: vi.fn().mockResolvedValue({ data: [], total: 0, page: 1, per_page: 20 }),
       formatBudget: (c: number) => `€${(c / 100).toFixed(2)}`,
-      formatDate: (d: string) => d,
+      formatDate: (d: string | null) => d ?? "",
     }));
     vi.doMock("@/lib/api", () => ({ apiFetch: vi.fn().mockImplementation(baseApiFetch) }));
     vi.doMock("@/lib/agenda", () => ({

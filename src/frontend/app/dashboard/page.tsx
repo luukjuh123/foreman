@@ -116,7 +116,7 @@ export default function DashboardPage() {
       apiFetch<StaffUtilization>("/staff/utilization"),
       agendaFetch,
     ])
-      .then(([projectsRes, invoicesRes, utilizationRes, agendaRes]) => {
+      .then(async ([projectsRes, invoicesRes, utilizationRes]) => {
         if (!cancelled) {
           const invoices: InvoiceSummary[] = (invoicesRes as { data?: { data?: InvoiceSummary[] } })?.data?.data ?? [];
           const utilization: StaffUtilization = (utilizationRes as StaffUtilization) ?? {
@@ -126,22 +126,27 @@ export default function DashboardPage() {
           };
           setStats(computeStats(projectsRes.data, invoices, utilization));
 
-          // Recent activity: most-recently-updated projects (max 5)
-          const recent = [...projectsRes.data]
-            .sort((a, b) => {
-              const at = (a as RecentProject).updated_at ?? "";
-              const bt = (b as RecentProject).updated_at ?? "";
-              return bt.localeCompare(at);
-            })
-            .slice(0, 5)
-            .map((p) => ({ id: p.id, name: p.name, updated_at: (p as RecentProject).updated_at ?? null }));
-          setRecentProjects(recent);
+          // Populate recent projects (sorted by updated_at desc, max 5)
+          const sorted = [...projectsRes.data].sort((a, b) => {
+            const ta = (a as RecentProject).updated_at ?? "";
+            const tb = (b as RecentProject).updated_at ?? "";
+            return tb.localeCompare(ta);
+          });
+          setRecentProjects(sorted.slice(0, 5));
 
-          // Upcoming tasks: flatten agenda days, exclude completed tasks
-          const upcoming = (agendaRes?.days ?? [])
-            .flatMap((day) => day.tasks.map((t) => ({ ...t, date: day.date })))
-            .filter((t) => t.status !== "done");
-          setUpcomingTasks(upcoming);
+          // Populate upcoming tasks from agenda
+          const agenda = await agendaFetch;
+          if (!cancelled && agenda) {
+            const tasks: Array<AgendaTask & { date: string }> = [];
+            for (const day of agenda.days) {
+              for (const task of day.tasks) {
+                if (task.status !== "done") {
+                  tasks.push({ ...task, date: day.date });
+                }
+              }
+            }
+            setUpcomingTasks(tasks);
+          }
 
           setLoading(false);
         }
