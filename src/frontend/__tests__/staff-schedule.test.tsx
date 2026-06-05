@@ -44,6 +44,7 @@ const mockProjectList = {
 // Assignment dates are hardcoded to match the faked system time (2026-05-20 → week of 2026-05-18).
 // The beforeEach pins vi.setSystemTime(new Date("2026-05-20T10:00:00")); getMondayOf returns 2026-05-18.
 // 2026-05-18 is a Monday, 2026-05-19 is a Tuesday.
+const PINNED_NOW = new Date("2026-05-20T10:00:00");
 const FAKED_MONDAY = "2026-05-18";
 const FAKED_TUESDAY = "2026-05-19";
 
