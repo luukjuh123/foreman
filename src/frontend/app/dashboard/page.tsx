@@ -7,10 +7,16 @@ import { FolderKanban, AlertCircle, TrendingUp, Receipt, Users } from "lucide-re
 import { listProjects, formatBudget } from "@/lib/projects";
 import { apiFetch } from "@/lib/api";
 import type { ProjectResponse, AgendaTask } from "@/lib/types";
-import { formatDate } from "@/lib/projects";
 import { fetchWeekAgenda } from "@/lib/agenda";
 
 const ONBOARDING_KEY = "foreman_onboarding_done";
+
+/** Format an ISO date as Dutch dd-MM-yyyy. */
+function formatDate(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const [y, m, d] = iso.split("T")[0].split("-");
+  return `${d}-${m}-${y}`;
+}
 
 interface RecentProject {
   id: string;
@@ -108,6 +114,7 @@ export default function DashboardPage() {
       listProjects(1, 100),
       apiFetch<InvoiceListData>("/invoices/?per_page=200"),
       apiFetch<StaffUtilization>("/staff/utilization"),
+      agendaFetch,
     ])
       .then(async ([projectsRes, invoicesRes, utilizationRes]) => {
         if (!cancelled) {

@@ -92,7 +92,7 @@ describe("StaffSchedulePage", () => {
     // Pin system time to the week of 2026-05-18 so getMondayOf(new Date())
     // returns 2026-05-18, matching the mock assignment dates.
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    vi.setSystemTime(new Date("2026-05-20T10:00:00"));
+    vi.setSystemTime(PINNED_NOW);
   });
 
   afterEach(() => {

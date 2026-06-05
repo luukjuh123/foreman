@@ -102,6 +102,23 @@ async function getApiFetch() {
   return vi.mocked(apiFetch);
 }
 
+// Route apiFetch by URL so call ordering between sibling components
+// (e.g. the punch-list tab fetching on mount) does not consume the
+// mock reserved for the subcontractor list.
+const EMPTY_LIST = { data: [], total: 0, page: 1, per_page: 20 };
+
+function routeApiFetch(
+  apiFetch: ReturnType<typeof vi.fn>,
+  subListResponse: unknown
+) {
+  apiFetch.mockImplementation((path: string) => {
+    if (path.startsWith("/subcontractors/?")) {
+      return Promise.resolve(subListResponse);
+    }
+    return Promise.resolve(EMPTY_LIST);
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Tests: subcontractor picker on phase card
 // ---------------------------------------------------------------------------

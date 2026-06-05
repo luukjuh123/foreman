@@ -65,7 +65,7 @@ async def _create_staff(client: AsyncClient, headers: dict, weekly_hours: float 
 
 async def _create_project(client: AsyncClient, headers: dict) -> str:
     resp = await client.post(
-        "/api/v1/projects",
+        "/api/v1/projects/",
         json={
             "name": "Test Project",
             "status": "active",
