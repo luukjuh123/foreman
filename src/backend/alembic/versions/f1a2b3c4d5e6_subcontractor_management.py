@@ -6,15 +6,15 @@ Create Date: 2026-05-26 09:00:00.000000
 
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
 
 revision: str = "f1a2b3c4d5e6"
-down_revision: Union[str, Sequence[str], None] = "u51agem3t3r2"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = "u51agem3t3r2"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -42,9 +42,7 @@ def upgrade() -> None:
             "fixed_rate_cents IS NULL OR fixed_rate_cents >= 0",
             name="ck_sub_fixed_rate_non_negative",
         ),
-        sa.CheckConstraint(
-            "rating IS NULL OR (rating >= 1 AND rating <= 5)", name="ck_sub_rating_range"
-        ),
+        sa.CheckConstraint("rating IS NULL OR (rating >= 1 AND rating <= 5)", name="ck_sub_rating_range"),
     )
 
     # subcontractor_certifications
