@@ -1,13 +1,9 @@
 import { defineConfig } from "vitest/config";
+import react from "@vitejs/plugin-react";
 import path from "path";
 
 export default defineConfig({
-  oxc: {
-    jsx: {
-      runtime: "automatic",
-      importSource: "react",
-    },
-  },
+  plugins: [react()],
   test: {
     environment: "jsdom",
     globals: true,
