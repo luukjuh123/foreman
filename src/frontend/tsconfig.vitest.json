@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "incremental": false,
+    "plugins": []
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    "../../tests/frontend/**/*.ts",
+    "../../tests/frontend/**/*.tsx"
+  ],
+  "exclude": ["node_modules", ".next"]
+}

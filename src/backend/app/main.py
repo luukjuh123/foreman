@@ -5,6 +5,7 @@ from app.core.config import settings
 from app.core.logging import RequestLoggingMiddleware, configure_logging
 from app.core.rate_limit_middleware import RateLimitMiddleware
 from app.routers import (
+    accounting,
     agenda,
     ai_planning,
     analytics,
@@ -14,11 +15,14 @@ from app.routers import (
     auth,
     billing,
     btw,
+    collaboration,
     customers,
     documents,
     equipment,
     exports,
     financials,
+    forecasting,
+    geofence,
     gps_checkin,
     inbound,
     incidents,
@@ -27,6 +31,7 @@ from app.routers import (
     materials,
     notifications,
     payroll,
+    permits,
     photos,
     portal,
     processes,
@@ -40,6 +45,7 @@ from app.routers import (
     subcontractors,
     templates,
     time_tracking,
+    timeline,
     voice,
     weather,
     webhooks,
@@ -111,6 +117,12 @@ def create_app() -> FastAPI:
     app.include_router(punch_items.router, prefix="/api/v1/projects", tags=["punch-items"])
     app.include_router(safety.router, prefix="/api/v1/safety", tags=["safety"])
     app.include_router(websocket.router, prefix="/api/v1/ws", tags=["websocket"])
+    app.include_router(accounting.router, prefix="/api/v1/accounting", tags=["accounting"])
+    app.include_router(collaboration.router, prefix="/api/v1/collaboration", tags=["collaboration"])
+    app.include_router(forecasting.router, prefix="/api/v1/forecasting", tags=["forecasting"])
+    app.include_router(geofence.router, prefix="/api/v1/geofence", tags=["geofence"])
+    app.include_router(permits.router, prefix="/api/v1/permits", tags=["permits"])
+    app.include_router(timeline.router, prefix="/api/v1/timeline", tags=["timeline"])
 
     @app.get("/healthz", tags=["health"])
     async def health_check() -> dict:

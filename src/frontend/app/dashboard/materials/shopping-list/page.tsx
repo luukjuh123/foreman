@@ -11,7 +11,7 @@ import { Trash2, ExternalLink, ShoppingCart, Calculator } from "lucide-react";
 // Types
 // ---------------------------------------------------------------------------
 
-export interface ShoppingItem {
+interface ShoppingItem {
   id: string;
   name: string;
   quantity: string;

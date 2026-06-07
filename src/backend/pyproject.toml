@@ -49,7 +49,7 @@ select = [
     "E", "W", "F", "I", "B", "C4", "UP", "S", "SIM", "TCH", "ANN", "ARG", "RUF",
 ]
 ignore = [
-    "ANN001", "ANN101", "ANN102", "ANN202", "ANN206", "ANN401",
+    "ANN001", "ANN202", "ANN206", "ANN401",
     "S101", "S105", "S107", "S314",
     "B008", "B904",
     "ARG001", "ARG002",  # FastAPI Depends() auth params appear unused

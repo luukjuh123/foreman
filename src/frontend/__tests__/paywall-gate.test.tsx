@@ -102,10 +102,10 @@ describe("PaywallGate", () => {
     );
 
     await waitFor(() => {
-      expect(screen.queryByTestId("protected-content")).not.toBeInTheDocument();
+      expect(screen.getByText(/Voice AI/i)).toBeInTheDocument();
     });
 
-    expect(screen.getByText(/Voice AI/i)).toBeInTheDocument();
+    expect(screen.queryByTestId("protected-content")).not.toBeInTheDocument();
     const upgradeLink = screen.getByRole("link", { name: /upgraden/i });
     expect(upgradeLink).toHaveAttribute("href", "/pricing");
   });
