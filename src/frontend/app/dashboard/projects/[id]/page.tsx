@@ -4,32 +4,20 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Calendar, ChevronDown, ChevronRight, UserPlus, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronRight, UserPlus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getProject, calcPhaseProgress, formatBudget, formatDate } from "@/lib/projects";
+import { getProject, calcPhaseProgress } from "@/lib/projects";
 import type { ProjectResponse, PhaseResponse, TaskResponse } from "@/lib/types";
 import { apiFetch } from "@/lib/api";
 import type { SubcontractorResponse, SubcontractorListResponse } from "@/lib/subcontractors";
+import { ProjectHubHeader } from "@/components/project-hub/ProjectHubHeader";
+import { ProjectHubTabBar } from "@/components/project-hub/ProjectHubTabBar";
 import TimeTracker from "@/components/time-tracking/TimeTracker";
 import PunchListTab from "@/components/punch-list/PunchListTab";
 
 // ---------------------------------------------------------------------------
 // Status helpers
 // ---------------------------------------------------------------------------
-
-const STATUS_LABELS: Record<string, string> = {
-  draft: "Concept",
-  active: "Actief",
-  completed: "Voltooid",
-  archived: "Gearchiveerd",
-};
-
-const STATUS_BADGE_CLASS: Record<string, string> = {
-  draft: "bg-gray-100 text-gray-700",
-  active: "bg-blue-100 text-blue-700",
-  completed: "bg-green-100 text-green-700",
-  archived: "bg-yellow-100 text-yellow-700",
-};
 
 const TASK_STATUS_LABELS: Record<string, string> = {
   todo: "Te doen",
@@ -44,6 +32,20 @@ const TASK_STATUS_CLASS: Record<string, string> = {
   done: "bg-green-100 text-green-700",
   blocked: "bg-red-100 text-red-700",
 };
+
+// ---------------------------------------------------------------------------
+// Loading skeleton
+// ---------------------------------------------------------------------------
+
+function HeaderSkeleton() {
+  return (
+    <div data-testid="project-header-skeleton" className="space-y-3 animate-pulse">
+      <div className="h-8 w-64 rounded bg-muted" />
+      <div className="h-4 w-48 rounded bg-muted" />
+      <div className="h-2 w-full rounded bg-muted" />
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Task row
@@ -262,6 +264,48 @@ function PhaseCard({ phase }: { phase: PhaseResponse }) {
 }
 
 // ---------------------------------------------------------------------------
+// Key numbers card
+// ---------------------------------------------------------------------------
+
+function KeyNumbers({ project }: { project: ProjectResponse }) {
+  const allTasks = project.phases.flatMap((p) => p.tasks);
+  const done = allTasks.filter((t) => t.status === "done").length;
+  const inProgress = allTasks.filter((t) => t.status === "in_progress").length;
+  const blocked = allTasks.filter((t) => t.status === "blocked").length;
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base">Kerncijfers</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="space-y-0.5">
+            <p className="text-2xl font-bold text-foreground">{project.phases.length}</p>
+            <p className="text-xs text-muted-foreground">Fases</p>
+          </div>
+          <div className="space-y-0.5">
+            <p className="text-2xl font-bold text-foreground">{allTasks.length}</p>
+            <p className="text-xs text-muted-foreground">Taken totaal</p>
+          </div>
+          <div className="space-y-0.5">
+            <p className="text-2xl font-bold text-green-600">{done}</p>
+            <p className="text-xs text-muted-foreground">Voltooid</p>
+          </div>
+          <div className="space-y-0.5">
+            <p className="text-2xl font-bold text-blue-600">{inProgress}</p>
+            <p className="text-xs text-muted-foreground">In uitvoering</p>
+          </div>
+        </div>
+        {blocked > 0 && (
+          <p className="mt-2 text-xs text-red-600">{blocked} geblokkeerde taak{blocked !== 1 ? "en" : ""}</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
@@ -284,7 +328,17 @@ export default function ProjectDetailPage({ params }: Props) {
   }, [params]);
 
   if (loading) {
-    return <p className="text-sm text-muted-foreground">Laden…</p>;
+    return (
+      <div className="space-y-6">
+        <Link href="/dashboard/projects">
+          <Button variant="ghost" size="sm">
+            <ArrowLeft className="mr-1.5 h-4 w-4" />
+            Terug naar projecten
+          </Button>
+        </Link>
+        <HeaderSkeleton />
+      </div>
+    );
   }
 
   if (error || !project) {
@@ -311,52 +365,14 @@ export default function ProjectDetailPage({ params }: Props) {
         </Button>
       </Link>
 
-      {/* Project header */}
-      <div className="space-y-2">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-bold text-foreground">{project.name}</h1>
-          <span
-            className={cn(
-              "rounded-full px-2.5 py-0.5 text-sm font-medium",
-              STATUS_BADGE_CLASS[project.status] ?? "bg-gray-100 text-gray-700"
-            )}
-          >
-            {STATUS_LABELS[project.status] ?? project.status}
-          </span>
-        </div>
+      {/* Rich project header */}
+      <ProjectHubHeader project={project} />
 
-        {project.description && (
-          <p className="text-muted-foreground">{project.description}</p>
-        )}
+      {/* Tab navigation */}
+      <ProjectHubTabBar projectId={project.id} />
 
-        <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-          {(project.start_date || project.end_date) && (
-            <span className="flex items-center gap-1">
-              <Calendar className="h-4 w-4" />
-              {formatDate(project.start_date)} – {formatDate(project.end_date)}
-            </span>
-          )}
-          {project.budget_cents != null && (
-            <span>Budget: {formatBudget(project.budget_cents)}</span>
-          )}
-        </div>
-      </div>
-
-      {/* Sub-page navigation */}
-      <div className="flex flex-wrap gap-2">
-        <Link href={`/dashboard/projects/${project.id}/board`}>
-          <Button variant="outline" size="sm">Takenbord</Button>
-        </Link>
-        <Link href={`/dashboard/projects/${project.id}/gantt`}>
-          <Button variant="outline" size="sm">Gantt</Button>
-        </Link>
-        <Link href={`/dashboard/projects/${project.id}/processes`}>
-          <Button variant="outline" size="sm">Processen</Button>
-        </Link>
-        <Link href={`/dashboard/projects/${project.id}/timeline`}>
-          <Button variant="outline" size="sm">Tijdlijn</Button>
-        </Link>
-      </div>
+      {/* Overzicht content — key numbers */}
+      <KeyNumbers project={project} />
 
       {/* Punch list */}
       <div className="space-y-3">
@@ -368,7 +384,14 @@ export default function ProjectDetailPage({ params }: Props) {
       <div className="space-y-3">
         <h2 className="text-lg font-semibold">Fases</h2>
         {project.phases.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Geen fases toegevoegd.</p>
+          <Card>
+            <CardContent className="py-8 text-center">
+              <p className="text-sm text-muted-foreground">Geen fases toegevoegd.</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Voeg een fase toe om taken te plannen.
+              </p>
+            </CardContent>
+          </Card>
         ) : (
           project.phases.map((phase) => <PhaseCard key={phase.id} phase={phase} />)
         )}
