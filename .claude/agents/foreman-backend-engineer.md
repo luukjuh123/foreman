@@ -2,7 +2,7 @@
 name: foreman-backend-engineer
 description: Use this agent to implement backend features for the foreman galaxy — FastAPI endpoints, database models, AI planning engine, hardware store integrations, financial logic, and material estimation algorithms. Invoke when draining backend todo.md items.
 tools: Read, Write, Edit, Glob, Grep, Bash
-model: sonnet
+model: fable
 color: blue
 permissionMode: acceptEdits
 maxTurns: 30

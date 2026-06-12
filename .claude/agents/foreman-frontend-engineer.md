@@ -2,7 +2,7 @@
 name: foreman-frontend-engineer
 description: Use this agent to implement frontend features for the foreman galaxy — Next.js 16 pages, dashboard components, Gantt chart, financial charts, material search UI, and AI planning panel. Invoke when draining frontend todo.md items.
 tools: Read, Write, Edit, Glob, Grep, Bash
-model: sonnet
+model: fable
 color: magenta
 permissionMode: acceptEdits
 maxTurns: 30
