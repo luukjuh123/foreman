@@ -4,6 +4,7 @@ import React, { useEffect } from "react";
 import { redirect } from "next/navigation";
 import Sidebar from "@/components/sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { TopbarBreadcrumb } from "@/components/topbar-breadcrumb";
 import OfflineIndicator from "@/components/offline-indicator";
 import PwaRegister from "@/components/pwa-register";
 import MobileNav from "@/components/mobile-nav";
@@ -30,13 +31,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="flex items-center gap-3">
             {/* Spacer for mobile hamburger button */}
             <div className="w-10 md:hidden" />
-            <span className="text-sm font-medium text-muted-foreground">
-              Foreman
-            </span>
+            <TopbarBreadcrumb />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <ThemeToggle />
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-medium">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-medium select-none">
               G
             </div>
           </div>

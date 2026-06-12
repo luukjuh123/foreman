@@ -176,21 +176,21 @@ describe("NotificationBell", () => {
 // Sidebar — Meldingen link
 // ---------------------------------------------------------------------------
 
-describe("Sidebar — Meldingen", () => {
+describe("Sidebar — Notificaties", () => {
   beforeEach(() => {
     vi.resetModules();
   });
 
-  it("renders Meldingen navigation link", async () => {
+  it("renders Notificaties navigation link", async () => {
     const { default: Sidebar } = await import("@/components/sidebar");
     render(<Sidebar />);
-    expect(screen.getAllByText("Meldingen").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Notificaties").length).toBeGreaterThan(0);
   });
 
-  it("Meldingen link points to /dashboard/notifications", async () => {
+  it("Notificaties link points to /dashboard/notifications", async () => {
     const { default: Sidebar } = await import("@/components/sidebar");
     render(<Sidebar />);
-    const links = screen.getAllByRole("link", { name: /meldingen/i });
+    const links = screen.getAllByRole("link", { name: /notificaties/i });
     expect(links[0]).toHaveAttribute("href", "/dashboard/notifications");
   });
 });

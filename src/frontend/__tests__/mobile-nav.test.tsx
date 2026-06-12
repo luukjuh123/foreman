@@ -68,12 +68,12 @@ describe("MobileNav", () => {
     expect(agendaLink).toHaveAttribute("href", "/dashboard/agenda");
   });
 
-  it("renders Meldingen tab with link to /dashboard/notifications", async () => {
+  it("renders Facturen tab with link to /dashboard/invoices", async () => {
     const { default: MobileNav } = await import("@/components/mobile-nav");
     render(<MobileNav />);
 
-    const meldingenLink = screen.getByRole("link", { name: /meldingen/i });
-    expect(meldingenLink).toHaveAttribute("href", "/dashboard/notifications");
+    const facturenLink = screen.getByRole("link", { name: /facturen/i });
+    expect(facturenLink).toHaveAttribute("href", "/dashboard/invoices");
   });
 
   it("renders a Meer button", async () => {

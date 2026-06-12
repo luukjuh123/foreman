@@ -16,21 +16,27 @@ import {
   BarChart2,
   Settings,
   X,
+  Receipt,
+  UserRound,
+  Wrench,
 } from "lucide-react";
 
 const PRIMARY_TABS = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, exact: true },
   { label: "Projecten", href: "/dashboard/projects", icon: FolderKanban, exact: false },
   { label: "Agenda", href: "/dashboard/agenda", icon: Calendar, exact: false },
-  { label: "Meldingen", href: "/dashboard/notifications", icon: Bell, exact: false },
+  { label: "Facturen", href: "/dashboard/invoices", icon: FileText, exact: false },
 ];
 
 const MORE_ITEMS = [
-  { label: "Facturen", href: "/dashboard/invoices", icon: FileText },
   { label: "Financiën", href: "/dashboard/financials", icon: TrendingUp },
+  { label: "BTW", href: "/dashboard/btw", icon: Receipt },
+  { label: "Klanten", href: "/dashboard/customers", icon: UserRound },
   { label: "Materialen", href: "/dashboard/materials", icon: Package },
+  { label: "Processen", href: "/dashboard/processes", icon: Wrench },
   { label: "Personeel", href: "/dashboard/staff", icon: Users },
   { label: "Rapporten", href: "/dashboard/reports", icon: BarChart2 },
+  { label: "Meldingen", href: "/dashboard/notifications", icon: Bell },
   { label: "Instellingen", href: "/dashboard/settings", icon: Settings },
 ];
 

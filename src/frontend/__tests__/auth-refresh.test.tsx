@@ -168,6 +168,7 @@ describe("apiFetch – 401 auto-refresh + retry", () => {
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
   useRouter: vi.fn(() => ({ push: vi.fn(), replace: vi.fn() })),
+  usePathname: vi.fn(() => "/dashboard"),
 }));
 
 vi.mock("next/link", () => ({
