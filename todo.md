@@ -204,5 +204,9 @@
 - [x] Frontend: Bulk material CSV import — upload CSV file with columns to auto-create shopping lists with fuzzy-match — PR #216
 - [x] Frontend: Onboarding wizard — first-time user flow triggered after registration; 4-step interactive tour — PR #221
 
+## Priority: High (Phase 22 — Core Admin & Contracting UI)
+
+- [x] Frontend: Grouped sidebar navigation redesign — sections Projecten, Contracteren, Financieel, Inkoop, Team with uppercase labels, active indicator, Offertes + Klanten + Onderaannemers links — PR feat/sidebar-grouped-nav
+
 ## Completed
 <!-- [x] Task description — PR #N -->
