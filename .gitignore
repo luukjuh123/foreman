@@ -20,4 +20,4 @@ node_modules/
 
 # in foreman/.gitignore
 .env
-**/.env
+**/.envsrc/frontend/tsconfig.tsbuildinfo
