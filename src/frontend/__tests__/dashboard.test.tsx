@@ -32,6 +32,7 @@ vi.mock("next/link", () => ({
 // Agenda is fetched on the dashboard page; mock it globally.
 vi.mock("@/lib/agenda", () => ({
   fetchWeekAgenda: vi.fn().mockResolvedValue({ week_start: "2026-05-26", week_end: "2026-06-01", days: [] }),
+  getProjectColor: vi.fn().mockReturnValue("#3b82f6"),
 }));
 
 // ---------------------------------------------------------------------------
@@ -253,13 +254,18 @@ describe("DashboardPage", () => {
     }));
   }
 
-  it("renders welcome message", async () => {
+  it("renders welcome message (Dutch greeting)", async () => {
     vi.doMock("@/lib/projects", () => ({
       listProjects: vi.fn().mockResolvedValue({ data: [], total: 0, page: 1, per_page: 20 }),
       formatBudget: (cents: number) =>
         new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", minimumFractionDigits: 2 }).format(cents / 100),
+      calcTaskSummary: () => ({ done: 0, total: 0 }),
     }));
     mockApiFetch();
+    vi.doMock("@/lib/agenda", () => ({
+      fetchWeekAgenda: vi.fn().mockResolvedValue({ week_start: "2026-05-26", week_end: "2026-06-01", days: [] }),
+      getProjectColor: vi.fn().mockReturnValue("#3b82f6"),
+    }));
 
     const { default: DashboardPage } = await import("@/app/dashboard/page");
 
@@ -267,7 +273,12 @@ describe("DashboardPage", () => {
       render(<DashboardPage />);
     });
 
-    expect(screen.getByText(/welkom bij foreman/i)).toBeInTheDocument();
+    // New design uses Dutch time-of-day greeting
+    const greetings = ["Goedemorgen", "Goedemiddag", "Goedenavond"];
+    const found = greetings.some(
+      (g) => screen.queryByText(new RegExp(g, "i")) !== null,
+    );
+    expect(found).toBe(true);
   });
 
   it("shows loading skeleton while fetching", async () => {
@@ -306,13 +317,18 @@ describe("DashboardPage", () => {
     expect(screen.getByTestId("dashboard-error")).toBeInTheDocument();
   });
 
-  it("renders all five KPI stat cards after loading", async () => {
+  it("renders KPI stat cards after loading", async () => {
     vi.doMock("@/lib/projects", () => ({
       listProjects: vi.fn().mockResolvedValue({ data: [], total: 0, page: 1, per_page: 20 }),
       formatBudget: (cents: number) =>
         new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", minimumFractionDigits: 2 }).format(cents / 100),
+      calcTaskSummary: () => ({ done: 0, total: 0 }),
     }));
     mockApiFetch();
+    vi.doMock("@/lib/agenda", () => ({
+      fetchWeekAgenda: vi.fn().mockResolvedValue({ week_start: "2026-05-26", week_end: "2026-06-01", days: [] }),
+      getProjectColor: vi.fn().mockReturnValue("#3b82f6"),
+    }));
 
     const { default: DashboardPage } = await import("@/app/dashboard/page");
 
@@ -320,11 +336,11 @@ describe("DashboardPage", () => {
       render(<DashboardPage />);
     });
 
-    expect(screen.getByText(/actieve projecten/i)).toBeInTheDocument();
-    expect(screen.getByText(/verlopen taken/i)).toBeInTheDocument();
-    expect(screen.getByText(/maandelijkse omzet/i)).toBeInTheDocument();
-    expect(screen.getByText(/openstaande facturen/i)).toBeInTheDocument();
-    expect(screen.getByText(/personeelsbezetting/i)).toBeInTheDocument();
+    // Phase 22 redesign: 4 KPI cards (actieve projecten, openstaande facturen, omzet, achterstallige taken)
+    expect(screen.getByTestId("kpi-active-projects")).toBeInTheDocument();
+    expect(screen.getByTestId("kpi-outstanding-invoices")).toBeInTheDocument();
+    expect(screen.getByTestId("kpi-monthly-revenue")).toBeInTheDocument();
+    expect(screen.getByTestId("kpi-overdue-tasks")).toBeInTheDocument();
   });
 
   it("displays active project count from API data", async () => {

@@ -25,6 +25,7 @@ vi.mock("next/link", () => ({
 // Agenda is fetched on the dashboard page; mock it to return empty week by default.
 vi.mock("@/lib/agenda", () => ({
   fetchWeekAgenda: vi.fn().mockResolvedValue({ week_start: "2026-05-26", week_end: "2026-06-01", days: [] }),
+  getProjectColor: vi.fn().mockReturnValue("#3b82f6"),
 }));
 
 // Helper to build project fixture with phases + tasks
@@ -196,14 +197,16 @@ describe("Dashboard KPI — monthly revenue", () => {
   });
 });
 
-describe("Dashboard KPI — staff utilization rate", () => {
+describe("Dashboard KPI — outstanding invoices (Phase 22 replaces staff utilization KPI)", () => {
   beforeEach(() => vi.resetModules());
   afterEach(() => vi.resetModules());
 
-  it("renders staff utilization percentage card", async () => {
+  it("renders kpi-outstanding-invoices with euro amount", async () => {
     vi.doMock("@/lib/projects", () => ({
       listProjects: vi.fn().mockResolvedValue({ data: [], total: 0, page: 1, per_page: 20 }),
-      formatBudget: (c: number) => `€${(c / 100).toFixed(2)}`,
+      formatBudget: (c: number) =>
+        new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", minimumFractionDigits: 2 }).format(c / 100),
+      calcTaskSummary: () => ({ done: 0, total: 0 }),
     }));
     mockApiFetch([
       { id: "inv1", status: "sent", total_cents: 40000, paid_at: null },
@@ -215,62 +218,21 @@ describe("Dashboard KPI — staff utilization rate", () => {
     const { default: DashboardPage } = await import("@/app/dashboard/page");
     await act(async () => { render(<DashboardPage />); });
 
-    const kpi = screen.getByTestId("kpi-staff-utilization");
-    expect(kpi).toHaveTextContent("%");
+    // 40000 + 25000 = 65000 cents = €650,00
+    const kpi = screen.getByTestId("kpi-outstanding-invoices");
+    expect(kpi).toHaveTextContent("650");
   });
 });
 
 // ---------------------------------------------------------------------------
-// Dashboard KPI — staff utilization (Phase 19)
+// Dashboard KPI — staff utilization (Phase 19 — backend still fetched, used for aandacht nodig)
+// Phase 22: staff utilization KPI card replaced with outstanding invoices card.
+// The /staff/utilization endpoint is still called to power the attention panel.
 // ---------------------------------------------------------------------------
 
-describe("Dashboard KPI — staff utilization", () => {
+describe("Dashboard KPI — staff utilization endpoint still called", () => {
   beforeEach(() => vi.resetModules());
   afterEach(() => vi.resetModules());
-
-  function mockWithUtilization(util: { utilization_percent: number; assigned_hours: number; available_hours: number }) {
-    vi.doMock("@/lib/projects", () => ({
-      listProjects: vi.fn().mockResolvedValue({ data: [], total: 0, page: 1, per_page: 20 }),
-      formatBudget: (c: number) => `€${(c / 100).toFixed(2)}`,
-    }));
-    mockApiFetch([], util);
-  }
-
-  it("renders Personeelsbezetting card title", async () => {
-    mockWithUtilization({ utilization_percent: 50, assigned_hours: 20, available_hours: 40 });
-
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
-    await act(async () => { render(<DashboardPage />); });
-
-    expect(screen.getByText("Personeelsbezetting")).toBeInTheDocument();
-  });
-
-  it("renders utilization percentage with % sign", async () => {
-    mockWithUtilization({ utilization_percent: 78.5, assigned_hours: 31.4, available_hours: 40 });
-
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
-    await act(async () => { render(<DashboardPage />); });
-
-    expect(screen.getByTestId("kpi-staff-utilization")).toHaveTextContent("78.5%");
-  });
-
-  it("renders 0% when no staff assigned", async () => {
-    mockWithUtilization({ utilization_percent: 0, assigned_hours: 0, available_hours: 0 });
-
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
-    await act(async () => { render(<DashboardPage />); });
-
-    expect(screen.getByTestId("kpi-staff-utilization")).toHaveTextContent("0%");
-  });
-
-  it("renders 100% when fully utilized", async () => {
-    mockWithUtilization({ utilization_percent: 100, assigned_hours: 40, available_hours: 40 });
-
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
-    await act(async () => { render(<DashboardPage />); });
-
-    expect(screen.getByTestId("kpi-staff-utilization")).toHaveTextContent("100%");
-  });
 
   it("calls /staff/utilization endpoint", async () => {
     const apiFetchMock = vi.fn().mockImplementation((path: string) => {
@@ -282,6 +244,7 @@ describe("Dashboard KPI — staff utilization", () => {
     vi.doMock("@/lib/projects", () => ({
       listProjects: vi.fn().mockResolvedValue({ data: [], total: 0, page: 1, per_page: 20 }),
       formatBudget: (c: number) => `€${(c / 100).toFixed(2)}`,
+      calcTaskSummary: () => ({ done: 0, total: 0 }),
     }));
     vi.doMock("@/lib/api", () => ({ apiFetch: apiFetchMock }));
 
@@ -292,5 +255,38 @@ describe("Dashboard KPI — staff utilization", () => {
       (call: unknown[]) => typeof call[0] === "string" && (call[0] as string).includes("/staff/utilization")
     );
     expect(utilizationCalls.length).toBeGreaterThan(0);
+  });
+
+  it("kpi-overdue-tasks reflects overdue task count", async () => {
+    const PAST = "2020-01-01";
+    vi.doMock("@/lib/projects", () => ({
+      listProjects: vi.fn().mockResolvedValue({
+        data: [{
+          id: "1", name: "P1", description: null, status: "active", start_date: null, end_date: null, budget_cents: 0,
+          phases: [{
+            id: "ph1", project_id: "1", name: "Fase 1", description: null, order_index: 0, status: "active",
+            start_date: null, end_date: null,
+            tasks: [
+              { id: "t1", phase_id: "ph1", name: "T1", status: "todo", priority: 0, estimated_hours: null, end_date: PAST },
+              { id: "t2", phase_id: "ph1", name: "T2", status: "done", priority: 0, estimated_hours: null, end_date: PAST },
+            ],
+          }],
+        }],
+        total: 1, page: 1, per_page: 20,
+      }),
+      formatBudget: (c: number) => `€${(c / 100).toFixed(2)}`,
+      calcTaskSummary: () => ({ done: 1, total: 2 }),
+    }));
+    vi.doMock("@/lib/api", () => ({
+      apiFetch: vi.fn().mockImplementation((path: string) => {
+        if (path.includes("/staff/utilization")) return Promise.resolve({ utilization_percent: 0, assigned_hours: 0, available_hours: 0 });
+        return Promise.resolve({ data: { data: [], total: 0 }, error: null });
+      }),
+    }));
+
+    const { default: DashboardPage } = await import("@/app/dashboard/page");
+    await act(async () => { render(<DashboardPage />); });
+
+    expect(screen.getByTestId("kpi-overdue-tasks")).toHaveTextContent("1");
   });
 });

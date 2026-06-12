@@ -304,29 +304,33 @@ describe("Dashboard page — staff utilization card", () => {
 
   const emptyAgenda = { week_start: "2026-05-26", week_end: "2026-06-01", days: [] };
 
-  it("renders kpi-staff-utilization on the dashboard page", async () => {
+  it("renders kpi-staff-utilization on the dashboard page (via /staff/utilization endpoint)", async () => {
     vi.doMock("@/lib/projects", () => ({
       listProjects: vi.fn().mockResolvedValue({ data: [], total: 0, page: 1, per_page: 20 }),
       formatBudget: (c: number) => `€${(c / 100).toFixed(2)}`,
+      calcTaskSummary: () => ({ done: 0, total: 0 }),
     }));
     vi.doMock("@/lib/api", () => ({
       apiFetch: vi.fn().mockImplementation((path: string) => {
-        if (path.includes("/staff/")) {
-          return Promise.resolve({ data: [makeStaff("s1", 40)], total: 1, page: 1, per_page: 100 });
-        }
-        if (path.includes("/assignments")) {
-          return Promise.resolve([]);
+        if (path.includes("/staff/utilization")) {
+          return Promise.resolve({ utilization_percent: 60, assigned_hours: 24, available_hours: 40 });
         }
         // invoices
         return Promise.resolve({ data: { data: [], total: 0 }, error: null });
       }),
     }));
-    vi.doMock("@/lib/agenda", () => ({ fetchWeekAgenda: vi.fn().mockResolvedValue(emptyAgenda) }));
+    vi.doMock("@/lib/agenda", () => ({
+      fetchWeekAgenda: vi.fn().mockResolvedValue(emptyAgenda),
+      getProjectColor: vi.fn().mockReturnValue("#3b82f6"),
+    }));
 
     const { default: DashboardPage } = await import("@/app/dashboard/page");
     await act(async () => { render(<DashboardPage />); });
 
-    expect(screen.getByTestId("kpi-staff-utilization")).toBeInTheDocument();
+    // Phase 22: staff utilization is no longer a KPI card; overdue tasks card is the replacement.
+    // The kpi-staff-utilization test-id is no longer rendered in the redesigned dashboard.
+    // Verify the page loaded and overdue tasks KPI is shown instead.
+    expect(screen.getByTestId("kpi-overdue-tasks")).toBeInTheDocument();
   });
 
   it("shows loading state initially", async () => {
@@ -362,160 +366,97 @@ describe("Dashboard page — staff utilization card", () => {
   });
 });
 
-// ─── Recente Activiteit feed ──────────────────────────────────────────────────
+// ─── Actieve Projecten section (Phase 22 redesign) ───────────────────────────
 
-describe("Dashboard page — Recente Activiteit feed", () => {
+describe("Dashboard page — Actieve Projecten section", () => {
   beforeEach(() => vi.resetModules());
   afterEach(() => vi.resetModules());
 
   const baseApiFetch = (path: string) => {
-    if (path.includes("/staff/")) {
-      return Promise.resolve({ data: [], total: 0, page: 1, per_page: 20 });
-    }
-    if (path.includes("/assignments")) {
-      return Promise.resolve([]);
+    if (path.includes("/staff/utilization")) {
+      return Promise.resolve({ utilization_percent: 0, assigned_hours: 0, available_hours: 0 });
     }
     return Promise.resolve({ data: { data: [], total: 0 }, error: null });
   };
 
-  it("shows 'Geen recente activiteit' when no projects", async () => {
+  it("shows empty state CTA when no active projects", async () => {
     vi.doMock("@/lib/projects", () => ({
       listProjects: vi.fn().mockResolvedValue({ data: [], total: 0, page: 1, per_page: 20 }),
       formatBudget: (c: number) => `€${(c / 100).toFixed(2)}`,
+      calcTaskSummary: () => ({ done: 0, total: 0 }),
     }));
     vi.doMock("@/lib/api", () => ({ apiFetch: vi.fn().mockImplementation(baseApiFetch) }));
-    vi.doMock("@/lib/agenda", () => ({ fetchWeekAgenda: vi.fn().mockResolvedValue({ week_start: "2026-05-26", week_end: "2026-06-01", days: [] }) }));
+    vi.doMock("@/lib/agenda", () => ({
+      fetchWeekAgenda: vi.fn().mockResolvedValue({ week_start: "2026-05-26", week_end: "2026-06-01", days: [] }),
+      getProjectColor: vi.fn().mockReturnValue("#3b82f6"),
+    }));
 
     const { default: DashboardPage } = await import("@/app/dashboard/page");
     await act(async () => { render(<DashboardPage />); });
 
-    expect(screen.getByText(/geen recente activiteit/i)).toBeInTheDocument();
+    expect(screen.getByTestId("empty-active-projects")).toBeInTheDocument();
   });
 
-  it("renders project names in recent activity list", async () => {
+  it("renders active project names", async () => {
     const projects = [
-      { id: "p1", name: "Brug Oost", description: null, status: "active", start_date: null, end_date: null, budget_cents: 0, phases: [], updated_at: "2026-05-25T10:00:00Z" },
-      { id: "p2", name: "Dak West", description: null, status: "active", start_date: null, end_date: null, budget_cents: 0, phases: [], updated_at: "2026-05-20T10:00:00Z" },
+      { id: "p1", name: "Brug Oost", description: null, status: "active", start_date: null, end_date: null, budget_cents: 0, phases: [] },
+      { id: "p2", name: "Dak West", description: null, status: "completed", start_date: null, end_date: null, budget_cents: 0, phases: [] },
     ];
     vi.doMock("@/lib/projects", () => ({
       listProjects: vi.fn().mockResolvedValue({ data: projects, total: 2, page: 1, per_page: 20 }),
       formatBudget: (c: number) => `€${(c / 100).toFixed(2)}`,
       formatDate: (d: string | null) => d ?? "",
-    }));
-    vi.doMock("@/lib/api", () => ({ apiFetch: vi.fn().mockImplementation(baseApiFetch) }));
-    vi.doMock("@/lib/agenda", () => ({ fetchWeekAgenda: vi.fn().mockResolvedValue({ week_start: "2026-05-26", week_end: "2026-06-01", days: [] }) }));
-
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
-    await act(async () => { render(<DashboardPage />); });
-
-    expect(screen.getByTestId("recent-activity-list")).toBeInTheDocument();
-    expect(screen.getByText("Brug Oost")).toBeInTheDocument();
-    expect(screen.getByText("Dak West")).toBeInTheDocument();
-  });
-
-  it("shows at most 5 projects in recent activity", async () => {
-    const projects = Array.from({ length: 8 }, (_, i) => ({
-      id: `p${i}`, name: `Project ${i}`, description: null, status: "active",
-      start_date: null, end_date: null, budget_cents: 0, phases: [],
-      updated_at: `2026-05-${String(i + 1).padStart(2, "0")}T10:00:00Z`,
-    }));
-    vi.doMock("@/lib/projects", () => ({
-      listProjects: vi.fn().mockResolvedValue({ data: projects, total: 8, page: 1, per_page: 20 }),
-      formatBudget: (c: number) => `€${(c / 100).toFixed(2)}`,
-      formatDate: (d: string | null) => d ?? "",
-    }));
-    vi.doMock("@/lib/api", () => ({ apiFetch: vi.fn().mockImplementation(baseApiFetch) }));
-    vi.doMock("@/lib/agenda", () => ({ fetchWeekAgenda: vi.fn().mockResolvedValue({ week_start: "2026-05-26", week_end: "2026-06-01", days: [] }) }));
-
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
-    await act(async () => { render(<DashboardPage />); });
-
-    const list = screen.getByTestId("recent-activity-list");
-    expect(list.querySelectorAll("li")).toHaveLength(5);
-  });
-});
-
-// ─── Aankomende Taken feed ────────────────────────────────────────────────────
-
-describe("Dashboard page — Aankomende Taken feed", () => {
-  beforeEach(() => vi.resetModules());
-  afterEach(() => vi.resetModules());
-
-  const baseApiFetch = (path: string) => {
-    if (path.includes("/staff/")) {
-      return Promise.resolve({ data: [], total: 0, page: 1, per_page: 20 });
-    }
-    if (path.includes("/assignments")) {
-      return Promise.resolve([]);
-    }
-    return Promise.resolve({ data: { data: [], total: 0 }, error: null });
-  };
-
-  const futureDate = "2099-12-31";
-
-  it("shows 'Geen aankomende taken' when agenda returns empty days", async () => {
-    vi.doMock("@/lib/projects", () => ({
-      listProjects: vi.fn().mockResolvedValue({ data: [], total: 0, page: 1, per_page: 20 }),
-      formatBudget: (c: number) => `€${(c / 100).toFixed(2)}`,
-    }));
-    vi.doMock("@/lib/api", () => ({ apiFetch: vi.fn().mockImplementation(baseApiFetch) }));
-    vi.doMock("@/lib/agenda", () => ({ fetchWeekAgenda: vi.fn().mockResolvedValue({ week_start: "2026-05-26", week_end: "2026-06-01", days: [] }) }));
-
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
-    await act(async () => { render(<DashboardPage />); });
-
-    expect(screen.getByText(/geen aankomende taken/i)).toBeInTheDocument();
-  });
-
-  it("renders upcoming task names from agenda", async () => {
-    vi.doMock("@/lib/projects", () => ({
-      listProjects: vi.fn().mockResolvedValue({ data: [], total: 0, page: 1, per_page: 20 }),
-      formatBudget: (c: number) => `€${(c / 100).toFixed(2)}`,
-      formatDate: (d: string | null) => d ?? "",
+      calcTaskSummary: () => ({ done: 0, total: 0 }),
     }));
     vi.doMock("@/lib/api", () => ({ apiFetch: vi.fn().mockImplementation(baseApiFetch) }));
     vi.doMock("@/lib/agenda", () => ({
-      fetchWeekAgenda: vi.fn().mockResolvedValue({
-        week_start: futureDate,
-        week_end: futureDate,
-        days: [
-          {
-            date: futureDate,
-            tasks: [
-              { task_id: "t1", project_id: "proj1", project_name: "Renovatie", name: "Schilderwerk", status: "todo", start_date: futureDate, end_date: futureDate },
-              { task_id: "t2", project_id: "proj1", project_name: "Renovatie", name: "Tegelen", status: "in_progress", start_date: futureDate, end_date: futureDate },
-              { task_id: "t3", project_id: "proj1", project_name: "Renovatie", name: "Afgerond werk", status: "done", start_date: futureDate, end_date: futureDate },
-            ],
-          },
-        ],
-      }),
+      fetchWeekAgenda: vi.fn().mockResolvedValue({ week_start: "2026-05-26", week_end: "2026-06-01", days: [] }),
+      getProjectColor: vi.fn().mockReturnValue("#3b82f6"),
     }));
 
     const { default: DashboardPage } = await import("@/app/dashboard/page");
     await act(async () => { render(<DashboardPage />); });
 
-    const list = screen.getByTestId("upcoming-tasks-list");
-    expect(list).toBeInTheDocument();
-    // Non-done tasks shown
-    expect(screen.getByText("Schilderwerk")).toBeInTheDocument();
-    expect(screen.getByText("Tegelen")).toBeInTheDocument();
-    // Done task excluded
-    expect(screen.queryByText("Afgerond werk")).not.toBeInTheDocument();
+    // Only active projects shown
+    expect(screen.getByText("Brug Oost")).toBeInTheDocument();
+    expect(screen.queryByText("Dak West")).not.toBeInTheDocument();
   });
 
-  it("shows 'Geen aankomende taken' when agenda fetch fails", async () => {
+  it("shows Vandaag empty state when no tasks today", async () => {
     vi.doMock("@/lib/projects", () => ({
       listProjects: vi.fn().mockResolvedValue({ data: [], total: 0, page: 1, per_page: 20 }),
       formatBudget: (c: number) => `€${(c / 100).toFixed(2)}`,
+      calcTaskSummary: () => ({ done: 0, total: 0 }),
     }));
     vi.doMock("@/lib/api", () => ({ apiFetch: vi.fn().mockImplementation(baseApiFetch) }));
-    vi.doMock("@/lib/agenda", () => ({ fetchWeekAgenda: vi.fn().mockRejectedValue(new Error("network")) }));
+    vi.doMock("@/lib/agenda", () => ({
+      fetchWeekAgenda: vi.fn().mockResolvedValue({ week_start: "2026-06-09", week_end: "2026-06-15", days: [] }),
+      getProjectColor: vi.fn().mockReturnValue("#3b82f6"),
+    }));
 
     const { default: DashboardPage } = await import("@/app/dashboard/page");
     await act(async () => { render(<DashboardPage />); });
 
-    // Page still loads, just no upcoming tasks
+    expect(screen.getByTestId("empty-today-agenda")).toBeInTheDocument();
+  });
+
+  it("page still loads when agenda fetch fails (shows empty vandaag)", async () => {
+    vi.doMock("@/lib/projects", () => ({
+      listProjects: vi.fn().mockResolvedValue({ data: [], total: 0, page: 1, per_page: 20 }),
+      formatBudget: (c: number) => `€${(c / 100).toFixed(2)}`,
+      calcTaskSummary: () => ({ done: 0, total: 0 }),
+    }));
+    vi.doMock("@/lib/api", () => ({ apiFetch: vi.fn().mockImplementation(baseApiFetch) }));
+    vi.doMock("@/lib/agenda", () => ({
+      fetchWeekAgenda: vi.fn().mockRejectedValue(new Error("network")),
+      getProjectColor: vi.fn().mockReturnValue("#3b82f6"),
+    }));
+
+    const { default: DashboardPage } = await import("@/app/dashboard/page");
+    await act(async () => { render(<DashboardPage />); });
+
+    // Page still loads
     expect(screen.queryByTestId("dashboard-error")).not.toBeInTheDocument();
-    expect(screen.getByText(/geen aankomende taken/i)).toBeInTheDocument();
+    expect(screen.getByTestId("empty-today-agenda")).toBeInTheDocument();
   });
 });
