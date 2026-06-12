@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Plus, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiFetch } from "@/lib/api";
+import { PageHeader } from "@/components/page-header";
 import type { InvoiceResponse, InvoiceListResponse } from "@/lib/types";
 import {
   computeTotalsBar,
@@ -227,16 +228,22 @@ export default function InvoiceListPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold text-foreground">Facturen</h1>
-        <Link href="/dashboard/invoices/new">
-          <Button size="sm">
-            <Plus className="mr-1.5 h-4 w-4" />
-            Nieuwe factuur
-          </Button>
-        </Link>
-      </div>
+      <PageHeader
+        title="Facturen"
+        breadcrumbs={[
+          { label: "Dashboard", href: "/dashboard" },
+          { label: "Administratie" },
+          { label: "Facturen" },
+        ]}
+        action={
+          <Link href="/dashboard/invoices/new">
+            <Button size="sm">
+              <Plus className="mr-1.5 h-4 w-4" />
+              Nieuwe factuur
+            </Button>
+          </Link>
+        }
+      />
 
       {/* Totals bar — computed from current (unfiltered) page data */}
       {!loading && !error && (

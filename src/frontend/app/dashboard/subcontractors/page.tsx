@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Plus, X, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiFetch } from "@/lib/api";
+import { PageHeader } from "@/components/page-header";
 import type {
   SubcontractorResponse,
   SubcontractorListResponse,
@@ -368,14 +369,20 @@ export default function SubcontractorDirectoryPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold text-foreground">Onderaannemers</h1>
-        <Button size="sm" onClick={openAdd}>
-          <Plus className="mr-1.5 h-4 w-4" />
-          Toevoegen
-        </Button>
-      </div>
+      <PageHeader
+        title="Onderaannemers"
+        breadcrumbs={[
+          { label: "Dashboard", href: "/dashboard" },
+          { label: "Administratie" },
+          { label: "Onderaannemers" },
+        ]}
+        action={
+          <Button size="sm" onClick={openAdd}>
+            <Plus className="mr-1.5 h-4 w-4" />
+            Toevoegen
+          </Button>
+        }
+      />
 
       {/* Search */}
       <div className="max-w-sm">

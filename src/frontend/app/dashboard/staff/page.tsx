@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiFetch } from "@/lib/api";
+import { PageHeader } from "@/components/page-header";
 import type { StaffResponse, StaffListResponse, StaffCreate, StaffUpdate } from "@/lib/staff";
 import { formatHourlyRate } from "@/lib/staff";
 
@@ -291,14 +292,20 @@ export default function StaffDirectoryPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold text-foreground">Personeel</h1>
-        <Button size="sm" onClick={openAdd}>
-          <Plus className="mr-1.5 h-4 w-4" />
-          Medewerker toevoegen
-        </Button>
-      </div>
+      <PageHeader
+        title="Personeel"
+        breadcrumbs={[
+          { label: "Dashboard", href: "/dashboard" },
+          { label: "Administratie" },
+          { label: "Personeel" },
+        ]}
+        action={
+          <Button size="sm" onClick={openAdd}>
+            <Plus className="mr-1.5 h-4 w-4" />
+            Medewerker toevoegen
+          </Button>
+        }
+      />
 
       {/* Content */}
       {loading ? (
