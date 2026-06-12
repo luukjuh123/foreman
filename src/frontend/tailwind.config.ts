@@ -39,11 +39,20 @@ const config: Config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        // Construction amber brand alias
+        brand: {
+          DEFAULT: "hsl(35 95% 52%)",
+          foreground: "hsl(20 14% 8%)",
+          muted: "hsl(35 95% 52% / 0.15)",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+      },
+      fontFamily: {
+        sans: ["var(--font-inter)", "ui-sans-serif", "system-ui", "sans-serif"],
       },
     },
   },
