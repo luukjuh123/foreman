@@ -20,9 +20,7 @@ async def allocate_quote_number(db: AsyncSession, *, owner_id: uuid.UUID, year: 
     Increments the persisted counter within the current session and returns
     the formatted quote number string.
     """
-    result = await db.execute(
-        select(QuoteCounter).where(QuoteCounter.owner_id == owner_id, QuoteCounter.year == year)
-    )
+    result = await db.execute(select(QuoteCounter).where(QuoteCounter.owner_id == owner_id, QuoteCounter.year == year))
     counter = result.scalar_one_or_none()
     if counter is None:
         counter = QuoteCounter(owner_id=owner_id, year=year, last_number=0)
