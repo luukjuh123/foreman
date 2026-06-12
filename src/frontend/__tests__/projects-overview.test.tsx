@@ -262,7 +262,9 @@ describe("ProjectDetailPage", () => {
     render(<DetailPage params={Promise.resolve({ id: "proj-1" })} />);
 
     await waitFor(() => {
-      expect(screen.getByText("Nieuwbouw Pand A")).toBeInTheDocument();
+      // Name appears in both breadcrumb span and h1 heading
+      const els = screen.getAllByText("Nieuwbouw Pand A");
+      expect(els.length).toBeGreaterThanOrEqual(1);
     });
   });
 
