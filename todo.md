@@ -206,3 +206,11 @@
 
 ## Completed
 <!-- [x] Task description — PR #N -->
+
+## Priority: High (Phase 22 — Core Admin & Contracting UI)
+
+- [x] Backend: Quote (Offerte) model — UUID PK, customer FK, line items with description/quantity/unit_price_cents/vat_rate_bp, status enum (draft/sent/accepted/rejected/expired), valid_until date, OFF-YYYY-NNNN numbering, notes; Alembic migration — PR feat/quotes-module
+- [x] Backend: Quote CRUD endpoints under /api/quotes with pagination, status filter, POST /{id}/send, POST /{id}/accept, POST /{id}/convert (creates Project + optional draft Invoice from line items) — PR feat/quotes-module
+- [x] Frontend: /dashboard/quotes list page — status filter tabs (Concept/Verzonden/Geaccepteerd/Afgewezen/Verlopen), Dutch money format €1.234,56, dd-MM-yyyy dates — PR feat/quotes-module
+- [x] Frontend: /dashboard/quotes/new creation form — customer select, line items with live VAT/total calculation, valid_until date — PR feat/quotes-module
+- [x] Frontend: /dashboard/quotes/[id] detail page — status action buttons (Versturen/Markeer als geaccepteerd/Omzetten naar project), line items table, totals — PR feat/quotes-module

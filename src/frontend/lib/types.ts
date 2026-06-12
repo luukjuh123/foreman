@@ -141,6 +141,56 @@ export interface InvoiceListResponse {
   per_page: number;
 }
 
+// Quote types
+
+export interface QuoteLineResponse {
+  id: string;
+  position: number;
+  description: string;
+  quantity: number;
+  unit: string;
+  unit_price_cents: number;
+  vat_rate_bp: number;
+  line_net_cents: number;
+  line_vat_cents: number;
+}
+
+export interface QuoteResponse {
+  id: string;
+  customer_id: string;
+  quote_number: string;
+  valid_until: string;
+  status: "draft" | "sent" | "accepted" | "rejected" | "expired";
+  notes: string | null;
+  subtotal_cents: number;
+  vat_total_cents: number;
+  total_cents: number;
+  sent_at: string | null;
+  accepted_at: string | null;
+  rejected_at: string | null;
+  lines: QuoteLineResponse[];
+}
+
+export interface QuoteListResponse {
+  data: QuoteResponse[];
+  total: number;
+  page: number;
+  per_page: number;
+}
+
+export interface QuoteCreate {
+  customer_id: string;
+  valid_until: string;
+  notes?: string;
+  lines: {
+    description: string;
+    quantity: number;
+    unit: string;
+    unit_price_cents: number;
+    vat_rate_bp: number;
+  }[];
+}
+
 // Agenda types
 
 export interface AgendaTask {
