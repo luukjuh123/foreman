@@ -2,7 +2,7 @@
 name: architect
 description: Use the architect agent to create, update, or audit the architecture diagrams for this galaxy. Invoke when the design changes significantly or a new feature is added.
 tools: Read, Write, Edit, Glob, Grep
-model: sonnet
+model: fable
 color: white
 ---
 
