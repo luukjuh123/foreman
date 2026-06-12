@@ -418,3 +418,60 @@ export interface StaffAssignmentResponse {
   project_name?: string;
   created_at?: string;
 }
+
+// Quote types
+
+export type QuoteStatus = "draft" | "sent" | "accepted" | "rejected" | "expired";
+
+export interface QuoteLineItem {
+  description: string;
+  quantity: number;
+  unit: string;
+  unit_price_cents: number;
+  vat_rate_bp: number; // 2100 = 21%, 900 = 9%, 0 = 0%
+}
+
+export interface QuoteResponse {
+  id: string;
+  quote_number: string; // e.g. OFF-2026-0001
+  customer_name: string;
+  customer_email: string;
+  customer_address: string;
+  status: QuoteStatus;
+  valid_until: string; // ISO date
+  notes: string | null;
+  project_id: string | null;
+  line_items: QuoteLineItem[];
+  subtotal_cents: number;
+  vat_cents: number;
+  total_cents: number;
+}
+
+export interface QuoteCreate {
+  customer_name: string;
+  customer_email: string;
+  customer_address: string;
+  valid_until: string;
+  notes?: string;
+  line_items: QuoteLineItem[];
+}
+
+export interface QuoteUpdate {
+  customer_name?: string;
+  customer_email?: string;
+  customer_address?: string;
+  valid_until?: string;
+  notes?: string;
+  line_items?: QuoteLineItem[];
+}
+
+export interface QuoteListResponse {
+  data: QuoteResponse[];
+  total: number;
+  page: number;
+  per_page: number;
+}
+
+export interface QuoteAcceptResponse {
+  project_id: string;
+}
