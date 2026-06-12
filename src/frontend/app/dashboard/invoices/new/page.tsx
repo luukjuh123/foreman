@@ -263,16 +263,16 @@ export default function InvoiceCreatePage() {
                 />
                 <Input
                   placeholder="BTW-nummer"
-                  value={newCustomer.btw_number ?? ""}
+                  value={newCustomer.vat_number ?? ""}
                   onChange={(e) =>
-                    setNewCustomer((p) => ({ ...p, btw_number: e.target.value }))
+                    setNewCustomer((p) => ({ ...p, vat_number: e.target.value }))
                   }
                 />
                 <Input
                   placeholder="Adres"
-                  value={newCustomer.address ?? ""}
+                  value={newCustomer.address_line1 ?? ""}
                   onChange={(e) =>
-                    setNewCustomer((p) => ({ ...p, address: e.target.value }))
+                    setNewCustomer((p) => ({ ...p, address_line1: e.target.value }))
                   }
                 />
                 <button
