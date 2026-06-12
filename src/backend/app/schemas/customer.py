@@ -62,11 +62,12 @@ class CustomerListResponse(BaseModel):
 
 # --- Summary endpoint ---
 
+
 class InvoiceSummaryItem(BaseModel):
     id: uuid.UUID
     invoice_number: str
     issue_date: str  # dd-MM-yyyy
-    due_date: str    # dd-MM-yyyy
+    due_date: str  # dd-MM-yyyy
     status: str
     total_cents: int
 
@@ -78,7 +79,7 @@ class ProjectSummaryItem(BaseModel):
     name: str
     status: str
     start_date: str | None  # dd-MM-yyyy
-    end_date: str | None    # dd-MM-yyyy
+    end_date: str | None  # dd-MM-yyyy
 
     model_config = {"from_attributes": True}
 

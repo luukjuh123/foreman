@@ -70,11 +70,7 @@ async def list_customers(
     )
     if search:
         term = f"%{search}%"
-        base_q = base_q.where(
-            Customer.name.ilike(term)
-            | Customer.city.ilike(term)
-            | Customer.email.ilike(term)
-        )
+        base_q = base_q.where(Customer.name.ilike(term) | Customer.city.ilike(term) | Customer.email.ilike(term))
 
     count_q = select(func.count()).select_from(base_q.subquery())
     total_result = await db.execute(count_q)
@@ -97,11 +93,13 @@ async def get_customer_summary(
 
     # Invoices linked to this customer
     inv_result = await db.execute(
-        select(Invoice).where(
+        select(Invoice)
+        .where(
             Invoice.customer_id == customer_id,
             Invoice.owner_id == current_user.id,
             Invoice.deleted_at.is_(None),
-        ).order_by(Invoice.issue_date.desc())
+        )
+        .order_by(Invoice.issue_date.desc())
     )
     invoices = list(inv_result.scalars().all())
 
@@ -131,17 +129,14 @@ async def get_customer_summary(
             id=inv.id,
             invoice_number=inv.invoice_number,
             issue_date=_fmt_date(inv.issue_date),  # type: ignore[arg-type]
-            due_date=_fmt_date(inv.due_date),      # type: ignore[arg-type]
+            due_date=_fmt_date(inv.due_date),  # type: ignore[arg-type]
             status=inv.status,
             total_cents=inv.total_cents,
         )
         for inv in invoices
     ]
 
-    outstanding_cents = sum(
-        inv.total_cents for inv in invoices
-        if inv.status not in ("paid", "cancelled")
-    )
+    outstanding_cents = sum(inv.total_cents for inv in invoices if inv.status not in ("paid", "cancelled"))
 
     return CustomerSummaryResponse(
         id=customer.id,
