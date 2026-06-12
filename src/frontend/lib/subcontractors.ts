@@ -99,7 +99,7 @@ export function formatRate(cents: number): string {
 }
 
 /**
- * Returns "amber" if expiry is within 30 days, "red" if expired, null otherwise.
+ * Returns "amber" if expiry is within 60 days, "red" if expired, null otherwise.
  */
 export function certExpiryStatus(
   expiryDate: string | null
@@ -112,7 +112,7 @@ export function certExpiryStatus(
   const diffMs = expiry.getTime() - now.getTime();
   const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
   if (diffDays < 0) return "red";
-  if (diffDays <= 30) return "amber";
+  if (diffDays <= 60) return "amber";
   return null;
 }
 
