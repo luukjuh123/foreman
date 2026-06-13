@@ -1,10 +1,13 @@
 "use client";
 
 import React, { useEffect, useState, useMemo } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, X, AlertTriangle } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
+import { Plus, X, AlertTriangle, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiFetch } from "@/lib/api";
 import type {
@@ -48,17 +51,118 @@ function CertBadge({ cert }: { cert: CertificationResponse }) {
 }
 
 // ---------------------------------------------------------------------------
+// Subcontractor card
+// ---------------------------------------------------------------------------
+
+function SubcontractorCard({
+  sub,
+  onEdit,
+}: {
+  sub: SubcontractorResponse;
+  onEdit: (s: SubcontractorResponse) => void;
+}) {
+  return (
+    <Card
+      className="cursor-pointer hover:shadow-md transition-all hover:border-primary/30"
+      onClick={() => onEdit(sub)}
+    >
+      <CardHeader className="pb-2">
+        <div className="flex items-start justify-between gap-2">
+          <CardTitle className="text-base leading-tight">{sub.company_name}</CardTitle>
+          <span
+            className={cn(
+              "shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold",
+              sub.active
+                ? "bg-green-100 text-green-700"
+                : "bg-gray-100 text-gray-600"
+            )}
+          >
+            {sub.active ? "Actief" : "Inactief"}
+          </span>
+        </div>
+
+        {/* Specialties */}
+        {sub.specialties.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-1">
+            {sub.specialties.map((sp) => (
+              <span
+                key={sp}
+                className="rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-700 font-medium"
+              >
+                {sp}
+              </span>
+            ))}
+          </div>
+        )}
+      </CardHeader>
+
+      <CardContent className="space-y-2 text-sm text-muted-foreground">
+        {/* KVK */}
+        {sub.kvk_number && (
+          <p className="text-xs">KVK: {sub.kvk_number}</p>
+        )}
+
+        {/* Hourly rate */}
+        {sub.hourly_rate_cents != null && (
+          <p className="font-medium text-foreground text-sm">
+            {formatRate(sub.hourly_rate_cents)}
+            <span className="ml-1 text-xs font-normal text-muted-foreground">/uur</span>
+          </p>
+        )}
+
+        {/* Certification expiry warnings */}
+        {sub.certifications.length > 0 && (
+          <div className="flex flex-wrap gap-1 pt-1">
+            {sub.certifications.map((cert, i) => (
+              <CertBadge key={i} cert={cert} />
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Skeleton grid
+// ---------------------------------------------------------------------------
+
+function SubcontractorSkeletonGrid() {
+  return (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      {Array.from({ length: 8 }).map((_, i) => (
+        <Card key={i}>
+          <CardHeader className="pb-2">
+            <div className="flex items-start justify-between gap-2">
+              <Skeleton className="h-5 w-36" />
+              <Skeleton className="h-5 w-14 rounded-full" />
+            </div>
+            <div className="flex gap-1 mt-1">
+              <Skeleton className="h-4 w-20 rounded-full" />
+              <Skeleton className="h-4 w-16 rounded-full" />
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-4 w-20" />
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Add/Edit Dialog
 // ---------------------------------------------------------------------------
 
 interface SubFormData {
   company_name: string;
   kvk_number: string;
-  specialties: string; // comma-separated input
+  specialties: string;
   hourly_rate_euros: string;
   fixed_rate_euros: string;
   active: boolean;
-  // certifications: kept simple for now — name + expiry pairs
   cert_name: string;
   cert_expiry: string;
 }
@@ -299,7 +403,7 @@ function SubcontractorDialog({ editing, onClose, onSaved }: SubDialogProps) {
 // Page
 // ---------------------------------------------------------------------------
 
-const PER_PAGE = 20;
+const PER_PAGE = 50;
 
 export default function SubcontractorDirectoryPage() {
   const [subs, setSubs] = useState<SubcontractorResponse[]>([]);
@@ -362,20 +466,19 @@ export default function SubcontractorDirectoryPage() {
     }
   }
 
-  // ------------------------------------------------------------------
-  // Render
-  // ------------------------------------------------------------------
-
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold text-foreground">Onderaannemers</h1>
-        <Button size="sm" onClick={openAdd}>
-          <Plus className="mr-1.5 h-4 w-4" />
-          Toevoegen
-        </Button>
-      </div>
+      {/* Page header */}
+      <PageHeader
+        title="Onderaannemers"
+        description="Beheer uw onderaannemers en hun specialiteiten"
+        actions={
+          <Button size="sm" onClick={openAdd}>
+            <Plus className="mr-1.5 h-4 w-4" />
+            Toevoegen
+          </Button>
+        }
+      />
 
       {/* Search */}
       <div className="max-w-sm">
@@ -388,95 +491,30 @@ export default function SubcontractorDirectoryPage() {
 
       {/* Content */}
       {loading ? (
-        <p className="text-sm text-muted-foreground">Laden…</p>
+        <SubcontractorSkeletonGrid />
       ) : error ? (
         <p className="text-sm text-destructive">{error}</p>
       ) : filtered.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Geen onderaannemers gevonden.</p>
+        <EmptyState
+          title="Geen onderaannemers gevonden"
+          description={
+            search
+              ? `Geen resultaten voor "${search}".`
+              : "Voeg een onderaannemer toe om te beginnen."
+          }
+          icon={<Users className="h-6 w-6" />}
+        >
+          <Button size="sm" onClick={openAdd}>
+            <Plus className="mr-1.5 h-4 w-4" />
+            Toevoegen
+          </Button>
+        </EmptyState>
       ) : (
-        <Card>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/50">
-                  <tr>
-                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                      Bedrijf
-                    </th>
-                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                      KVK
-                    </th>
-                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                      Specialiteiten
-                    </th>
-                    <th className="px-4 py-3 text-right font-medium text-muted-foreground">
-                      Uurtarief
-                    </th>
-                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                      Certificeringen
-                    </th>
-                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                      Status
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {filtered.map((s) => (
-                    <tr
-                      key={s.id}
-                      className="cursor-pointer hover:bg-muted/30 transition-colors"
-                      onClick={() => openEdit(s)}
-                    >
-                      <td className="px-4 py-3 font-medium">{s.company_name}</td>
-                      <td className="px-4 py-3 text-muted-foreground">
-                        {s.kvk_number ?? "—"}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-wrap gap-1">
-                          {s.specialties.map((sp) => (
-                            <span
-                              key={sp}
-                              className="rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-700"
-                            >
-                              {sp}
-                            </span>
-                          ))}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-right font-medium">
-                        {s.hourly_rate_cents != null
-                          ? formatRate(s.hourly_rate_cents)
-                          : "—"}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-wrap gap-1">
-                          {s.certifications.map((cert, i) => (
-                            <CertBadge key={i} cert={cert} />
-                          ))}
-                          {s.certifications.length === 0 && (
-                            <span className="text-muted-foreground">—</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={cn(
-                            "rounded-full px-2.5 py-0.5 text-xs font-medium",
-                            s.active
-                              ? "bg-green-100 text-green-700"
-                              : "bg-gray-100 text-gray-600"
-                          )}
-                        >
-                          {s.active ? "Actief" : "Inactief"}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {filtered.map((s) => (
+            <SubcontractorCard key={s.id} sub={s} onEdit={openEdit} />
+          ))}
+        </div>
       )}
 
       {/* Pagination */}
@@ -487,20 +525,12 @@ export default function SubcontractorDirectoryPage() {
           </p>
           <div className="flex gap-2">
             {hasPrev && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => p - 1)}
-              >
+              <Button variant="outline" size="sm" onClick={() => setPage((p) => p - 1)}>
                 Vorige
               </Button>
             )}
             {hasNext && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => p + 1)}
-              >
+              <Button variant="outline" size="sm" onClick={() => setPage((p) => p + 1)}>
                 Volgende
               </Button>
             )}

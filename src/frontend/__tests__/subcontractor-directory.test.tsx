@@ -80,7 +80,9 @@ describe("SubcontractorDirectoryPage — loading state", () => {
     );
     render(<Page />);
 
-    expect(screen.getByText(/laden/i)).toBeInTheDocument();
+    // Loading now shows skeleton cards instead of text
+    const skeletons = document.querySelectorAll(".animate-pulse");
+    expect(skeletons.length).toBeGreaterThan(0);
   });
 });
 
@@ -183,7 +185,7 @@ describe("SubcontractorDirectoryPage — renders list", () => {
     render(<Page />);
 
     await waitFor(() => {
-      expect(screen.getByText("87654321")).toBeInTheDocument();
+      expect(screen.getByText(/87654321/)).toBeInTheDocument();
     });
   });
 
@@ -371,8 +373,8 @@ describe("SubcontractorDirectoryPage — add dialog", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByRole("button", { name: /toevoegen/i })
-      ).toBeInTheDocument();
+        screen.getAllByRole("button", { name: /toevoegen/i }).length
+      ).toBeGreaterThan(0);
     });
   });
 
@@ -385,8 +387,9 @@ describe("SubcontractorDirectoryPage — add dialog", () => {
     );
     render(<Page />);
 
-    await waitFor(() => screen.getByRole("button", { name: /toevoegen/i }));
-    fireEvent.click(screen.getByRole("button", { name: /toevoegen/i }));
+    await waitFor(() => screen.getAllByRole("button", { name: /toevoegen/i }));
+    // Click the first Toevoegen button (page header)
+    fireEvent.click(screen.getAllByRole("button", { name: /toevoegen/i })[0]);
 
     await waitFor(() => {
       expect(
@@ -404,8 +407,8 @@ describe("SubcontractorDirectoryPage — add dialog", () => {
     );
     render(<Page />);
 
-    await waitFor(() => screen.getByRole("button", { name: /toevoegen/i }));
-    fireEvent.click(screen.getByRole("button", { name: /toevoegen/i }));
+    await waitFor(() => screen.getAllByRole("button", { name: /toevoegen/i }));
+    fireEvent.click(screen.getAllByRole("button", { name: /toevoegen/i })[0]);
 
     await waitFor(() => {
       expect(screen.getByLabelText(/bedrijfsnaam/i)).toBeInTheDocument();
@@ -421,8 +424,8 @@ describe("SubcontractorDirectoryPage — add dialog", () => {
     );
     render(<Page />);
 
-    await waitFor(() => screen.getByRole("button", { name: /toevoegen/i }));
-    fireEvent.click(screen.getByRole("button", { name: /toevoegen/i }));
+    await waitFor(() => screen.getAllByRole("button", { name: /toevoegen/i }));
+    fireEvent.click(screen.getAllByRole("button", { name: /toevoegen/i })[0]);
 
     await waitFor(() =>
       screen.getByRole("heading", { name: /onderaannemer toevoegen/i })
