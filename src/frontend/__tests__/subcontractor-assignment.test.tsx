@@ -142,6 +142,10 @@ describe("ProjectDetailPage — subcontractor assignment", () => {
     );
     render(<ProjectDetailPage params={Promise.resolve({ id: "proj-1" })} />);
 
+    // Phases are in the Taken tab
+    await waitFor(() => screen.getByRole("tab", { name: /taken/i }));
+    fireEvent.click(screen.getByRole("tab", { name: /taken/i }));
+
     await waitFor(() => screen.getByText("Fundering"));
     fireEvent.click(screen.getByText("Fundering"));
 
@@ -167,6 +171,9 @@ describe("ProjectDetailPage — subcontractor assignment", () => {
       "@/app/dashboard/projects/[id]/page"
     );
     render(<ProjectDetailPage params={Promise.resolve({ id: "proj-1" })} />);
+
+    await waitFor(() => screen.getByRole("tab", { name: /taken/i }));
+    fireEvent.click(screen.getByRole("tab", { name: /taken/i }));
 
     await waitFor(() => screen.getByText("Fundering"));
     fireEvent.click(screen.getByText("Fundering"));
@@ -206,6 +213,9 @@ describe("ProjectDetailPage — subcontractor assignment", () => {
     );
     render(<ProjectDetailPage params={Promise.resolve({ id: "proj-1" })} />);
 
+    await waitFor(() => screen.getByRole("tab", { name: /taken/i }));
+    fireEvent.click(screen.getByRole("tab", { name: /taken/i }));
+
     await waitFor(() => screen.getByText("Fundering"));
     fireEvent.click(screen.getByText("Fundering"));
 
@@ -237,6 +247,9 @@ describe("ProjectDetailPage — subcontractor assignment", () => {
       "@/app/dashboard/projects/[id]/page"
     );
     render(<ProjectDetailPage params={Promise.resolve({ id: "proj-1" })} />);
+
+    await waitFor(() => screen.getByRole("tab", { name: /taken/i }));
+    fireEvent.click(screen.getByRole("tab", { name: /taken/i }));
 
     await waitFor(() => screen.getByText("Fundering"));
     fireEvent.click(screen.getByText("Fundering"));
@@ -275,6 +288,9 @@ describe("ProjectDetailPage — subcontractor assignment", () => {
       "@/app/dashboard/projects/[id]/page"
     );
     render(<ProjectDetailPage params={Promise.resolve({ id: "proj-1" })} />);
+
+    await waitFor(() => screen.getByRole("tab", { name: /taken/i }));
+    fireEvent.click(screen.getByRole("tab", { name: /taken/i }));
 
     await waitFor(() => screen.getByText("Fundering"));
     fireEvent.click(screen.getByText("Fundering"));

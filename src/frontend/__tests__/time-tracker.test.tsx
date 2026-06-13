@@ -350,6 +350,10 @@ describe("ProjectDetailPage Tijdregistratie section", () => {
     const { default: DetailPage } = await import("@/app/dashboard/projects/[id]/page");
     render(<DetailPage params={Promise.resolve({ id: "proj-1" })} />);
 
+    // TimeTracker is in the Financieel tab — navigate there first
+    await waitFor(() => screen.getByRole("tab", { name: /financieel/i }));
+    fireEvent.click(screen.getByRole("tab", { name: /financieel/i }));
+
     await waitFor(() => {
       expect(screen.getByText("Tijdregistratie")).toBeInTheDocument();
     });

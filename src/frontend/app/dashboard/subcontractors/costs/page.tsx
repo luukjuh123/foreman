@@ -10,8 +10,10 @@ import {
   ResponsiveContainer,
   Tooltip,
 } from "recharts";
-import { Users } from "lucide-react";
+import { Users, TrendingUp, Briefcase } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/ui/page-header";
 import { apiFetch } from "@/lib/api";
 import type {
   SubcontractorResponse,
@@ -27,6 +29,34 @@ import { formatRate } from "@/lib/subcontractors";
 interface SubWithCosts {
   sub: SubcontractorResponse;
   costs: SubcontractorCostSummary | null;
+}
+
+// ---------------------------------------------------------------------------
+// Stat card
+// ---------------------------------------------------------------------------
+
+function StatCard({
+  label,
+  value,
+  icon,
+}: {
+  label: string;
+  value: string | number;
+  icon: React.ReactNode;
+}) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
+        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+          {icon}
+        </div>
+      </CardHeader>
+      <CardContent>
+        <p className="text-2xl font-bold">{value}</p>
+      </CardContent>
+    </Card>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -76,9 +106,22 @@ export default function SubcontractorCostDashboard() {
 
   if (loading) {
     return (
-      <div data-testid="subcontractor-costs-loading" className="space-y-4">
-        <div className="h-8 w-64 animate-pulse rounded bg-muted" />
-        <div className="h-64 w-full animate-pulse rounded bg-muted" />
+      <div data-testid="subcontractor-costs-loading" className="space-y-6">
+        <Skeleton className="h-8 w-64" />
+        {/* Stat cards skeleton */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Card key={i}>
+              <CardHeader className="pb-2">
+                <Skeleton className="h-4 w-32" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-8 w-24" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <Skeleton className="h-64 w-full" />
       </div>
     );
   }
@@ -105,10 +148,10 @@ export default function SubcontractorCostDashboard() {
   if (data.length === 0) {
     return (
       <div className="space-y-6">
-        <div className="flex items-center gap-2">
-          <Users className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-bold text-foreground">Onderaannemer Kosten</h1>
-        </div>
+        <PageHeader
+          title="Onderaannemer Kosten"
+          description="Contractering overzicht en kostenanalyse"
+        />
         <p className="text-sm text-muted-foreground">
           Geen onderaannemer kosten gevonden.
         </p>
@@ -117,8 +160,20 @@ export default function SubcontractorCostDashboard() {
   }
 
   // ---------------------------------------------------------------------------
-  // Chart data — total cost per subcontractor
+  // Derived stats
   // ---------------------------------------------------------------------------
+
+  const totalSpend = data.reduce(
+    (sum, d) => sum + (d.costs?.total_cost_cents ?? 0),
+    0
+  );
+
+  const activeSubs = data.filter((d) => d.sub.active).length;
+
+  const totalAssignments = data.reduce(
+    (sum, d) => sum + (d.costs?.project_breakdown?.length ?? 0),
+    0
+  );
 
   const chartData = data
     .filter((d) => d.costs != null && d.costs.total_cost_cents > 0)
@@ -128,37 +183,35 @@ export default function SubcontractorCostDashboard() {
     }));
 
   // ---------------------------------------------------------------------------
-  // Total spend across all subcontractors
-  // ---------------------------------------------------------------------------
-
-  const totalSpend = data.reduce(
-    (sum, d) => sum + (d.costs?.total_cost_cents ?? 0),
-    0
-  );
-
-  // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-2">
-        <Users className="h-6 w-6 text-primary" />
-        <h1 className="text-2xl font-bold text-foreground">Onderaannemer Kosten</h1>
-      </div>
+      {/* Page header */}
+      <PageHeader
+        title="Onderaannemer Kosten"
+        description="Contractering overzicht en kostenanalyse"
+      />
 
-      {/* Summary card */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">
-            Totaal onderaannemer uitgaven
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-2xl font-bold">{formatRate(totalSpend)}</p>
-        </CardContent>
-      </Card>
+      {/* Summary stat cards */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <StatCard
+          label="Totaal gecontracteerd"
+          value={formatRate(totalSpend)}
+          icon={<TrendingUp className="h-4 w-4" />}
+        />
+        <StatCard
+          label="Actieve onderaannemers"
+          value={activeSubs}
+          icon={<Users className="h-4 w-4" />}
+        />
+        <StatCard
+          label="Project koppelingen"
+          value={totalAssignments}
+          icon={<Briefcase className="h-4 w-4" />}
+        />
+      </div>
 
       {/* Margeanalyse / Bar chart */}
       <Card>
