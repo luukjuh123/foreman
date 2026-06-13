@@ -4,20 +4,35 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ChevronDown, ChevronRight, UserPlus, X } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ArrowLeft, Calendar, ChevronDown, ChevronRight, UserPlus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getProject, calcPhaseProgress } from "@/lib/projects";
+import { getProject, calcPhaseProgress, formatBudget, formatDate } from "@/lib/projects";
 import type { ProjectResponse, PhaseResponse, TaskResponse } from "@/lib/types";
 import { apiFetch } from "@/lib/api";
 import type { SubcontractorResponse, SubcontractorListResponse } from "@/lib/subcontractors";
-import { ProjectHubHeader } from "@/components/project-hub/ProjectHubHeader";
-import { ProjectHubTabBar } from "@/components/project-hub/ProjectHubTabBar";
 import TimeTracker from "@/components/time-tracking/TimeTracker";
 import PunchListTab from "@/components/punch-list/PunchListTab";
 
 // ---------------------------------------------------------------------------
 // Status helpers
 // ---------------------------------------------------------------------------
+
+const STATUS_LABELS: Record<string, string> = {
+  draft: "Concept",
+  active: "Actief",
+  completed: "Voltooid",
+  archived: "Gearchiveerd",
+};
+
+const STATUS_BADGE_CLASS: Record<string, string> = {
+  draft: "bg-gray-100 text-gray-700",
+  active: "bg-blue-100 text-blue-700",
+  completed: "bg-green-100 text-green-700",
+  archived: "bg-yellow-100 text-yellow-700",
+};
 
 const TASK_STATUS_LABELS: Record<string, string> = {
   todo: "Te doen",
@@ -32,20 +47,6 @@ const TASK_STATUS_CLASS: Record<string, string> = {
   done: "bg-green-100 text-green-700",
   blocked: "bg-red-100 text-red-700",
 };
-
-// ---------------------------------------------------------------------------
-// Loading skeleton
-// ---------------------------------------------------------------------------
-
-function HeaderSkeleton() {
-  return (
-    <div data-testid="project-header-skeleton" className="space-y-3 animate-pulse">
-      <div className="h-8 w-64 rounded bg-muted" />
-      <div className="h-4 w-48 rounded bg-muted" />
-      <div className="h-2 w-full rounded bg-muted" />
-    </div>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Task row
@@ -235,7 +236,6 @@ function PhaseCard({ phase }: { phase: PhaseResponse }) {
               <TaskRow key={task.id} task={task} />
             ))}
 
-            {/* Subcontractor assignment button */}
             <div className="pt-2">
               <Button
                 size="sm"
@@ -264,44 +264,71 @@ function PhaseCard({ phase }: { phase: PhaseResponse }) {
 }
 
 // ---------------------------------------------------------------------------
-// Key numbers card
+// Subcontractor phase row (Onderaannemers tab)
 // ---------------------------------------------------------------------------
 
-function KeyNumbers({ project }: { project: ProjectResponse }) {
-  const allTasks = project.phases.flatMap((p) => p.tasks);
-  const done = allTasks.filter((t) => t.status === "done").length;
-  const inProgress = allTasks.filter((t) => t.status === "in_progress").length;
-  const blocked = allTasks.filter((t) => t.status === "blocked").length;
+function SubcontractorPhaseRow({ phase }: { phase: PhaseResponse }) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const progress = calcPhaseProgress(phase);
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base">Kerncijfers</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div className="space-y-0.5">
-            <p className="text-2xl font-bold text-foreground">{project.phases.length}</p>
-            <p className="text-xs text-muted-foreground">Fases</p>
+    <>
+      <Card>
+        <CardContent className="flex items-center justify-between gap-4 p-4">
+          <div className="min-w-0 flex-1 space-y-1">
+            <p className="font-medium text-sm">{phase.name}</p>
+            <div className="flex items-center gap-2">
+              <Progress value={progress} className="h-1.5 w-24" />
+              <span className="text-xs text-muted-foreground">{progress}%</span>
+            </div>
           </div>
-          <div className="space-y-0.5">
-            <p className="text-2xl font-bold text-foreground">{allTasks.length}</p>
-            <p className="text-xs text-muted-foreground">Taken totaal</p>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setPickerOpen(true)}
+          >
+            <UserPlus className="mr-1.5 h-3.5 w-3.5" />
+            Koppelen
+          </Button>
+        </CardContent>
+      </Card>
+
+      {pickerOpen && (
+        <SubcontractorPicker
+          phaseId={phase.id}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Skeleton loading state
+// ---------------------------------------------------------------------------
+
+function DetailSkeleton() {
+  return (
+    <div className="space-y-6">
+      <Skeleton className="h-8 w-48" />
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-7 w-64" />
+            <Skeleton className="h-5 w-20 rounded-full" />
           </div>
-          <div className="space-y-0.5">
-            <p className="text-2xl font-bold text-green-600">{done}</p>
-            <p className="text-xs text-muted-foreground">Voltooid</p>
-          </div>
-          <div className="space-y-0.5">
-            <p className="text-2xl font-bold text-blue-600">{inProgress}</p>
-            <p className="text-xs text-muted-foreground">In uitvoering</p>
-          </div>
-        </div>
-        {blocked > 0 && (
-          <p className="mt-2 text-xs text-red-600">{blocked} geblokkeerde taak{blocked !== 1 ? "en" : ""}</p>
-        )}
-      </CardContent>
-    </Card>
+          <Skeleton className="h-4 w-96 mt-2" />
+        </CardHeader>
+        <CardContent className="flex gap-6">
+          <Skeleton className="h-4 w-32" />
+          <Skeleton className="h-4 w-28" />
+        </CardContent>
+      </Card>
+      <Skeleton className="h-10 w-full" />
+      <div className="space-y-3">
+        {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}
+      </div>
+    </div>
   );
 }
 
@@ -328,17 +355,7 @@ export default function ProjectDetailPage({ params }: Props) {
   }, [params]);
 
   if (loading) {
-    return (
-      <div className="space-y-6">
-        <Link href="/dashboard/projects">
-          <Button variant="ghost" size="sm">
-            <ArrowLeft className="mr-1.5 h-4 w-4" />
-            Terug naar projecten
-          </Button>
-        </Link>
-        <HeaderSkeleton />
-      </div>
-    );
+    return <DetailSkeleton />;
   }
 
   if (error || !project) {
@@ -365,40 +382,119 @@ export default function ProjectDetailPage({ params }: Props) {
         </Button>
       </Link>
 
-      {/* Rich project header */}
-      <ProjectHubHeader project={project} />
+      {/* Header card */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-bold text-foreground">{project.name}</h1>
+            <span
+              className={cn(
+                "rounded-full px-2.5 py-0.5 text-sm font-medium",
+                STATUS_BADGE_CLASS[project.status] ?? "bg-gray-100 text-gray-700"
+              )}
+            >
+              {STATUS_LABELS[project.status] ?? project.status}
+            </span>
+          </div>
+          {project.description && (
+            <p className="text-muted-foreground text-sm mt-1">{project.description}</p>
+          )}
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-6 text-sm text-muted-foreground">
+            {(project.start_date || project.end_date) && (
+              <span className="flex items-center gap-1.5">
+                <Calendar className="h-4 w-4" />
+                {formatDate(project.start_date)} – {formatDate(project.end_date)}
+              </span>
+            )}
+            {project.budget_cents != null && (
+              <span>
+                <span className="font-medium text-foreground">Budget: </span>
+                {formatBudget(project.budget_cents)}
+              </span>
+            )}
+            {project.phases.length > 0 && (
+              <span>
+                <span className="font-medium text-foreground">Fases: </span>
+                {project.phases.length}
+              </span>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
-      {/* Tab navigation */}
-      <ProjectHubTabBar projectId={project.id} />
+      {/* Tabs */}
+      <Tabs defaultValue="overview">
+        <TabsList>
+          <TabsTrigger value="overview">Overzicht</TabsTrigger>
+          <TabsTrigger value="tasks">Taken</TabsTrigger>
+          <TabsTrigger value="financials">Financieel</TabsTrigger>
+          <TabsTrigger value="subcontractors">Onderaannemers</TabsTrigger>
+        </TabsList>
 
-      {/* Overzicht content — key numbers */}
-      <KeyNumbers project={project} />
+        {/* Overview: sub-page navigation + punch list */}
+        <TabsContent value="overview">
+          <div className="space-y-6">
+            <div className="flex flex-wrap gap-2">
+              <Link href={`/dashboard/projects/${project.id}/board`}>
+                <Button variant="outline" size="sm">Takenbord</Button>
+              </Link>
+              <Link href={`/dashboard/projects/${project.id}/gantt`}>
+                <Button variant="outline" size="sm">Gantt</Button>
+              </Link>
+              <Link href={`/dashboard/projects/${project.id}/processes`}>
+                <Button variant="outline" size="sm">Processen</Button>
+              </Link>
+              <Link href={`/dashboard/projects/${project.id}/timeline`}>
+                <Button variant="outline" size="sm">Tijdlijn</Button>
+              </Link>
+            </div>
 
-      {/* Punch list */}
-      <div className="space-y-3">
-        <h2 className="text-lg font-semibold">Nakijklijst</h2>
-        <PunchListTab projectId={project.id} />
-      </div>
+            <div className="space-y-3">
+              <h2 className="text-lg font-semibold">Nakijklijst</h2>
+              <PunchListTab projectId={project.id} />
+            </div>
+          </div>
+        </TabsContent>
 
-      {/* Phases */}
-      <div className="space-y-3">
-        <h2 className="text-lg font-semibold">Fases</h2>
-        {project.phases.length === 0 ? (
-          <Card>
-            <CardContent className="py-8 text-center">
+        {/* Tasks: expandable phase cards */}
+        <TabsContent value="tasks">
+          <div className="space-y-3">
+            {project.phases.length === 0 ? (
               <p className="text-sm text-muted-foreground">Geen fases toegevoegd.</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Voeg een fase toe om taken te plannen.
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          project.phases.map((phase) => <PhaseCard key={phase.id} phase={phase} />)
-        )}
-      </div>
+            ) : (
+              project.phases.map((phase) => <PhaseCard key={phase.id} phase={phase} />)
+            )}
+          </div>
+        </TabsContent>
 
-      {/* Time tracking */}
-      <TimeTracker projectId={project.id} />
+        {/* Financials: time tracking */}
+        <TabsContent value="financials">
+          <div className="space-y-6">
+            <h2 className="text-lg font-semibold">Financieel overzicht</h2>
+            <TimeTracker projectId={project.id} />
+          </div>
+        </TabsContent>
+
+        {/* Subcontractors: phase assignment overview */}
+        <TabsContent value="subcontractors">
+          <div className="space-y-3">
+            <h2 className="text-lg font-semibold">Onderaannemer koppelingen</h2>
+            {project.phases.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Geen fases om onderaannemers aan te koppelen.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {project.phases.map((phase) => (
+                  <SubcontractorPhaseRow key={phase.id} phase={phase} />
+                ))}
+              </div>
+            )}
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

@@ -265,18 +265,26 @@ describe("ProjectDetailPage", () => {
     });
   });
 
-  it("renders phase name", async () => {
+  it("renders phase name in Taken tab", async () => {
     const { default: DetailPage } = await import("@/app/dashboard/projects/[id]/page");
     render(<DetailPage params={Promise.resolve({ id: "proj-1" })} />);
+
+    // Phases are in the Taken tab — navigate there first
+    await waitFor(() => screen.getByRole("tab", { name: /taken/i }));
+    fireEvent.click(screen.getByRole("tab", { name: /taken/i }));
 
     await waitFor(() => {
       expect(screen.getByText("Fundering")).toBeInTheDocument();
     });
   });
 
-  it("shows phase progress bar with 67% for 2/3 done tasks", async () => {
+  it("shows phase progress bar with 67% for 2/3 done tasks in Taken tab", async () => {
     const { default: DetailPage } = await import("@/app/dashboard/projects/[id]/page");
     render(<DetailPage params={Promise.resolve({ id: "proj-1" })} />);
+
+    // Navigate to Taken tab
+    await waitFor(() => screen.getByRole("tab", { name: /taken/i }));
+    fireEvent.click(screen.getByRole("tab", { name: /taken/i }));
 
     await waitFor(() => {
       // Progress indicator text showing 2/3
@@ -284,9 +292,13 @@ describe("ProjectDetailPage", () => {
     });
   });
 
-  it("expands phase to show tasks when clicked", async () => {
+  it("expands phase to show tasks when clicked in Taken tab", async () => {
     const { default: DetailPage } = await import("@/app/dashboard/projects/[id]/page");
     render(<DetailPage params={Promise.resolve({ id: "proj-1" })} />);
+
+    // Navigate to Taken tab
+    await waitFor(() => screen.getByRole("tab", { name: /taken/i }));
+    fireEvent.click(screen.getByRole("tab", { name: /taken/i }));
 
     await waitFor(() => screen.getByText("Fundering"));
 
