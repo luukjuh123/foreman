@@ -1,13 +1,13 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, Receipt, AlertTriangle, CheckCircle2, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiFetch } from "@/lib/api";
-import type { InvoiceResponse, InvoiceListResponse } from "@/lib/types";
+import type { InvoiceResponse, InvoiceListResponse, CustomerResponse } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -20,11 +20,11 @@ const STATUS_LABELS: Record<string, string> = {
   overdue: "Verlopen",
 };
 
-const STATUS_BADGE_CLASS: Record<string, string> = {
-  draft: "bg-gray-100 text-gray-700",
-  sent: "bg-blue-100 text-blue-700",
-  paid: "bg-green-100 text-green-700",
-  overdue: "bg-red-100 text-red-700",
+const STATUS_CONFIG: Record<string, { bg: string; text: string; dot: string }> = {
+  draft: { bg: "bg-muted", text: "text-muted-foreground", dot: "bg-gray-400" },
+  sent: { bg: "bg-blue-500/10", text: "text-blue-600 dark:text-blue-400", dot: "bg-blue-500" },
+  paid: { bg: "bg-green-500/10", text: "text-green-600 dark:text-green-400", dot: "bg-emerald-500" },
+  overdue: { bg: "bg-red-500/10", text: "text-red-600 dark:text-red-400", dot: "bg-red-500" },
 };
 
 type StatusFilter = "all" | "draft" | "sent" | "paid" | "overdue";
@@ -65,11 +65,79 @@ function buildUrl(page: number, status: StatusFilter): string {
 }
 
 // ---------------------------------------------------------------------------
+// Summary stats
+// ---------------------------------------------------------------------------
+
+function InvoiceSummaryStats({ invoices }: { invoices: InvoiceResponse[] }) {
+  const stats = useMemo(() => {
+    const totalOutstanding = invoices
+      .filter((i) => i.status === "sent" || i.status === "overdue")
+      .reduce((sum, i) => sum + i.total_cents, 0);
+    const totalOverdue = invoices
+      .filter((i) => i.status === "overdue")
+      .reduce((sum, i) => sum + i.total_cents, 0);
+    const totalPaid = invoices
+      .filter((i) => i.status === "paid")
+      .reduce((sum, i) => sum + i.total_cents, 0);
+    const overdueCount = invoices.filter((i) => i.status === "overdue").length;
+    return { totalOutstanding, totalOverdue, totalPaid, overdueCount };
+  }, [invoices]);
+
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <Card className="relative overflow-hidden">
+        <div className="absolute left-0 top-0 h-full w-1 bg-blue-500" />
+        <CardContent className="flex items-center gap-3 p-4">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-500/10">
+            <Send className="h-5 w-5 text-blue-500" />
+          </div>
+          <div>
+            <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Openstaand</p>
+            <p className="text-xl font-bold tracking-tight">{formatMoney(stats.totalOutstanding)}</p>
+          </div>
+        </CardContent>
+      </Card>
+      <Card className="relative overflow-hidden">
+        <div className={`absolute left-0 top-0 h-full w-1 ${stats.overdueCount > 0 ? "bg-red-500" : "bg-muted"}`} />
+        <CardContent className="flex items-center gap-3 p-4">
+          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${stats.overdueCount > 0 ? "bg-red-500/10" : "bg-muted"}`}>
+            <AlertTriangle className={`h-5 w-5 ${stats.overdueCount > 0 ? "text-red-500" : "text-muted-foreground"}`} />
+          </div>
+          <div>
+            <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Verlopen</p>
+            <p className={`text-xl font-bold tracking-tight ${stats.overdueCount > 0 ? "text-red-500" : ""}`}>
+              {formatMoney(stats.totalOverdue)}
+            </p>
+            {stats.overdueCount > 0 && (
+              <p className="text-[11px] text-muted-foreground">{stats.overdueCount} facturen</p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+      <Card className="relative overflow-hidden">
+        <div className="absolute left-0 top-0 h-full w-1 bg-emerald-500" />
+        <CardContent className="flex items-center gap-3 p-4">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10">
+            <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+          </div>
+          <div>
+            <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Betaald</p>
+            <p className="text-xl font-bold tracking-tight">{formatMoney(stats.totalPaid)}</p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
 export default function InvoiceListPage() {
   const [invoices, setInvoices] = useState<InvoiceResponse[]>([]);
+  const [allInvoices, setAllInvoices] = useState<InvoiceResponse[]>([]);
+  const [customerMap, setCustomerMap] = useState<Record<string, string>>({});
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [perPage] = useState(20);
@@ -77,6 +145,7 @@ export default function InvoiceListPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Fetch for current filter/page
   useEffect(() => {
     setLoading(true);
     setError(null);
@@ -89,6 +158,23 @@ export default function InvoiceListPage() {
       .finally(() => setLoading(false));
   }, [page, status]);
 
+  // Fetch all invoices for summary + customer names
+  useEffect(() => {
+    apiFetch<InvoiceListResponse>("/invoices?per_page=500")
+      .then((res) => setAllInvoices(res.data))
+      .catch(() => {});
+
+    apiFetch<{ data: CustomerResponse[] }>("/customers/?per_page=200")
+      .then((res) => {
+        const map: Record<string, string> = {};
+        for (const c of res.data ?? []) {
+          map[c.id] = c.name;
+        }
+        setCustomerMap(map);
+      })
+      .catch(() => {});
+  }, []);
+
   const totalPages = Math.ceil(total / perPage);
   const hasPrev = page > 1;
   const hasNext = page < totalPages;
@@ -98,103 +184,156 @@ export default function InvoiceListPage() {
     setPage(1);
   }
 
-  // ------------------------------------------------------------------
-  // Render
-  // ------------------------------------------------------------------
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const inv of allInvoices) {
+      counts[inv.status] = (counts[inv.status] ?? 0) + 1;
+    }
+    return counts;
+  }, [allInvoices]);
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold text-foreground">Facturen</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Facturen</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Beheer uw facturen en betalingen
+          </p>
+        </div>
         <Link href="/dashboard/invoices/new">
-          <Button size="sm">
-            <Plus className="mr-1.5 h-4 w-4" />
+          <Button size="sm" className="gap-1.5">
+            <Plus className="h-4 w-4" />
             Nieuwe factuur
           </Button>
         </Link>
       </div>
 
-      {/* Status filters */}
-      <div className="flex flex-wrap gap-2">
-        {FILTER_BUTTONS.map(({ key, label }) => (
-          <Button
-            key={key}
-            variant={status === key ? "default" : "outline"}
-            size="sm"
-            onClick={() => handleStatusFilter(key)}
-          >
-            {label}
-          </Button>
-        ))}
+      {/* Summary stats */}
+      {allInvoices.length > 0 && <InvoiceSummaryStats invoices={allInvoices} />}
+
+      {/* Status filter tabs */}
+      <div className="flex flex-wrap gap-1.5 border-b pb-px">
+        {FILTER_BUTTONS.map(({ key, label }) => {
+          const count = key === "all" ? allInvoices.length : (statusCounts[key] ?? 0);
+          return (
+            <button
+              key={key}
+              onClick={() => handleStatusFilter(key)}
+              className={cn(
+                "flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors",
+                status === key
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground/30"
+              )}
+            >
+              {label}
+              {count > 0 && (
+                <span className={cn(
+                  "rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
+                  status === key ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+                )}>
+                  {count}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
-      {/* Content */}
+      {/* Table */}
       {loading ? (
-        <p className="text-sm text-muted-foreground">Laden…</p>
+        <div className="space-y-2">
+          {[0,1,2,3].map(i => (
+            <div key={i} className="h-14 animate-pulse rounded-lg bg-muted/50" />
+          ))}
+        </div>
       ) : error ? (
         <p className="text-sm text-destructive">{error}</p>
       ) : invoices.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Geen facturen gevonden.</p>
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <Receipt className="h-12 w-12 text-muted-foreground/30 mb-3" />
+          <p className="text-sm text-muted-foreground">Geen facturen gevonden.</p>
+          <Link href="/dashboard/invoices/new">
+            <Button size="sm" variant="outline" className="mt-3 gap-1.5">
+              <Plus className="h-3.5 w-3.5" />
+              Eerste factuur aanmaken
+            </Button>
+          </Link>
+        </div>
       ) : (
         <Card>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-muted/50">
-                  <tr>
-                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+                <thead>
+                  <tr className="border-b">
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       Factuurnummer
                     </th>
-                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Klant
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground hidden md:table-cell">
                       Datum
                     </th>
-                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       Vervaldatum
                     </th>
-                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       Status
                     </th>
-                    <th className="px-4 py-3 text-right font-medium text-muted-foreground">
+                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       Totaal
                     </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {invoices.map((inv) => (
-                    <tr
-                      key={inv.id}
-                      className="hover:bg-muted/30 transition-colors"
-                    >
-                      <td className="px-4 py-3 font-medium">
-                        <Link
-                          href={`/dashboard/invoices/${inv.id}`}
-                          className="text-foreground hover:underline"
-                        >
-                          {inv.invoice_number}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground">
-                        {formatDate(inv.issue_date)}
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground">
-                        {formatDate(inv.due_date)}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={cn(
-                            "rounded-full px-2.5 py-0.5 text-xs font-medium",
-                            STATUS_BADGE_CLASS[inv.status] ?? "bg-gray-100 text-gray-700"
-                          )}
-                        >
-                          {STATUS_LABELS[inv.status] ?? inv.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-right font-medium">
-                        {formatMoney(inv.total_cents)}
-                      </td>
-                    </tr>
-                  ))}
+                  {invoices.map((inv) => {
+                    const cfg = STATUS_CONFIG[inv.status] ?? STATUS_CONFIG.draft;
+                    const customerName = customerMap[inv.customer_id];
+                    return (
+                      <tr
+                        key={inv.id}
+                        className="hover:bg-muted/30 transition-colors"
+                      >
+                        <td className="px-4 py-3.5">
+                          <Link
+                            href={`/dashboard/invoices/${inv.id}`}
+                            className="font-semibold text-foreground hover:text-primary transition-colors"
+                          >
+                            {inv.invoice_number}
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <span className="text-sm font-medium">
+                            {customerName ?? <span className="text-muted-foreground/40">—</span>}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3.5 text-muted-foreground hidden md:table-cell">
+                          {formatDate(inv.issue_date)}
+                        </td>
+                        <td className="px-4 py-3.5 text-muted-foreground">
+                          {formatDate(inv.due_date)}
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <span
+                            className={cn(
+                              "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold",
+                              cfg.bg, cfg.text
+                            )}
+                          >
+                            <span className={cn("h-1.5 w-1.5 rounded-full", cfg.dot)} />
+                            {STATUS_LABELS[inv.status] ?? inv.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3.5 text-right font-semibold">
+                          {formatMoney(inv.total_cents)}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -206,7 +345,7 @@ export default function InvoiceListPage() {
       {!loading && !error && totalPages > 1 && (
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
-            Pagina {page} van {totalPages}
+            Pagina {page} van {totalPages} ({total} facturen)
           </p>
           <div className="flex gap-2">
             {hasPrev && (
