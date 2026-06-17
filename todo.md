@@ -206,7 +206,7 @@
 
 ## Priority: High (Phase 22 — Core Admin & Contracting UI)
 
-- [x] Frontend + Backend: Klanten (customers) admin UI — list page with search/pagination, add/edit dialog, detail page with contact card + linked projecten + facturen + outstanding amount — PR feat/customers-admin-ui
+- [x] Frontend: Grouped sidebar navigation redesign — sections Projecten, Contracteren, Financieel, Inkoop, Team with uppercase labels, active indicator, Offertes + Klanten + Onderaannemers links — PR feat/sidebar-grouped-nav
 
 ## Completed
 <!-- [x] Task description — PR #N -->
