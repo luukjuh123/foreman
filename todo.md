@@ -206,7 +206,7 @@
 
 ## Priority: High (Phase 22 — Core Admin & Contracting UI)
 
-- [x] Frontend: Dashboard command center redesign — greeting header with Dutch time-of-day + date, quick-action buttons (Nieuw project, Nieuwe factuur), refined 4-KPI row (actieve projecten, openstaande facturen, omzet, achterstallige taken) with trend badges, actieve projecten cards with progress bars and status badges, Vandaag agenda strip with project color coding, Aandacht nodig panel for overdue invoices and behind-schedule tasks, loading skeletons, empty states with CTAs, consistent Dutch labels and euro formatting — PR #TBD
+- [x] Frontend: Project administration hub — rich header with status badge, budget/completion progress, quick actions; tab navigation (Overzicht, Planning, Documenten, Financieel, Team); Documenten tab with upload/download/delete via existing document management backend; Financieel tab with budget KPIs, cost-per-phase breakdown, and linked invoices; Team tab with assigned staff + subcontractors — PR #TBD
 
 ## Completed
 <!-- [x] Task description — PR #N -->
