@@ -39,10 +39,10 @@ describe("Sidebar — group labels", () => {
     expect(labels.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("renders section label Contracteren", async () => {
+  it("renders section label Administratie", async () => {
     const { default: Sidebar } = await import("@/components/sidebar");
     render(<Sidebar />);
-    const labels = screen.getAllByText(/^Contracteren$/i);
+    const labels = screen.getAllByText(/^Administratie$/i);
     expect(labels.length).toBeGreaterThanOrEqual(1);
   });
 
@@ -53,17 +53,10 @@ describe("Sidebar — group labels", () => {
     expect(labels.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("renders section label Inkoop", async () => {
+  it("renders section label Instellingen", async () => {
     const { default: Sidebar } = await import("@/components/sidebar");
     render(<Sidebar />);
-    const labels = screen.getAllByText(/^Inkoop$/i);
-    expect(labels.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("renders section label Team", async () => {
-    const { default: Sidebar } = await import("@/components/sidebar");
-    render(<Sidebar />);
-    const labels = screen.getAllByText(/^Team$/i);
+    const labels = screen.getAllByText(/^Instellingen$/i);
     expect(labels.length).toBeGreaterThanOrEqual(1);
   });
 });
@@ -81,18 +74,13 @@ describe("Sidebar — nav items", () => {
     ["Processen", "/dashboard/processes"],
     ["Rapporten", "/dashboard/reports"],
     ["Offertes", "/dashboard/quotes"],
-    ["Klanten", "/dashboard/customers"],
     ["Facturen", "/dashboard/invoices"],
     ["Financiën", "/dashboard/financials"],
     ["BTW Aangifte", "/dashboard/btw"],
     ["Materialen", "/dashboard/materials"],
-    ["Beschikbaarheid", "/dashboard/materials/availability"],
-    ["Gereedschap", "/dashboard/equipment"],
     ["Personeel", "/dashboard/staff"],
     ["Onderaannemers", "/dashboard/subcontractors"],
-    ["Reviews", "/dashboard/reviews"],
     ["Meldingen", "/dashboard/notifications"],
-    ["Spraakassistent", "/dashboard/voice"],
     ["Instellingen", "/dashboard/settings"],
   ];
 
