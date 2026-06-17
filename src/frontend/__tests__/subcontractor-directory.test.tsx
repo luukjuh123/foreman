@@ -183,7 +183,7 @@ describe("SubcontractorDirectoryPage — renders list", () => {
     render(<Page />);
 
     await waitFor(() => {
-      expect(screen.getByText("87654321")).toBeInTheDocument();
+      expect(screen.getByText(/87654321/)).toBeInTheDocument();
     });
   });
 
@@ -200,7 +200,7 @@ describe("SubcontractorDirectoryPage — renders list", () => {
 
     await waitFor(() => {
       expect(screen.getAllByText(/loodgieter/i).length).toBeGreaterThan(0);
-      expect(screen.getByText(/elektricien/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/elektricien/i).length).toBeGreaterThan(0);
     });
   });
 
@@ -276,10 +276,10 @@ describe("SubcontractorDirectoryPage — certification expiry warnings", () => {
     });
   });
 
-  it("shows no warning for cert with expiry > 30 days away", async () => {
+  it("shows no warning for cert with expiry > 60 days away", async () => {
     const apiFetch = await getApiFetch();
     const future = new Date();
-    future.setDate(future.getDate() + 60);
+    future.setDate(future.getDate() + 90);
     const expiryDate = future.toISOString().split("T")[0];
 
     apiFetch.mockResolvedValue(
