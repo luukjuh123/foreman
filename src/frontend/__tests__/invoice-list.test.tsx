@@ -164,11 +164,13 @@ describe("InvoiceListPage — renders invoice list", () => {
     );
     render(<InvoiceListPage />);
 
+    // Note: "Concept" / "Verzonden" / "Betaald" / "Achterstallig" appear both in
+    // filter chips and status pills, so we assert at least one occurrence.
     await waitFor(() => {
-      expect(screen.getByText("Concept")).toBeInTheDocument();
-      expect(screen.getByText("Verzonden")).toBeInTheDocument();
-      expect(screen.getByText("Betaald")).toBeInTheDocument();
-      expect(screen.getByText("Verlopen")).toBeInTheDocument();
+      expect(screen.getAllByText("Concept").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("Verzonden").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("Betaald").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("Achterstallig").length).toBeGreaterThan(0);
     });
   });
 
@@ -271,7 +273,7 @@ describe("InvoiceListPage — header", () => {
 });
 
 describe("InvoiceListPage — status filter buttons", () => {
-  it("renders all filter buttons: Alle, Concept, Verzonden, Betaald, Verlopen", async () => {
+  it("renders all filter buttons: Alle, Concept, Verzonden, Betaald, Achterstallig", async () => {
     const apiFetch = await getApiFetch();
     apiFetch.mockResolvedValue(makeListResponse([]));
 
@@ -285,7 +287,7 @@ describe("InvoiceListPage — status filter buttons", () => {
       expect(screen.getByRole("button", { name: /^concept$/i })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /^verzonden$/i })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /^betaald$/i })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /^verlopen$/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /^achterstallig$/i })).toBeInTheDocument();
     });
   });
 

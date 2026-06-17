@@ -13,6 +13,9 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "."),
+      // next/font/google is not available in jsdom; return a stub that
+      // satisfies the `Inter({ ... }) → { variable, className }` call shape.
+      "next/font/google": path.resolve(__dirname, "./__mocks__/next-font-google.ts"),
     },
   },
 });

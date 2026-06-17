@@ -166,11 +166,12 @@ describe("ProjectsPage", () => {
   it("renders filter tabs: Alle, Actief, Concept, Voltooid, Gearchiveerd", async () => {
     const { default: ProjectsPage } = await import("@/app/dashboard/projects/page");
     render(<ProjectsPage />);
-    expect(screen.getByRole("button", { name: /alle/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /actief/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /concept/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /voltooid/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /gearchiveerd/i })).toBeInTheDocument();
+    // Tabs now render as role="tab" (correct ARIA) instead of role="button"
+    expect(screen.getByRole("tab", { name: /alle/i })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /actief/i })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /concept/i })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /voltooid/i })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /gearchiveerd/i })).toBeInTheDocument();
   });
 
   it("renders project cards after loading", async () => {
@@ -199,7 +200,7 @@ describe("ProjectsPage", () => {
     // Wait for all 3 projects to load (active + draft + completed)
     await waitFor(() => expect(screen.getAllByText("Nieuwbouw Pand A").length).toBe(3));
 
-    fireEvent.click(screen.getByRole("button", { name: /^actief$/i }));
+    fireEvent.click(screen.getByRole("tab", { name: /^actief$/i }));
 
     // After filtering, only 1 project (active) should remain
     await waitFor(() => {
@@ -261,7 +262,9 @@ describe("ProjectDetailPage", () => {
     render(<DetailPage params={Promise.resolve({ id: "proj-1" })} />);
 
     await waitFor(() => {
-      expect(screen.getByText("Nieuwbouw Pand A")).toBeInTheDocument();
+      // Name appears in both breadcrumb span and h1 heading
+      const els = screen.getAllByText("Nieuwbouw Pand A");
+      expect(els.length).toBeGreaterThanOrEqual(1);
     });
   });
 
