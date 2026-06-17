@@ -72,8 +72,9 @@ async def test_list_customers(client):
     await client.post("/api/v1/customers/", json={"name": "Klant B"}, headers=headers)
     resp = await client.get("/api/v1/customers/", headers=headers)
     assert resp.status_code == 200
-    items = resp.json()
-    assert len(items) == 2
+    body = resp.json()
+    assert body["total"] == 2
+    assert len(body["data"]) == 2
 
 
 @pytest.mark.asyncio
