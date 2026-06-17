@@ -7,6 +7,7 @@ from logging.config import fileConfig
 import app.models.geofence
 import app.models.material
 import app.models.project
+import app.models.quote  # noqa: F401
 import app.models.push_subscription
 import app.models.share_token
 import app.models.subscription
