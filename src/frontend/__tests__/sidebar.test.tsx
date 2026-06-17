@@ -34,8 +34,8 @@ describe("Sidebar — nav items", () => {
   const items: [string, string][] = [
     ["Dashboard", "/dashboard"],
     ["Projecten", "/dashboard/projects"],
-    ["Contracten", "/dashboard/contracten"],
-    ["Klanten", "/dashboard/klanten"],
+    ["Contracten", "/dashboard/contracts"],
+    ["Klanten", "/dashboard/customers"],
     ["Agenda", "/dashboard/agenda"],
     ["Facturen", "/dashboard/invoices"],
     ["Financiën", "/dashboard/financials"],
@@ -43,10 +43,9 @@ describe("Sidebar — nav items", () => {
     ["Materialen", "/dashboard/materials"],
     ["Processen", "/dashboard/processes"],
     ["Personeel", "/dashboard/staff"],
-    ["Gereedschap", "/dashboard/equipment"],
+    ["Onderaannemers", "/dashboard/subcontractors"],
     ["Rapporten", "/dashboard/reports"],
     ["Reviews", "/dashboard/reviews"],
-    ["Meldingen", "/dashboard/notifications"],
     ["Instellingen", "/dashboard/settings"],
   ];
 

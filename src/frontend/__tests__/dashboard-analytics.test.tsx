@@ -315,6 +315,9 @@ describe("Dashboard page — staff utilization card", () => {
         if (path.includes("/staff/utilization")) {
           return Promise.resolve({ utilization_percent: 60, assigned_hours: 24, available_hours: 40 });
         }
+        if (path.includes("/quotes/")) {
+          return Promise.resolve({ data: [] });
+        }
         // invoices
         return Promise.resolve({ data: { data: [], total: 0 }, error: null });
       }),
@@ -376,10 +379,13 @@ describe("Dashboard page — Actieve Projecten section", () => {
     if (path.includes("/staff/utilization")) {
       return Promise.resolve({ utilization_percent: 0, assigned_hours: 0, available_hours: 0 });
     }
+    if (path.includes("/quotes/")) {
+      return Promise.resolve({ data: [] });
+    }
     return Promise.resolve({ data: { data: [], total: 0 }, error: null });
   };
 
-  it("shows empty state CTA when no active projects", async () => {
+  it("shows empty state when no projects", async () => {
     vi.doMock("@/lib/projects", () => ({
       listProjects: vi.fn().mockResolvedValue({ data: [], total: 0, page: 1, per_page: 20 }),
       formatBudget: (c: number) => `€${(c / 100).toFixed(2)}`,
@@ -394,7 +400,8 @@ describe("Dashboard page — Actieve Projecten section", () => {
     const { default: DashboardPage } = await import("@/app/dashboard/page");
     await act(async () => { render(<DashboardPage />); });
 
-    expect(screen.getByTestId("empty-active-projects")).toBeInTheDocument();
+    // Phase 22: empty state text is "Nog geen projecten."
+    expect(screen.getByText("Nog geen projecten.")).toBeInTheDocument();
   });
 
   it("renders active project names", async () => {
@@ -417,12 +424,12 @@ describe("Dashboard page — Actieve Projecten section", () => {
     const { default: DashboardPage } = await import("@/app/dashboard/page");
     await act(async () => { render(<DashboardPage />); });
 
-    // Only active projects shown
+    // Active projects appear in Recente Projecten
     expect(screen.getByText("Brug Oost")).toBeInTheDocument();
-    expect(screen.queryByText("Dak West")).not.toBeInTheDocument();
+    // Phase 22: Recente Projecten shows all projects sorted by recency, not just active ones
   });
 
-  it("shows Vandaag empty state when no tasks today", async () => {
+  it("shows empty upcoming tasks when no tasks today", async () => {
     vi.doMock("@/lib/projects", () => ({
       listProjects: vi.fn().mockResolvedValue({ data: [], total: 0, page: 1, per_page: 20 }),
       formatBudget: (c: number) => `€${(c / 100).toFixed(2)}`,
@@ -437,10 +444,11 @@ describe("Dashboard page — Actieve Projecten section", () => {
     const { default: DashboardPage } = await import("@/app/dashboard/page");
     await act(async () => { render(<DashboardPage />); });
 
-    expect(screen.getByTestId("empty-today-agenda")).toBeInTheDocument();
+    // Phase 22: empty upcoming tasks text is "Geen aankomende taken."
+    expect(screen.getByText("Geen aankomende taken.")).toBeInTheDocument();
   });
 
-  it("page still loads when agenda fetch fails (shows empty vandaag)", async () => {
+  it("page still loads when agenda fetch fails (shows empty upcoming tasks)", async () => {
     vi.doMock("@/lib/projects", () => ({
       listProjects: vi.fn().mockResolvedValue({ data: [], total: 0, page: 1, per_page: 20 }),
       formatBudget: (c: number) => `€${(c / 100).toFixed(2)}`,
@@ -455,8 +463,8 @@ describe("Dashboard page — Actieve Projecten section", () => {
     const { default: DashboardPage } = await import("@/app/dashboard/page");
     await act(async () => { render(<DashboardPage />); });
 
-    // Page still loads
+    // Page still loads (agenda failure is handled gracefully)
     expect(screen.queryByTestId("dashboard-error")).not.toBeInTheDocument();
-    expect(screen.getByTestId("empty-today-agenda")).toBeInTheDocument();
+    expect(screen.getByText("Geen aankomende taken.")).toBeInTheDocument();
   });
 });

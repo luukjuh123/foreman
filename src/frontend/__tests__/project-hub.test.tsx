@@ -504,7 +504,7 @@ describe("ProjectDetailPage", () => {
     expect(screen.getAllByText("Renovatie Hoofdstraat 10").length).toBeGreaterThan(0);
   });
 
-  it("renders tab bar after successful load", async () => {
+  it("renders sub-nav and section headings after successful load", async () => {
     const project = makeProject();
     vi.doMock("@/lib/projects", () => ({
       getProject: vi.fn().mockResolvedValue(project),
@@ -526,12 +526,11 @@ describe("ProjectDetailPage", () => {
       render(<Page params={Promise.resolve({ id: "proj-1" })} />);
     });
 
-    expect(screen.getByText("Overzicht")).toBeInTheDocument();
-    // "Fases" appears both as a key-fact label and a tab trigger
+    // Sub-nav buttons: Takenbord, Gantt, Processen, Tijdlijn, Uren
+    expect(screen.getByText("Takenbord")).toBeInTheDocument();
+    // Section headings always visible
     expect(screen.getAllByText("Fases").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText("Documenten")).toBeInTheDocument();
     expect(screen.getByText("Nakijklijst")).toBeInTheDocument();
-    expect(screen.getByText("Tijdregistratie")).toBeInTheDocument();
   });
 
   it("renders phase cards in Overzicht tab", async () => {
@@ -556,7 +555,8 @@ describe("ProjectDetailPage", () => {
       render(<Page params={Promise.resolve({ id: "proj-1" })} />);
     });
 
-    expect(screen.getByText("Sloopfase")).toBeInTheDocument();
-    expect(screen.getByText("Bouwfase")).toBeInTheDocument();
+    // Phases appear in multiple places (hero and phase cards section)
+    expect(screen.getAllByText("Sloopfase").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("Bouwfase").length).toBeGreaterThanOrEqual(1);
   });
 });

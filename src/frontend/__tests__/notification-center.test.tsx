@@ -176,22 +176,22 @@ describe("NotificationBell", () => {
 // Sidebar — Meldingen link
 // ---------------------------------------------------------------------------
 
-describe("Sidebar — Meldingen", () => {
+describe("Sidebar — Onderaannemers", () => {
   beforeEach(() => {
     vi.resetModules();
   });
 
-  it("renders Meldingen navigation link", async () => {
+  it("renders Onderaannemers navigation link", async () => {
     const { default: Sidebar } = await import("@/components/sidebar");
     render(<Sidebar />);
-    expect(screen.getAllByText("Meldingen").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Onderaannemers").length).toBeGreaterThan(0);
   });
 
-  it("Meldingen link points to /dashboard/notifications", async () => {
+  it("Onderaannemers link points to /dashboard/subcontractors", async () => {
     const { default: Sidebar } = await import("@/components/sidebar");
     render(<Sidebar />);
-    const links = screen.getAllByRole("link", { name: /meldingen/i });
-    expect(links[0]).toHaveAttribute("href", "/dashboard/notifications");
+    const links = screen.getAllByRole("link", { name: /onderaannemers/i });
+    expect(links[0]).toHaveAttribute("href", "/dashboard/subcontractors");
   });
 });
 

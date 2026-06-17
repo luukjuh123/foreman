@@ -67,7 +67,7 @@ function makeProject(opts: {
 const PAST_DATE = "2020-01-01";
 const FUTURE_DATE = "2099-12-31";
 
-/** Create a path-aware apiFetch mock that handles both invoices and utilization. */
+/** Create a path-aware apiFetch mock that handles invoices, utilization, and quotes. */
 function mockApiFetch(
   invoices: unknown[] = [],
   utilization = { utilization_percent: 0, assigned_hours: 0, available_hours: 0 },
@@ -76,6 +76,9 @@ function mockApiFetch(
     apiFetch: vi.fn().mockImplementation((path: string) => {
       if (path.includes("/staff/utilization")) {
         return Promise.resolve(utilization);
+      }
+      if (path.includes("/quotes/")) {
+        return Promise.resolve({ data: [] });
       }
       return Promise.resolve({ data: { data: invoices, total: invoices.length }, error: null });
     }),
@@ -280,6 +283,7 @@ describe("Dashboard KPI — staff utilization endpoint still called", () => {
     vi.doMock("@/lib/api", () => ({
       apiFetch: vi.fn().mockImplementation((path: string) => {
         if (path.includes("/staff/utilization")) return Promise.resolve({ utilization_percent: 0, assigned_hours: 0, available_hours: 0 });
+        if (path.includes("/quotes/")) return Promise.resolve({ data: [] });
         return Promise.resolve({ data: { data: [], total: 0 }, error: null });
       }),
     }));

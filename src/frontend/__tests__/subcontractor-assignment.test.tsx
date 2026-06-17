@@ -24,6 +24,7 @@ vi.mock("@/lib/api", () => ({
 vi.mock("@/lib/projects", () => ({
   getProject: vi.fn(),
   calcPhaseProgress: vi.fn(() => 50),
+  calcTaskSummary: vi.fn(() => ({ done: 0, total: 0 })),
   formatBudget: vi.fn((c: number) => `€\u00a0${(c / 100).toFixed(2).replace(".", ",")}`),
   formatDate: vi.fn((d: string | null) => d ?? ""),
 }));
@@ -142,8 +143,10 @@ describe("ProjectDetailPage — subcontractor assignment", () => {
     );
     render(<ProjectDetailPage params={Promise.resolve({ id: "proj-1" })} />);
 
-    await waitFor(() => screen.getByText("Fundering"));
-    fireEvent.click(screen.getByText("Fundering"));
+    await waitFor(() => screen.getAllByText("Fundering"));
+    // Phase name appears in hero tooltip and phase card header — click the last (phase card)
+    const fundItems = screen.getAllByText("Fundering");
+    fireEvent.click(fundItems[fundItems.length - 1]);
 
     await waitFor(() => {
       expect(
@@ -168,8 +171,10 @@ describe("ProjectDetailPage — subcontractor assignment", () => {
     );
     render(<ProjectDetailPage params={Promise.resolve({ id: "proj-1" })} />);
 
-    await waitFor(() => screen.getByText("Fundering"));
-    fireEvent.click(screen.getByText("Fundering"));
+    await waitFor(() => screen.getAllByText("Fundering"));
+    // Phase name appears in hero tooltip and phase card header — click the last (phase card)
+    const fundItems = screen.getAllByText("Fundering");
+    fireEvent.click(fundItems[fundItems.length - 1]);
 
     await waitFor(() =>
       screen.getByRole("button", { name: /onderaannemer toewijzen/i })
@@ -206,8 +211,10 @@ describe("ProjectDetailPage — subcontractor assignment", () => {
     );
     render(<ProjectDetailPage params={Promise.resolve({ id: "proj-1" })} />);
 
-    await waitFor(() => screen.getByText("Fundering"));
-    fireEvent.click(screen.getByText("Fundering"));
+    await waitFor(() => screen.getAllByText("Fundering"));
+    // Phase name appears in hero tooltip and phase card header — click the last (phase card)
+    const fundItems = screen.getAllByText("Fundering");
+    fireEvent.click(fundItems[fundItems.length - 1]);
 
     await waitFor(() =>
       screen.getByRole("button", { name: /onderaannemer toewijzen/i })
@@ -238,8 +245,10 @@ describe("ProjectDetailPage — subcontractor assignment", () => {
     );
     render(<ProjectDetailPage params={Promise.resolve({ id: "proj-1" })} />);
 
-    await waitFor(() => screen.getByText("Fundering"));
-    fireEvent.click(screen.getByText("Fundering"));
+    await waitFor(() => screen.getAllByText("Fundering"));
+    // Phase name appears in hero tooltip and phase card header — click the last (phase card)
+    const fundItems = screen.getAllByText("Fundering");
+    fireEvent.click(fundItems[fundItems.length - 1]);
 
     await waitFor(() =>
       screen.getByRole("button", { name: /onderaannemer toewijzen/i })
@@ -276,8 +285,10 @@ describe("ProjectDetailPage — subcontractor assignment", () => {
     );
     render(<ProjectDetailPage params={Promise.resolve({ id: "proj-1" })} />);
 
-    await waitFor(() => screen.getByText("Fundering"));
-    fireEvent.click(screen.getByText("Fundering"));
+    await waitFor(() => screen.getAllByText("Fundering"));
+    // Phase name appears in hero tooltip and phase card header — click the last (phase card)
+    const fundItems = screen.getAllByText("Fundering");
+    fireEvent.click(fundItems[fundItems.length - 1]);
 
     await waitFor(() =>
       screen.getByRole("button", { name: /onderaannemer toewijzen/i })
