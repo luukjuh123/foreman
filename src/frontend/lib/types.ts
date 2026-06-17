@@ -61,15 +61,22 @@ export interface ProjectListResponse {
   per_page: number;
 }
 
-// Customer types
+// Customer types — aligned with backend schemas/customer.py
 
 export interface CustomerResponse {
   id: string;
   name: string;
   email: string | null;
+  phone: string | null;
   kvk_number: string | null;
-  btw_number: string | null;
-  address: string | null;
+  /** VAT number (replaces btw_number in the backend schema) */
+  vat_number: string | null;
+  address_line1: string | null;
+  address_line2: string | null;
+  postal_code: string | null;
+  city: string | null;
+  country_code: string;
+  notes: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -78,8 +85,24 @@ export interface CustomerCreate {
   name: string;
   email?: string;
   kvk_number?: string;
-  btw_number?: string;
-  address?: string;
+  vat_number?: string;
+  address_line1?: string;
+  address_line2?: string;
+  postal_code?: string;
+  city?: string;
+  country_code?: string;
+}
+
+export interface CustomerUpdate {
+  name?: string;
+  email?: string;
+  kvk_number?: string;
+  vat_number?: string;
+  address_line1?: string;
+  address_line2?: string;
+  postal_code?: string;
+  city?: string;
+  country_code?: string;
 }
 
 export interface InvoiceLineCreate {
