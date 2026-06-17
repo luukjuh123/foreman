@@ -1,17 +1,32 @@
 """Customers router — CRUD for customers, scoped per authenticated owner."""
 
 import uuid
+from datetime import date
 
 from app.core.database import get_db
 from app.models.customer import Customer
+from app.models.invoice import Invoice
+from app.models.project import Project
 from app.models.user import User
 from app.routers.auth import get_current_user
-from app.schemas.customer import CustomerCreate, CustomerResponse, CustomerUpdate
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from app.schemas.customer import (
+    CustomerCreate,
+    CustomerListResponse,
+    CustomerResponse,
+    CustomerSummaryResponse,
+    CustomerUpdate,
+    InvoiceSummaryItem,
+    ProjectSummaryItem,
+)
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/api/v1/customers")
+
+
+def _fmt_date(d: date | None) -> str | None:
+    return d.strftime("%d-%m-%Y") if d else None
 
 
 async def _get_or_404(customer_id: uuid.UUID, owner_id: uuid.UUID, db: AsyncSession) -> Customer:
@@ -41,17 +56,95 @@ async def create_customer(
     return customer
 
 
-@router.get("/", response_model=list[CustomerResponse])
+@router.get("/", response_model=CustomerListResponse)
 async def list_customers(
+    page: int = Query(default=1, ge=1),
+    per_page: int = Query(default=20, ge=1, le=100),
+    search: str | None = Query(default=None),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> list[Customer]:
-    result = await db.execute(
-        select(Customer)
-        .where(Customer.owner_id == current_user.id, Customer.deleted_at.is_(None))
-        .order_by(Customer.name)
+) -> CustomerListResponse:
+    base_q = select(Customer).where(
+        Customer.owner_id == current_user.id,
+        Customer.deleted_at.is_(None),
     )
-    return list(result.scalars().all())
+    if search:
+        term = f"%{search}%"
+        base_q = base_q.where(Customer.name.ilike(term) | Customer.city.ilike(term) | Customer.email.ilike(term))
+
+    count_q = select(func.count()).select_from(base_q.subquery())
+    total_result = await db.execute(count_q)
+    total = total_result.scalar_one()
+
+    items_q = base_q.order_by(Customer.name).offset((page - 1) * per_page).limit(per_page)
+    result = await db.execute(items_q)
+    customers = list(result.scalars().all())
+
+    return CustomerListResponse(data=customers, total=total, page=page, per_page=per_page)
+
+
+@router.get("/{customer_id}/summary", response_model=CustomerSummaryResponse)
+async def get_customer_summary(
+    customer_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CustomerSummaryResponse:
+    customer = await _get_or_404(customer_id, current_user.id, db)
+
+    # Invoices linked to this customer
+    inv_result = await db.execute(
+        select(Invoice)
+        .where(
+            Invoice.customer_id == customer_id,
+            Invoice.owner_id == current_user.id,
+            Invoice.deleted_at.is_(None),
+        )
+        .order_by(Invoice.issue_date.desc())
+    )
+    invoices = list(inv_result.scalars().all())
+
+    # Projects linked via invoices (unique project_ids)
+    project_ids = {inv.project_id for inv in invoices if inv.project_id is not None}
+    projects: list[ProjectSummaryItem] = []
+    if project_ids:
+        proj_result = await db.execute(
+            select(Project).where(
+                Project.id.in_(project_ids),
+                Project.deleted_at.is_(None),
+            )
+        )
+        for p in proj_result.scalars().all():
+            projects.append(
+                ProjectSummaryItem(
+                    id=p.id,
+                    name=p.name,
+                    status=p.status,
+                    start_date=_fmt_date(p.start_date),
+                    end_date=_fmt_date(p.end_date),
+                )
+            )
+
+    invoice_items = [
+        InvoiceSummaryItem(
+            id=inv.id,
+            invoice_number=inv.invoice_number,
+            issue_date=_fmt_date(inv.issue_date),  # type: ignore[arg-type]
+            due_date=_fmt_date(inv.due_date),  # type: ignore[arg-type]
+            status=inv.status,
+            total_cents=inv.total_cents,
+        )
+        for inv in invoices
+    ]
+
+    outstanding_cents = sum(inv.total_cents for inv in invoices if inv.status not in ("paid", "cancelled"))
+
+    return CustomerSummaryResponse(
+        id=customer.id,
+        name=customer.name,
+        projects=projects,
+        invoices=invoice_items,
+        outstanding_cents=outstanding_cents,
+    )
 
 
 @router.get("/{customer_id}", response_model=CustomerResponse)
