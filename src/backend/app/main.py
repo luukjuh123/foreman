@@ -38,6 +38,7 @@ from app.routers import (
     projects,
     punch_items,
     push,
+    quotes,
     reports,
     reviews,
     safety,
@@ -122,6 +123,7 @@ def create_app() -> FastAPI:
     app.include_router(forecasting.router, prefix="/api/v1/forecasting", tags=["forecasting"])
     app.include_router(geofence.router, prefix="/api/v1/geofence", tags=["geofence"])
     app.include_router(permits.router, prefix="/api/v1/permits", tags=["permits"])
+    app.include_router(quotes.router, prefix="/api/v1/quotes", tags=["quotes"])
     app.include_router(timeline.router, prefix="/api/v1/timeline", tags=["timeline"])
 
     @app.get("/healthz", tags=["health"])
