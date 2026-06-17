@@ -450,10 +450,12 @@ describe("ProjectDetailPage", () => {
       "@/app/dashboard/projects/[id]/page"
     );
 
-    render(<Page params={Promise.resolve({ id: "proj-1" })} />);
+    const { container } = render(<Page params={Promise.resolve({ id: "proj-1" })} />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("project-header-skeleton")).toBeInTheDocument();
+      // Loading state renders Skeleton components (divs with animate-pulse)
+      const skeletons = container.querySelectorAll('[class*="animate-pulse"], [class*="skeleton"]');
+      expect(skeletons.length).toBeGreaterThan(0);
     });
   });
 
@@ -525,10 +527,11 @@ describe("ProjectDetailPage", () => {
     });
 
     expect(screen.getByText("Overzicht")).toBeInTheDocument();
-    expect(screen.getByText("Planning")).toBeInTheDocument();
+    // "Fases" appears both as a key-fact label and a tab trigger
+    expect(screen.getAllByText("Fases").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Documenten")).toBeInTheDocument();
-    expect(screen.getByText("Financieel")).toBeInTheDocument();
-    expect(screen.getByText("Team")).toBeInTheDocument();
+    expect(screen.getByText("Nakijklijst")).toBeInTheDocument();
+    expect(screen.getByText("Tijdregistratie")).toBeInTheDocument();
   });
 
   it("renders phase cards in Overzicht tab", async () => {

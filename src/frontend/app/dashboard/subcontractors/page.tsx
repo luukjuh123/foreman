@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Plus, X, AlertTriangle, Star, TrendingDown, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiFetch } from "@/lib/api";
+import { PageHeader } from "@/components/page-header";
 import type {
   SubcontractorResponse,
   SubcontractorListResponse,
@@ -698,14 +699,20 @@ export default function ContractingHubPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold text-foreground">Contracting</h1>
-        <Button size="sm" onClick={openAdd}>
-          <Plus className="mr-1.5 h-4 w-4" />
-          Toevoegen
-        </Button>
-      </div>
+      <PageHeader
+        title="Onderaannemers"
+        breadcrumbs={[
+          { label: "Dashboard", href: "/dashboard" },
+          { label: "Administratie" },
+          { label: "Onderaannemers" },
+        ]}
+        action={
+          <Button size="sm" onClick={openAdd}>
+            <Plus className="mr-1.5 h-4 w-4" />
+            Toevoegen
+          </Button>
+        }
+      />
 
       {/* Cost summary strip — loads alongside directory */}
       <CostSummaryStrip subs={subs} costs={costs} />

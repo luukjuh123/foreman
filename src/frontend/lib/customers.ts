@@ -1,63 +1,23 @@
 import { apiFetch } from "./api";
 import { getAccessToken } from "./auth";
+import type { CustomerResponse, CustomerCreate, CustomerUpdate } from "./types";
+
+// Re-export types so pages can import them from "@/lib/customers"
+export type { CustomerResponse, CustomerCreate, CustomerUpdate };
 
 // ---------------------------------------------------------------------------
-// Types
+// Customer summary types
 // ---------------------------------------------------------------------------
 
-export interface CustomerResponse {
+export interface CustomerProjectSummary {
   id: string;
   name: string;
-  email: string | null;
-  phone: string | null;
-  kvk_number: string | null;
-  vat_number: string | null;
-  address_line1: string | null;
-  address_line2: string | null;
-  postal_code: string | null;
-  city: string | null;
-  country_code: string;
-  notes: string | null;
-  created_at: string;
-  updated_at: string;
+  status: string;
+  start_date: string | null;
+  end_date: string | null;
 }
 
-export interface CustomerListResponse {
-  data: CustomerResponse[];
-  total: number;
-  page: number;
-  per_page: number;
-}
-
-export interface CustomerCreate {
-  name: string;
-  email?: string;
-  phone?: string;
-  kvk_number?: string;
-  vat_number?: string;
-  address_line1?: string;
-  address_line2?: string;
-  postal_code?: string;
-  city?: string;
-  country_code?: string;
-  notes?: string;
-}
-
-export interface CustomerUpdate {
-  name?: string;
-  email?: string;
-  phone?: string;
-  kvk_number?: string;
-  vat_number?: string;
-  address_line1?: string;
-  address_line2?: string;
-  postal_code?: string;
-  city?: string;
-  country_code?: string;
-  notes?: string;
-}
-
-export interface InvoiceSummaryItem {
+export interface CustomerInvoiceSummary {
   id: string;
   invoice_number: string;
   issue_date: string;
@@ -66,51 +26,56 @@ export interface InvoiceSummaryItem {
   total_cents: number;
 }
 
-export interface ProjectSummaryItem {
-  id: string;
-  name: string;
-  status: string;
-  start_date: string | null;
-  end_date: string | null;
+export interface CustomerSummaryResponse {
+  outstanding_cents: number;
+  projects: CustomerProjectSummary[];
+  invoices: CustomerInvoiceSummary[];
 }
 
-export interface CustomerSummaryResponse {
-  id: string;
-  name: string;
-  projects: ProjectSummaryItem[];
-  invoices: InvoiceSummaryItem[];
-  outstanding_cents: number;
+// ---------------------------------------------------------------------------
+// Paginated list response
+// ---------------------------------------------------------------------------
+
+export interface PaginatedCustomers {
+  data: CustomerResponse[];
+  total: number;
 }
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function token(): string | undefined {
-  return getAccessToken() ?? undefined;
-}
-
-/** Format euro cents as Dutch locale currency string, e.g. € 1.234,56 */
 export function formatEuroCents(cents: number): string {
+  const euros = cents / 100;
   return new Intl.NumberFormat("nl-NL", {
     style: "currency",
     currency: "EUR",
-    minimumFractionDigits: 2,
-  }).format(cents / 100);
+  }).format(euros);
 }
 
 // ---------------------------------------------------------------------------
 // API functions
 // ---------------------------------------------------------------------------
 
+function token(): string | undefined {
+  return getAccessToken() ?? undefined;
+}
+
 export async function listCustomers(
   page = 1,
   perPage = 20,
-  search?: string
-): Promise<CustomerListResponse> {
-  const params = new URLSearchParams({ page: String(page), per_page: String(perPage) });
-  if (search) params.set("search", search);
-  return apiFetch<CustomerListResponse>(`/customers/?${params}`, { token: token() });
+  query?: string
+): Promise<PaginatedCustomers> {
+  const params = new URLSearchParams({
+    skip: String((page - 1) * perPage),
+    limit: String(perPage),
+  });
+  if (query) params.set("q", query);
+  const data = await apiFetch<CustomerResponse[]>(`/customers/?${params.toString()}`, {
+    token: token(),
+  });
+  // Backend returns plain array; wrap in paginated shape
+  return { data, total: data.length };
 }
 
 export async function getCustomer(id: string): Promise<CustomerResponse> {
@@ -129,7 +94,10 @@ export async function createCustomer(data: CustomerCreate): Promise<CustomerResp
   });
 }
 
-export async function updateCustomer(id: string, data: CustomerUpdate): Promise<CustomerResponse> {
+export async function updateCustomer(
+  id: string,
+  data: CustomerUpdate
+): Promise<CustomerResponse> {
   return apiFetch<CustomerResponse>(`/customers/${id}`, {
     method: "PATCH",
     body: JSON.stringify(data),
@@ -138,7 +106,7 @@ export async function updateCustomer(id: string, data: CustomerUpdate): Promise<
 }
 
 export async function deleteCustomer(id: string): Promise<void> {
-  return apiFetch<void>(`/customers/${id}`, {
+  await apiFetch<void>(`/customers/${id}`, {
     method: "DELETE",
     token: token(),
   });

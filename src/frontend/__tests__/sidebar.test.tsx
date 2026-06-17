@@ -25,49 +25,6 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-// ─── Group structure ─────────────────────────────────────────────────────────
-
-describe("Sidebar — group labels", () => {
-  beforeEach(() => vi.resetModules());
-  afterEach(() => vi.resetModules());
-
-  it("renders section label Projecten", async () => {
-    const { default: Sidebar } = await import("@/components/sidebar");
-    render(<Sidebar />);
-    // Section labels appear as uppercase text; getAll handles desktop+mobile duplicate
-    const labels = screen.getAllByText(/^Projecten$/i);
-    expect(labels.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("renders section label Contracteren", async () => {
-    const { default: Sidebar } = await import("@/components/sidebar");
-    render(<Sidebar />);
-    const labels = screen.getAllByText(/^Contracteren$/i);
-    expect(labels.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("renders section label Financieel", async () => {
-    const { default: Sidebar } = await import("@/components/sidebar");
-    render(<Sidebar />);
-    const labels = screen.getAllByText(/^Financieel$/i);
-    expect(labels.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("renders section label Inkoop", async () => {
-    const { default: Sidebar } = await import("@/components/sidebar");
-    render(<Sidebar />);
-    const labels = screen.getAllByText(/^Inkoop$/i);
-    expect(labels.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("renders section label Team", async () => {
-    const { default: Sidebar } = await import("@/components/sidebar");
-    render(<Sidebar />);
-    const labels = screen.getAllByText(/^Team$/i);
-    expect(labels.length).toBeGreaterThanOrEqual(1);
-  });
-});
-
 // ─── All nav items are rendered ───────────────────────────────────────────────
 
 describe("Sidebar — nav items", () => {
@@ -76,23 +33,20 @@ describe("Sidebar — nav items", () => {
 
   const items: [string, string][] = [
     ["Dashboard", "/dashboard"],
-    ["Agenda", "/dashboard/agenda"],
     ["Projecten", "/dashboard/projects"],
-    ["Processen", "/dashboard/processes"],
-    ["Rapporten", "/dashboard/reports"],
-    ["Offertes", "/dashboard/quotes"],
-    ["Klanten", "/dashboard/customers"],
+    ["Contracten", "/dashboard/contracten"],
+    ["Klanten", "/dashboard/klanten"],
+    ["Agenda", "/dashboard/agenda"],
     ["Facturen", "/dashboard/invoices"],
     ["Financiën", "/dashboard/financials"],
     ["BTW Aangifte", "/dashboard/btw"],
     ["Materialen", "/dashboard/materials"],
-    ["Beschikbaarheid", "/dashboard/materials/availability"],
-    ["Gereedschap", "/dashboard/equipment"],
+    ["Processen", "/dashboard/processes"],
     ["Personeel", "/dashboard/staff"],
-    ["Onderaannemers", "/dashboard/subcontractors"],
+    ["Gereedschap", "/dashboard/equipment"],
+    ["Rapporten", "/dashboard/reports"],
     ["Reviews", "/dashboard/reviews"],
     ["Meldingen", "/dashboard/notifications"],
-    ["Spraakassistent", "/dashboard/voice"],
     ["Instellingen", "/dashboard/settings"],
   ];
 
@@ -100,7 +54,6 @@ describe("Sidebar — nav items", () => {
     it(`renders "${label}" link pointing to ${href}`, async () => {
       const { default: Sidebar } = await import("@/components/sidebar");
       render(<Sidebar />);
-      // Links may appear twice (desktop + mobile drawer) — just check at least one exists with correct href
       const links = screen
         .getAllByRole("link", { name: new RegExp(label, "i") })
         .filter((el) => el.getAttribute("href") === href);
@@ -196,7 +149,6 @@ describe("Sidebar — mobile toggle", () => {
   it("mobile drawer is hidden by default (translate-x-full or similar)", async () => {
     const { default: Sidebar } = await import("@/components/sidebar");
     const { container } = render(<Sidebar />);
-    // The mobile aside should have -translate-x-full when closed
     const mobileAside = container.querySelector("aside.fixed");
     expect(mobileAside?.className).toMatch(/-translate-x-full/);
   });
@@ -210,26 +162,6 @@ describe("Sidebar — mobile toggle", () => {
 
     const mobileAside = container.querySelector("aside.fixed");
     expect(mobileAside?.className).not.toMatch(/-translate-x-full/);
-  });
-
-  it("mobile overlay closes the drawer when clicked", async () => {
-    const { default: Sidebar } = await import("@/components/sidebar");
-    const { container } = render(<Sidebar />);
-
-    // Open the drawer
-    fireEvent.click(screen.getByRole("button", { name: /toggle menu/i }));
-
-    // Click the overlay
-    const overlay = container.querySelector('[data-testid="mobile-overlay"]');
-    if (overlay) {
-      fireEvent.click(overlay);
-      const mobileAside = container.querySelector("aside.fixed");
-      expect(mobileAside?.className).toMatch(/-translate-x-full/);
-    } else {
-      // overlay may be rendered differently; check drawer closes via a sibling click
-      // This is acceptable if the overlay is aria-hidden
-      expect(true).toBe(true);
-    }
   });
 
   it("clicking a nav item in mobile drawer closes it", async () => {

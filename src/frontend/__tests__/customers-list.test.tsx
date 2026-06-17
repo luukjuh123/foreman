@@ -17,9 +17,14 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-vi.mock("@/lib/api", () => ({
-  apiFetch: vi.fn(),
+vi.mock("@/lib/customers", () => ({
+  listCustomers: vi.fn(),
+  createCustomer: vi.fn(),
+  updateCustomer: vi.fn(),
+  formatEuroCents: vi.fn((c: number) => `€${(c / 100).toFixed(2)}`),
 }));
+
+import { listCustomers } from "@/lib/customers";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -52,19 +57,14 @@ const makeCustomer = (overrides: Partial<{
   updated_at: "2024-01-01T00:00:00Z",
 });
 
-const makeListResponse = (
+function mockListCustomers(
   customers: ReturnType<typeof makeCustomer>[],
-  overrides: Partial<{ total: number; page: number; per_page: number }> = {}
-) => ({
-  data: customers,
-  total: overrides.total ?? customers.length,
-  page: overrides.page ?? 1,
-  per_page: overrides.per_page ?? 20,
-});
-
-async function getApiFetch() {
-  const { apiFetch } = await import("@/lib/api");
-  return vi.mocked(apiFetch);
+  overrides: Partial<{ total: number }> = {}
+) {
+  vi.mocked(listCustomers).mockResolvedValue({
+    data: customers,
+    total: overrides.total ?? customers.length,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -73,8 +73,7 @@ async function getApiFetch() {
 
 describe("KlantenPage — loading state", () => {
   it("shows loading indicator while fetching", async () => {
-    const apiFetch = await getApiFetch();
-    apiFetch.mockReturnValue(new Promise(() => {}));
+    vi.mocked(listCustomers).mockReturnValue(new Promise(() => {}));
 
     const { default: KlantenPage } = await import("@/app/dashboard/customers/page");
     render(<KlantenPage />);
@@ -89,8 +88,7 @@ describe("KlantenPage — loading state", () => {
 
 describe("KlantenPage — error state", () => {
   it("shows error message when fetch fails", async () => {
-    const apiFetch = await getApiFetch();
-    apiFetch.mockRejectedValue(new Error("Netwerk fout"));
+    vi.mocked(listCustomers).mockRejectedValue(new Error("Netwerk fout"));
 
     const { default: KlantenPage } = await import("@/app/dashboard/customers/page");
     render(<KlantenPage />);
@@ -107,8 +105,7 @@ describe("KlantenPage — error state", () => {
 
 describe("KlantenPage — empty state", () => {
   it("shows empty state when no customers", async () => {
-    const apiFetch = await getApiFetch();
-    apiFetch.mockResolvedValue(makeListResponse([]));
+    mockListCustomers([]);
 
     const { default: KlantenPage } = await import("@/app/dashboard/customers/page");
     render(<KlantenPage />);
@@ -125,13 +122,10 @@ describe("KlantenPage — empty state", () => {
 
 describe("KlantenPage — renders list", () => {
   it("renders customer names", async () => {
-    const apiFetch = await getApiFetch();
-    apiFetch.mockResolvedValue(
-      makeListResponse([
-        makeCustomer({ id: "cust-1", name: "Bouwbedrijf Jansen" }),
-        makeCustomer({ id: "cust-2", name: "Schildersbedrijf De Vries" }),
-      ])
-    );
+    mockListCustomers([
+      makeCustomer({ id: "cust-1", name: "Bouwbedrijf Jansen" }),
+      makeCustomer({ id: "cust-2", name: "Schildersbedrijf De Vries" }),
+    ]);
 
     const { default: KlantenPage } = await import("@/app/dashboard/customers/page");
     render(<KlantenPage />);
@@ -143,10 +137,7 @@ describe("KlantenPage — renders list", () => {
   });
 
   it("renders customer city", async () => {
-    const apiFetch = await getApiFetch();
-    apiFetch.mockResolvedValue(
-      makeListResponse([makeCustomer({ city: "Rotterdam" })])
-    );
+    mockListCustomers([makeCustomer({ city: "Rotterdam" })]);
 
     const { default: KlantenPage } = await import("@/app/dashboard/customers/page");
     render(<KlantenPage />);
@@ -157,10 +148,7 @@ describe("KlantenPage — renders list", () => {
   });
 
   it("renders customer email", async () => {
-    const apiFetch = await getApiFetch();
-    apiFetch.mockResolvedValue(
-      makeListResponse([makeCustomer({ email: "info@jansen.nl" })])
-    );
+    mockListCustomers([makeCustomer({ email: "info@jansen.nl" })]);
 
     const { default: KlantenPage } = await import("@/app/dashboard/customers/page");
     render(<KlantenPage />);
@@ -171,10 +159,7 @@ describe("KlantenPage — renders list", () => {
   });
 
   it("renders dash when email is null", async () => {
-    const apiFetch = await getApiFetch();
-    apiFetch.mockResolvedValue(
-      makeListResponse([makeCustomer({ email: null })])
-    );
+    mockListCustomers([makeCustomer({ email: null })]);
 
     const { default: KlantenPage } = await import("@/app/dashboard/customers/page");
     render(<KlantenPage />);
@@ -185,10 +170,7 @@ describe("KlantenPage — renders list", () => {
   });
 
   it("customer name links to detail page", async () => {
-    const apiFetch = await getApiFetch();
-    apiFetch.mockResolvedValue(
-      makeListResponse([makeCustomer({ id: "cust-abc", name: "Test Klant" })])
-    );
+    mockListCustomers([makeCustomer({ id: "cust-abc", name: "Test Klant" })]);
 
     const { default: KlantenPage } = await import("@/app/dashboard/customers/page");
     render(<KlantenPage />);
@@ -206,8 +188,7 @@ describe("KlantenPage — renders list", () => {
 
 describe("KlantenPage — header", () => {
   it("renders Klanten page title", async () => {
-    const apiFetch = await getApiFetch();
-    apiFetch.mockResolvedValue(makeListResponse([]));
+    mockListCustomers([]);
 
     const { default: KlantenPage } = await import("@/app/dashboard/customers/page");
     render(<KlantenPage />);
@@ -218,8 +199,7 @@ describe("KlantenPage — header", () => {
   });
 
   it("renders Klant toevoegen button", async () => {
-    const apiFetch = await getApiFetch();
-    apiFetch.mockResolvedValue(makeListResponse([]));
+    mockListCustomers([]);
 
     const { default: KlantenPage } = await import("@/app/dashboard/customers/page");
     render(<KlantenPage />);
@@ -230,8 +210,7 @@ describe("KlantenPage — header", () => {
   });
 
   it("opens add dialog when Klant toevoegen is clicked", async () => {
-    const apiFetch = await getApiFetch();
-    apiFetch.mockResolvedValue(makeListResponse([]));
+    mockListCustomers([]);
 
     const { default: KlantenPage } = await import("@/app/dashboard/customers/page");
     render(<KlantenPage />);
@@ -251,8 +230,7 @@ describe("KlantenPage — header", () => {
 
 describe("KlantenPage — search", () => {
   it("renders search input", async () => {
-    const apiFetch = await getApiFetch();
-    apiFetch.mockResolvedValue(makeListResponse([]));
+    mockListCustomers([]);
 
     const { default: KlantenPage } = await import("@/app/dashboard/customers/page");
     render(<KlantenPage />);
@@ -269,14 +247,11 @@ describe("KlantenPage — search", () => {
 
 describe("KlantenPage — pagination", () => {
   it("shows next page button when there are more pages", async () => {
-    const apiFetch = await getApiFetch();
-    apiFetch.mockResolvedValue(
-      makeListResponse(
-        Array.from({ length: 20 }, (_, i) =>
-          makeCustomer({ id: `cust-${i}`, name: `Klant ${i}` })
-        ),
-        { total: 40, page: 1, per_page: 20 }
-      )
+    mockListCustomers(
+      Array.from({ length: 20 }, (_, i) =>
+        makeCustomer({ id: `cust-${i}`, name: `Klant ${i}` })
+      ),
+      { total: 40 }
     );
 
     const { default: KlantenPage } = await import("@/app/dashboard/customers/page");
@@ -288,10 +263,7 @@ describe("KlantenPage — pagination", () => {
   });
 
   it("does not show next page button on last page", async () => {
-    const apiFetch = await getApiFetch();
-    apiFetch.mockResolvedValue(
-      makeListResponse([makeCustomer()], { total: 1, page: 1, per_page: 20 })
-    );
+    mockListCustomers([makeCustomer()], { total: 1 });
 
     const { default: KlantenPage } = await import("@/app/dashboard/customers/page");
     render(<KlantenPage />);
@@ -302,12 +274,9 @@ describe("KlantenPage — pagination", () => {
   });
 
   it("shows page info when multiple pages exist", async () => {
-    const apiFetch = await getApiFetch();
-    apiFetch.mockResolvedValue(
-      makeListResponse(
-        Array.from({ length: 20 }, (_, i) => makeCustomer({ id: `c-${i}`, name: `Klant ${i}` })),
-        { total: 40, page: 1, per_page: 20 }
-      )
+    mockListCustomers(
+      Array.from({ length: 20 }, (_, i) => makeCustomer({ id: `c-${i}`, name: `Klant ${i}` })),
+      { total: 40 }
     );
 
     const { default: KlantenPage } = await import("@/app/dashboard/customers/page");
@@ -325,8 +294,7 @@ describe("KlantenPage — pagination", () => {
 
 describe("KlantenPage — dialog form", () => {
   it("dialog shows naam and stad fields", async () => {
-    const apiFetch = await getApiFetch();
-    apiFetch.mockResolvedValue(makeListResponse([]));
+    mockListCustomers([]);
 
     const { default: KlantenPage } = await import("@/app/dashboard/customers/page");
     render(<KlantenPage />);
@@ -341,8 +309,7 @@ describe("KlantenPage — dialog form", () => {
   });
 
   it("dialog shows telefoon and kvk fields", async () => {
-    const apiFetch = await getApiFetch();
-    apiFetch.mockResolvedValue(makeListResponse([]));
+    mockListCustomers([]);
 
     const { default: KlantenPage } = await import("@/app/dashboard/customers/page");
     render(<KlantenPage />);

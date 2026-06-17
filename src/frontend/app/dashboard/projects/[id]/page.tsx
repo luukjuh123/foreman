@@ -4,48 +4,31 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ChevronDown, ChevronRight, UserPlus, X } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { DocumentList } from "@/components/documents/document-list";
+import {
+  ChevronRight,
+  ChevronDown,
+  UserPlus,
+  X,
+  Calendar,
+  Banknote,
+  Layers,
+  CheckSquare,
+  LayoutGrid,
+  GanttChartSquare,
+  Clock,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getProject, calcPhaseProgress } from "@/lib/projects";
+import { formatMoney, formatDate } from "@/lib/format";
 import type { ProjectResponse, PhaseResponse, TaskResponse } from "@/lib/types";
 import { apiFetch } from "@/lib/api";
 import type { SubcontractorResponse, SubcontractorListResponse } from "@/lib/subcontractors";
-import { ProjectHubHeader } from "@/components/project-hub/ProjectHubHeader";
-import { ProjectHubTabBar } from "@/components/project-hub/ProjectHubTabBar";
 import TimeTracker from "@/components/time-tracking/TimeTracker";
 import PunchListTab from "@/components/punch-list/PunchListTab";
-
-// ---------------------------------------------------------------------------
-// Status helpers
-// ---------------------------------------------------------------------------
-
-const TASK_STATUS_LABELS: Record<string, string> = {
-  todo: "Te doen",
-  in_progress: "Bezig",
-  done: "Klaar",
-  blocked: "Geblokkeerd",
-};
-
-const TASK_STATUS_CLASS: Record<string, string> = {
-  todo: "bg-gray-100 text-gray-600",
-  in_progress: "bg-blue-100 text-blue-700",
-  done: "bg-green-100 text-green-700",
-  blocked: "bg-red-100 text-red-700",
-};
-
-// ---------------------------------------------------------------------------
-// Loading skeleton
-// ---------------------------------------------------------------------------
-
-function HeaderSkeleton() {
-  return (
-    <div data-testid="project-header-skeleton" className="space-y-3 animate-pulse">
-      <div className="h-8 w-64 rounded bg-muted" />
-      <div className="h-4 w-48 rounded bg-muted" />
-      <div className="h-2 w-full rounded bg-muted" />
-    </div>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Task row
@@ -53,16 +36,9 @@ function HeaderSkeleton() {
 
 function TaskRow({ task }: { task: TaskResponse }) {
   return (
-    <div className="flex items-center justify-between py-2 px-3 rounded-md bg-muted/40">
-      <span className="text-sm">{task.name}</span>
-      <span
-        className={cn(
-          "rounded-full px-2 py-0.5 text-xs font-medium",
-          TASK_STATUS_CLASS[task.status] ?? "bg-gray-100 text-gray-600"
-        )}
-      >
-        {TASK_STATUS_LABELS[task.status] ?? task.status}
-      </span>
+    <div className="flex items-center justify-between py-2 px-3 rounded-md bg-muted/30 border border-border/30">
+      <span className="text-sm text-foreground">{task.name}</span>
+      <StatusBadge status={task.status} />
     </div>
   );
 }
@@ -113,14 +89,14 @@ function SubcontractorPicker({ phaseId, onClose }: SubcontractorPickerProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="w-full max-w-md rounded-lg bg-background p-6 shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-2xl">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold">Onderaannemer toewijzen</h2>
           <button
             type="button"
             onClick={onClose}
-            className="text-muted-foreground hover:text-foreground"
+            className="rounded-md p-1 text-muted-foreground hover:text-foreground"
             aria-label="Sluiten"
           >
             <X className="h-5 w-5" />
@@ -128,7 +104,10 @@ function SubcontractorPicker({ phaseId, onClose }: SubcontractorPickerProps) {
         </div>
 
         {loading ? (
-          <p className="text-sm text-muted-foreground">Laden…</p>
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
+          </div>
         ) : (
           <form onSubmit={handleAssign} className="space-y-4">
             <div>
@@ -139,16 +118,12 @@ function SubcontractorPicker({ phaseId, onClose }: SubcontractorPickerProps) {
                 id="sub-picker-select"
                 value={selectedId}
                 onChange={(e) => setSelectedId(e.target.value)}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 required
               >
-                <option value="" disabled>
-                  Selecteer onderaannemer
-                </option>
+                <option value="" disabled>Selecteer onderaannemer</option>
                 {subs.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.company_name}
-                  </option>
+                  <option key={s.id} value={s.id}>{s.company_name}</option>
                 ))}
               </select>
             </div>
@@ -166,7 +141,7 @@ function SubcontractorPicker({ phaseId, onClose }: SubcontractorPickerProps) {
                   value={rateEuros}
                   onChange={(e) => setRateEuros(e.target.value)}
                   placeholder="75.00"
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 />
               </div>
             )}
@@ -174,9 +149,7 @@ function SubcontractorPicker({ phaseId, onClose }: SubcontractorPickerProps) {
             {error && <p className="text-sm text-destructive">{error}</p>}
 
             <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="outline" onClick={onClose}>
-                Annuleren
-              </Button>
+              <Button type="button" variant="outline" onClick={onClose}>Annuleren</Button>
               <Button type="submit" disabled={saving || !selectedId}>
                 {saving ? "Toewijzen…" : "Toewijzen"}
               </Button>
@@ -201,9 +174,9 @@ function PhaseCard({ phase }: { phase: PhaseResponse }) {
 
   return (
     <>
-      <Card>
+      <Card className="border-border/60 bg-card/80">
         <CardHeader
-          className="cursor-pointer select-none pb-2"
+          className="cursor-pointer select-none pb-3"
           onClick={() => setExpanded((v) => !v)}
         >
           <div className="flex items-center justify-between">
@@ -213,17 +186,20 @@ function PhaseCard({ phase }: { phase: PhaseResponse }) {
               ) : (
                 <ChevronRight className="h-4 w-4 text-muted-foreground" />
               )}
-              <CardTitle className="text-base">{phase.name}</CardTitle>
+              <CardTitle className="text-sm font-semibold">{phase.name}</CardTitle>
             </div>
-            <span className="text-xs text-muted-foreground">
-              {done}/{total} taken
-            </span>
+            <div className="flex items-center gap-2">
+              <StatusBadge status={phase.status} />
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {done}/{total} taken
+              </span>
+            </div>
           </div>
 
           {/* Progress bar */}
-          <div className="mt-2 h-1.5 w-full rounded-full bg-muted">
+          <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted/60">
             <div
-              className="h-1.5 rounded-full bg-primary transition-all"
+              className="h-1.5 rounded-full bg-primary transition-all duration-300"
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -231,11 +207,12 @@ function PhaseCard({ phase }: { phase: PhaseResponse }) {
 
         {expanded && (
           <CardContent className="space-y-1.5 pt-0">
-            {phase.tasks.length > 0 && phase.tasks.map((task) => (
-              <TaskRow key={task.id} task={task} />
-            ))}
+            {phase.tasks.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Geen taken.</p>
+            ) : (
+              phase.tasks.map((task) => <TaskRow key={task.id} task={task} />)
+            )}
 
-            {/* Subcontractor assignment button */}
             <div className="pt-2">
               <Button
                 size="sm"
@@ -264,44 +241,62 @@ function PhaseCard({ phase }: { phase: PhaseResponse }) {
 }
 
 // ---------------------------------------------------------------------------
-// Key numbers card
+// Key facts card grid
 // ---------------------------------------------------------------------------
 
-function KeyNumbers({ project }: { project: ProjectResponse }) {
+interface KeyFactsProps {
+  project: ProjectResponse;
+}
+
+function KeyFacts({ project }: KeyFactsProps) {
   const allTasks = project.phases.flatMap((p) => p.tasks);
-  const done = allTasks.filter((t) => t.status === "done").length;
-  const inProgress = allTasks.filter((t) => t.status === "in_progress").length;
-  const blocked = allTasks.filter((t) => t.status === "blocked").length;
+  const openTasks = allTasks.filter((t) => t.status !== "done").length;
+  const donePhases = project.phases.filter(
+    (p) => p.status === "completed" || p.status === "done"
+  ).length;
+
+  const facts = [
+    {
+      icon: Calendar,
+      label: "Looptijd",
+      value: project.start_date
+        ? `${formatDate(project.start_date)} – ${formatDate(project.end_date)}`
+        : "Niet ingesteld",
+    },
+    {
+      icon: Banknote,
+      label: "Budget",
+      value: project.budget_cents != null
+        ? formatMoney(project.budget_cents)
+        : "Niet ingesteld",
+    },
+    {
+      icon: Layers,
+      label: "Fases",
+      value: `${donePhases}/${project.phases.length} voltooid`,
+    },
+    {
+      icon: CheckSquare,
+      label: "Open taken",
+      value: `${openTasks} open`,
+    },
+  ];
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base">Kerncijfers</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div className="space-y-0.5">
-            <p className="text-2xl font-bold text-foreground">{project.phases.length}</p>
-            <p className="text-xs text-muted-foreground">Fases</p>
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {facts.map(({ icon: Icon, label, value }) => (
+        <div
+          key={label}
+          className="rounded-lg border border-border/50 bg-muted/30 px-4 py-3"
+        >
+          <div className="mb-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Icon className="h-3.5 w-3.5" />
+            {label}
           </div>
-          <div className="space-y-0.5">
-            <p className="text-2xl font-bold text-foreground">{allTasks.length}</p>
-            <p className="text-xs text-muted-foreground">Taken totaal</p>
-          </div>
-          <div className="space-y-0.5">
-            <p className="text-2xl font-bold text-green-600">{done}</p>
-            <p className="text-xs text-muted-foreground">Voltooid</p>
-          </div>
-          <div className="space-y-0.5">
-            <p className="text-2xl font-bold text-blue-600">{inProgress}</p>
-            <p className="text-xs text-muted-foreground">In uitvoering</p>
-          </div>
+          <p className="text-sm font-semibold text-foreground">{value}</p>
         </div>
-        {blocked > 0 && (
-          <p className="mt-2 text-xs text-red-600">{blocked} geblokkeerde taak{blocked !== 1 ? "en" : ""}</p>
-        )}
-      </CardContent>
-    </Card>
+      ))}
+    </div>
   );
 }
 
@@ -317,6 +312,7 @@ export default function ProjectDetailPage({ params }: Props) {
   const [project, setProject] = useState<ProjectResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("overzicht");
 
   useEffect(() => {
     params.then(({ id }) => {
@@ -330,13 +326,14 @@ export default function ProjectDetailPage({ params }: Props) {
   if (loading) {
     return (
       <div className="space-y-6">
-        <Link href="/dashboard/projects">
-          <Button variant="ghost" size="sm">
-            <ArrowLeft className="mr-1.5 h-4 w-4" />
-            Terug naar projecten
-          </Button>
-        </Link>
-        <HeaderSkeleton />
+        <Skeleton className="h-4 w-32" />
+        <div className="space-y-2">
+          <Skeleton className="h-8 w-64" />
+          <Skeleton className="h-4 w-48" />
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-16 rounded-lg" />)}
+        </div>
       </div>
     );
   }
@@ -346,8 +343,8 @@ export default function ProjectDetailPage({ params }: Props) {
       <div className="space-y-4">
         <Link href="/dashboard/projects">
           <Button variant="ghost" size="sm">
-            <ArrowLeft className="mr-1.5 h-4 w-4" />
-            Terug
+            <ChevronRight className="mr-1 h-4 w-4 rotate-180" />
+            Projecten
           </Button>
         </Link>
         <p className="text-sm text-destructive">{error ?? "Project niet gevonden."}</p>
@@ -357,48 +354,103 @@ export default function ProjectDetailPage({ params }: Props) {
 
   return (
     <div className="space-y-6">
-      {/* Back */}
-      <Link href="/dashboard/projects">
-        <Button variant="ghost" size="sm">
-          <ArrowLeft className="mr-1.5 h-4 w-4" />
-          Terug naar projecten
-        </Button>
-      </Link>
+      {/* Breadcrumb */}
+      <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
+        <Link href="/dashboard/projects" className="hover:text-foreground transition-colors">
+          Projecten
+        </Link>
+        <ChevronRight className="h-3.5 w-3.5" />
+        <span className="text-foreground font-medium truncate max-w-[200px]">
+          {project.name}
+        </span>
+      </nav>
 
-      {/* Rich project header */}
-      <ProjectHubHeader project={project} />
-
-      {/* Tab navigation */}
-      <ProjectHubTabBar projectId={project.id} />
-
-      {/* Overzicht content — key numbers */}
-      <KeyNumbers project={project} />
-
-      {/* Punch list */}
+      {/* Project header */}
       <div className="space-y-3">
-        <h2 className="text-lg font-semibold">Nakijklijst</h2>
-        <PunchListTab projectId={project.id} />
-      </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-xl font-bold text-foreground">{project.name}</h1>
+          <StatusBadge status={project.status} className="text-sm px-2.5 py-0.5" />
+        </div>
 
-      {/* Phases */}
-      <div className="space-y-3">
-        <h2 className="text-lg font-semibold">Fases</h2>
-        {project.phases.length === 0 ? (
-          <Card>
-            <CardContent className="py-8 text-center">
-              <p className="text-sm text-muted-foreground">Geen fases toegevoegd.</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Voeg een fase toe om taken te plannen.
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          project.phases.map((phase) => <PhaseCard key={phase.id} phase={phase} />)
+        {project.description && (
+          <p className="text-sm text-muted-foreground leading-relaxed">{project.description}</p>
         )}
+
+        {/* View buttons */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Link href={`/dashboard/projects/${project.id}/board`}>
+            <Button variant="outline" size="sm">
+              <LayoutGrid className="mr-1.5 h-4 w-4" />
+              Takenbord
+            </Button>
+          </Link>
+          <Link href={`/dashboard/projects/${project.id}/gantt`}>
+            <Button variant="outline" size="sm">
+              <GanttChartSquare className="mr-1.5 h-4 w-4" />
+              Gantt
+            </Button>
+          </Link>
+          <Link href={`/dashboard/projects/${project.id}/processes`}>
+            <Button variant="outline" size="sm">
+              <Clock className="mr-1.5 h-4 w-4" />
+              Processen
+            </Button>
+          </Link>
+          <Link href={`/dashboard/projects/${project.id}/timeline`}>
+            <Button variant="outline" size="sm">Tijdlijn</Button>
+          </Link>
+        </div>
       </div>
 
-      {/* Time tracking */}
-      <TimeTracker projectId={project.id} />
+      {/* Key facts */}
+      <KeyFacts project={project} />
+
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList>
+          <TabsTrigger value="overzicht">Overzicht</TabsTrigger>
+          <TabsTrigger value="fases">Fases</TabsTrigger>
+          <TabsTrigger value="documenten">Documenten</TabsTrigger>
+          <TabsTrigger value="nakijklijst">Nakijklijst</TabsTrigger>
+          <TabsTrigger value="uren">Tijdregistratie</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overzicht">
+          {/* Phase summary + quick info */}
+          <div className="space-y-3">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+              Faseoverzicht
+            </h2>
+            {project.phases.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Geen fases toegevoegd.</p>
+            ) : (
+              project.phases.map((phase) => <PhaseCard key={phase.id} phase={phase} />)
+            )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="fases">
+          <div className="space-y-3">
+            {project.phases.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Geen fases toegevoegd.</p>
+            ) : (
+              project.phases.map((phase) => <PhaseCard key={phase.id} phase={phase} />)
+            )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="documenten">
+          <DocumentList projectId={project.id} />
+        </TabsContent>
+
+        <TabsContent value="nakijklijst">
+          <PunchListTab projectId={project.id} />
+        </TabsContent>
+
+        <TabsContent value="uren">
+          <TimeTracker projectId={project.id} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

@@ -20,4 +20,4 @@ node_modules/
 
 # in foreman/.gitignore
 .env
-**/.env
+**/.env*.tsbuildinfo
