@@ -25,7 +25,7 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-describe("Sidebar — grouped navigation", () => {
+describe("Sidebar — flat navigation", () => {
   beforeEach(() => {
     vi.resetModules();
   });
@@ -33,54 +33,15 @@ describe("Sidebar — grouped navigation", () => {
     vi.resetModules();
   });
 
-  it("renders the Projecten section heading", async () => {
+  it("renders Projecten link", async () => {
     const { default: Sidebar } = await import("@/components/sidebar");
     render(<Sidebar />);
-    const headings = screen.getAllByText(/projecten/i);
-    // At least one should be a section heading (not just a nav link)
-    expect(headings.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("renders the Administratie section heading", async () => {
-    const { default: Sidebar } = await import("@/components/sidebar");
-    render(<Sidebar />);
-    // Sidebar renders nav content twice (mobile drawer + desktop) so use getAllBy
-    const headings = screen.getAllByText("Administratie");
-    expect(headings.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("renders the Financieel section heading", async () => {
-    const { default: Sidebar } = await import("@/components/sidebar");
-    render(<Sidebar />);
-    const headings = screen.getAllByText("Financieel");
-    expect(headings.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("renders the Instellingen section heading", async () => {
-    const { default: Sidebar } = await import("@/components/sidebar");
-    render(<Sidebar />);
-    // "Instellingen" also appears as a nav link label — getAllByText is robust
-    const headings = screen.getAllByText("Instellingen");
-    expect(headings.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("renders Dashboard link in Projecten section", async () => {
-    const { default: Sidebar } = await import("@/components/sidebar");
-    render(<Sidebar />);
-    const links = screen.getAllByRole("link", { name: /dashboard/i });
+    const links = screen.getAllByRole("link", { name: /projecten/i });
     expect(links.length).toBeGreaterThanOrEqual(1);
-    expect(links[0]).toHaveAttribute("href", "/dashboard");
+    expect(links[0]).toHaveAttribute("href", "/dashboard/projects");
   });
 
-  it("renders Offertes link pointing to /dashboard/quotes", async () => {
-    const { default: Sidebar } = await import("@/components/sidebar");
-    render(<Sidebar />);
-    const offerteLinks = screen.getAllByRole("link", { name: /offertes/i });
-    expect(offerteLinks.length).toBeGreaterThanOrEqual(1);
-    expect(offerteLinks[0]).toHaveAttribute("href", "/dashboard/quotes");
-  });
-
-  it("renders Facturen link under Administratie", async () => {
+  it("renders Facturen link pointing to /dashboard/invoices", async () => {
     const { default: Sidebar } = await import("@/components/sidebar");
     render(<Sidebar />);
     const links = screen.getAllByRole("link", { name: /facturen/i });
@@ -88,7 +49,7 @@ describe("Sidebar — grouped navigation", () => {
     expect(links[0]).toHaveAttribute("href", "/dashboard/invoices");
   });
 
-  it("renders Financiën link under Financieel", async () => {
+  it("renders Financiën link pointing to /dashboard/financials", async () => {
     const { default: Sidebar } = await import("@/components/sidebar");
     render(<Sidebar />);
     const links = screen.getAllByRole("link", { name: /financiën/i });
@@ -96,7 +57,7 @@ describe("Sidebar — grouped navigation", () => {
     expect(links[0]).toHaveAttribute("href", "/dashboard/financials");
   });
 
-  it("renders BTW link under Financieel", async () => {
+  it("renders BTW link under /dashboard/btw", async () => {
     const { default: Sidebar } = await import("@/components/sidebar");
     render(<Sidebar />);
     const links = screen.getAllByRole("link", { name: /btw/i });
@@ -104,7 +65,7 @@ describe("Sidebar — grouped navigation", () => {
     expect(links[0]).toHaveAttribute("href", "/dashboard/btw");
   });
 
-  it("renders Instellingen link under Instellingen section", async () => {
+  it("renders Instellingen link under /dashboard/settings", async () => {
     const { default: Sidebar } = await import("@/components/sidebar");
     render(<Sidebar />);
     const links = screen.getAllByRole("link", { name: /instellingen/i });
@@ -134,15 +95,10 @@ describe("Sidebar — grouped navigation", () => {
     expect(links[0].className).not.toMatch(/bg-primary/);
   });
 
-  it("section headings have muted/uppercase styling cues", async () => {
+  it("renders Foreman app name in the header area", async () => {
     const { default: Sidebar } = await import("@/components/sidebar");
     render(<Sidebar />);
-    // Find section heading elements — rendered twice (mobile+desktop)
-    const els = screen.getAllByText("Administratie");
-    expect(els.length).toBeGreaterThanOrEqual(1);
-    // Every heading element should carry styling cues
-    els.forEach((el) => {
-      expect(el.className).toMatch(/uppercase|muted|text-xs/);
-    });
+    const names = screen.getAllByText(/foreman/i);
+    expect(names.length).toBeGreaterThanOrEqual(1);
   });
 });

@@ -70,9 +70,9 @@ const mockCustomers: CustomerResponse[] = [
 describe("customers API client", () => {
   it("listCustomers calls correct endpoint", async () => {
     const { listCustomers: lc } = await import("@/lib/customers");
-    vi.mocked(listCustomers).mockResolvedValue(mockCustomers);
+    vi.mocked(listCustomers).mockResolvedValue({ data: mockCustomers, total: mockCustomers.length });
     const result = await lc();
-    expect(result).toEqual(mockCustomers);
+    expect(result).toEqual({ data: mockCustomers, total: mockCustomers.length });
   });
 
   it("createCustomer calls POST /customers/ with body", async () => {
@@ -89,7 +89,7 @@ describe("customers API client", () => {
 
 describe("KlantenPage", () => {
   beforeEach(() => {
-    vi.mocked(listCustomers).mockResolvedValue(mockCustomers);
+    vi.mocked(listCustomers).mockResolvedValue({ data: mockCustomers, total: mockCustomers.length });
   });
 
   it("renders Klanten heading", async () => {
