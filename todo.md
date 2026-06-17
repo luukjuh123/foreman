@@ -207,6 +207,7 @@
 ## Priority: High (Phase 22 — Core Admin & Contracting UI)
 
 - [x] Frontend: Project administration hub — rich header with status badge, budget/completion progress, quick actions; tab navigation (Overzicht, Planning, Documenten, Financieel, Team); Documenten tab with upload/download/delete via existing document management backend; Financieel tab with budget KPIs, cost-per-phase breakdown, and linked invoices; Team tab with assigned staff + subcontractors — PR #TBD
+- [x] Frontend: Invoice administration — totals bar, status pills, aging, filters — PR #241
 
 ## Completed
 <!-- [x] Task description — PR #N -->
