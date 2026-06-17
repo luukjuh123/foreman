@@ -525,13 +525,12 @@ describe("ProjectDetailPage", () => {
     });
 
     expect(screen.getByText("Overzicht")).toBeInTheDocument();
-    expect(screen.getByText("Planning")).toBeInTheDocument();
-    expect(screen.getByText("Documenten")).toBeInTheDocument();
+    expect(screen.getByText("Taken")).toBeInTheDocument();
     expect(screen.getByText("Financieel")).toBeInTheDocument();
-    expect(screen.getByText("Team")).toBeInTheDocument();
+    expect(screen.getByText("Onderaannemers")).toBeInTheDocument();
   });
 
-  it("renders phase cards in Overzicht tab", async () => {
+  it("renders phase cards in Taken tab", async () => {
     const project = makeProject();
     vi.doMock("@/lib/projects", () => ({
       getProject: vi.fn().mockResolvedValue(project),
@@ -553,7 +552,8 @@ describe("ProjectDetailPage", () => {
       render(<Page params={Promise.resolve({ id: "proj-1" })} />);
     });
 
-    expect(screen.getByText("Sloopfase")).toBeInTheDocument();
-    expect(screen.getByText("Bouwfase")).toBeInTheDocument();
+    // Phase names are rendered in the Taken tab (present in DOM)
+    expect(screen.getAllByText("Sloopfase").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Bouwfase").length).toBeGreaterThan(0);
   });
 });

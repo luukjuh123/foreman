@@ -309,7 +309,7 @@ function SubcontractorPhaseRow({ phase }: { phase: PhaseResponse }) {
 
 function DetailSkeleton() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-testid="project-header-skeleton">
       <Skeleton className="h-8 w-48" />
       <Card>
         <CardHeader>
