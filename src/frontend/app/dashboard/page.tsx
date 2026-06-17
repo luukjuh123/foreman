@@ -25,6 +25,7 @@ import { listProjects, formatBudget } from "@/lib/projects";
 import { apiFetch } from "@/lib/api";
 import type { ProjectResponse, AgendaTask } from "@/lib/types";
 import { fetchWeekAgenda } from "@/lib/agenda";
+import { cn } from "@/lib/utils";
 
 const ONBOARDING_KEY = "foreman_onboarding_done";
 
@@ -112,6 +113,65 @@ const STATUS_DOT: Record<string, string> = {
 };
 
 // ---------------------------------------------------------------------------
+// Utilization Gauge — radial progress for staff utilization
+// ---------------------------------------------------------------------------
+
+function UtilizationGauge({ percent, assignedHours, availableHours }: { percent: number; assignedHours: number; availableHours: number }) {
+  const clampedPct = Math.min(Math.max(percent, 0), 100);
+  const radius = 40;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - (clampedPct / 100) * circumference;
+  const gaugeColor =
+    clampedPct >= 90 ? "text-red-500" :
+    clampedPct >= 70 ? "text-primary" :
+    clampedPct >= 40 ? "text-emerald-500" :
+    "text-muted-foreground/40";
+
+  return (
+    <Card className="border-0 shadow-sm card-lift">
+      <CardContent className="p-5 flex items-center gap-5">
+        <div className="relative shrink-0">
+          <svg width="96" height="96" viewBox="0 0 96 96" className="-rotate-90">
+            <circle
+              cx="48" cy="48" r={radius}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="6"
+              className="text-muted/60"
+            />
+            <circle
+              cx="48" cy="48" r={radius}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="6"
+              strokeLinecap="round"
+              strokeDasharray={circumference}
+              strokeDashoffset={strokeDashoffset}
+              className={`${gaugeColor} transition-all duration-1000 ease-out`}
+            />
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <span className="text-lg font-extrabold tracking-tight">{clampedPct}%</span>
+            <span className="text-[9px] text-muted-foreground">bezet</span>
+          </div>
+        </div>
+        <div className="min-w-0 space-y-1.5">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+            Teambezetting
+          </p>
+          <p className="text-sm text-muted-foreground">
+            <span className="font-semibold text-foreground">{assignedHours}</span> van {availableHours} uur ingepland
+          </p>
+          <p className={`text-xs font-medium ${clampedPct >= 90 ? "text-red-500" : clampedPct >= 70 ? "text-primary" : "text-emerald-500"}`}>
+            {clampedPct >= 90 ? "Overbezet — overweeg extra capaciteit" : clampedPct >= 70 ? "Goed bezet" : clampedPct >= 40 ? "Ruimte beschikbaar" : "Team grotendeels vrij"}
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // KPI Card
 // ---------------------------------------------------------------------------
 
@@ -125,32 +185,32 @@ interface KpiCardProps {
 }
 
 function KpiCard({ title, value, icon: Icon, accent, subtitle, testId }: KpiCardProps) {
+  const iconColor = accent.replace("bg-", "text-");
+  const iconBg = accent.replace("bg-", "bg-") + "/10";
   return (
-    <Card className="relative overflow-hidden border-0 shadow-sm card-lift">
-      <CardContent className="relative p-4">
-        <div className="flex items-center gap-3">
+    <Card className="relative overflow-hidden border-0 shadow-sm group hover:shadow-md transition-all duration-200">
+      {/* Top accent line */}
+      <div className={`h-[2px] ${accent} opacity-60`} />
+      <CardContent className="relative p-5">
+        <div className="flex items-start justify-between mb-3">
+          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground/50">
+            {title}
+          </p>
           <div
-            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${accent}/10`}
+            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${iconBg} group-hover:scale-110 transition-transform duration-300`}
           >
-            <Icon
-              className={`h-4.5 w-4.5 ${accent.replace("bg-", "text-")}`}
-            />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[11px] font-medium text-muted-foreground/70 truncate">
-              {title}
-            </p>
-            <p
-              className="text-xl font-extrabold tracking-tight leading-tight"
-              data-testid={testId}
-            >
-              {value}
-            </p>
-            {subtitle && (
-              <p className="text-[10px] text-muted-foreground">{subtitle}</p>
-            )}
+            <Icon className={`h-4 w-4 ${iconColor}`} />
           </div>
         </div>
+        <p
+          className="text-[26px] font-extrabold tracking-tight leading-none stat-value"
+          data-testid={testId}
+        >
+          {value}
+        </p>
+        {subtitle && (
+          <p className="text-[11px] text-muted-foreground/60 mt-2">{subtitle}</p>
+        )}
       </CardContent>
     </Card>
   );
@@ -169,39 +229,27 @@ interface PipelineData {
   paidCents: number;
 }
 
-function ChevronArrow({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 48" fill="none" className={className}>
-      <path
-        d="M8 8L16 24L8 40"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        opacity="0.3"
-      />
-    </svg>
-  );
-}
-
-function conversionRate(from: number, to: number): string {
-  if (from === 0) return "—";
-  const pct = Math.round((to / from) * 100);
-  return `${pct}%`;
-}
-
 function ContractPipeline({ data }: { data: PipelineData }) {
+  const quoteToProject = data.quoteValueCents > 0
+    ? Math.round((data.projectValueCents / data.quoteValueCents) * 100)
+    : 0;
+  const projectToInvoice = data.projectValueCents > 0
+    ? Math.round((data.invoicedCents / data.projectValueCents) * 100)
+    : 0;
+  const invoiceToPaid = data.invoicedCents > 0
+    ? Math.round((data.paidCents / data.invoicedCents) * 100)
+    : 0;
+
   const stages = [
     {
       label: "Offertes",
-      sublabel: `${data.quotesOpen} openstaand`,
+      sublabel: `${data.quotesOpen} open`,
       value: formatBudget(data.quoteValueCents),
       rawCents: data.quoteValueCents,
       icon: ClipboardList,
-      bgColor: "bg-blue-500/10",
-      ringColor: "ring-blue-500/20",
-      textColor: "text-blue-600 dark:text-blue-400",
+      color: "blue",
       href: "/dashboard/quotes",
+      conversion: quoteToProject,
     },
     {
       label: "Projecten",
@@ -209,10 +257,9 @@ function ContractPipeline({ data }: { data: PipelineData }) {
       value: formatBudget(data.projectValueCents),
       rawCents: data.projectValueCents,
       icon: FolderKanban,
-      bgColor: "bg-primary/10",
-      ringColor: "ring-primary/20",
-      textColor: "text-primary",
+      color: "primary",
       href: "/dashboard/projects",
+      conversion: projectToInvoice,
     },
     {
       label: "Gefactureerd",
@@ -220,10 +267,9 @@ function ContractPipeline({ data }: { data: PipelineData }) {
       value: formatBudget(data.invoicedCents),
       rawCents: data.invoicedCents,
       icon: Send,
-      bgColor: "bg-amber-500/10",
-      ringColor: "ring-amber-500/20",
-      textColor: "text-amber-600 dark:text-amber-400",
+      color: "amber",
       href: "/dashboard/invoices",
+      conversion: invoiceToPaid,
     },
     {
       label: "Ontvangen",
@@ -231,102 +277,119 @@ function ContractPipeline({ data }: { data: PipelineData }) {
       value: formatBudget(data.paidCents),
       rawCents: data.paidCents,
       icon: CheckCircle2,
-      bgColor: "bg-emerald-500/10",
-      ringColor: "ring-emerald-500/20",
-      textColor: "text-emerald-600 dark:text-emerald-400",
+      color: "emerald",
       href: "/dashboard/invoices",
+      conversion: null as number | null,
     },
   ];
 
+  const colorMap: Record<string, { iconBg: string; iconText: string; barColor: string; glowColor: string }> = {
+    blue:    { iconBg: "bg-blue-500/10",    iconText: "text-blue-500",    barColor: "bg-blue-500",    glowColor: "shadow-blue-500/20" },
+    primary: { iconBg: "bg-primary/10",      iconText: "text-primary",     barColor: "bg-primary",     glowColor: "shadow-primary/20" },
+    amber:   { iconBg: "bg-amber-500/10",   iconText: "text-amber-500",   barColor: "bg-amber-500",   glowColor: "shadow-amber-500/20" },
+    emerald: { iconBg: "bg-emerald-500/10", iconText: "text-emerald-500", barColor: "bg-emerald-500", glowColor: "shadow-emerald-500/20" },
+  };
+
+  const maxCents = Math.max(...stages.map((s) => s.rawCents), 1);
+  const totalPipeline = data.quoteValueCents + data.projectValueCents + data.invoicedCents;
+  const overallConversion = totalPipeline > 0 ? Math.round((data.paidCents / totalPipeline) * 100) : 0;
+
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between pb-3">
-        <CardTitle className="text-base font-semibold">
-          Contractpipeline
-        </CardTitle>
-        <Link href="/dashboard/quotes">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="gap-1 text-xs text-muted-foreground"
-          >
-            Offertes bekijken
+    <Card className="overflow-hidden border-0 shadow-sm">
+      <CardContent className="p-5 md:p-6">
+        {/* Header with overall stats */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+          <div className="flex items-center gap-2">
+            <div className="h-5 w-1 rounded-full bg-primary" />
+            <h3 className="text-[13px] font-bold">Contract Pipeline</h3>
+            {overallConversion > 0 && (
+              <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                <TrendingUp className="h-2.5 w-2.5" />
+                {overallConversion}% conversie
+              </span>
+            )}
+          </div>
+          <Link href="/dashboard/contracts" className="text-[11px] font-medium text-muted-foreground/60 hover:text-primary transition-colors flex items-center gap-1">
+            Volledig overzicht
             <ArrowRight className="h-3 w-3" />
-          </Button>
-        </Link>
-      </CardHeader>
-      <CardContent>
-        {/* Horizontal funnel — desktop */}
-        <div className="hidden md:grid md:grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr] items-center gap-0">
-          {stages.map((stage, idx) => (
-            <React.Fragment key={stage.label}>
-              <Link href={stage.href} className="group">
-                <div className="relative rounded-2xl border border-border/50 p-5 hover:border-border hover:shadow-md transition-all text-center card-lift">
-                  <div
-                    className={`mx-auto flex h-12 w-12 items-center justify-center rounded-2xl ${stage.bgColor} ring-1 ring-inset ${stage.ringColor} mb-3 group-hover:scale-110 transition-transform duration-200`}
-                  >
-                    <stage.icon className={`h-5 w-5 ${stage.textColor}`} />
-                  </div>
-                  <p className="text-xl font-extrabold tracking-tight group-hover:text-primary transition-colors">
-                    {stage.value}
-                  </p>
-                  <p className="text-xs font-semibold mt-1">{stage.label}</p>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">
-                    {stage.sublabel}
-                  </p>
-                </div>
-              </Link>
-              {idx < stages.length - 1 && (
-                <div className="flex flex-col items-center px-1">
-                  <ChevronArrow className="h-10 w-6 text-muted-foreground/40" />
-                  <span className="text-[9px] font-medium text-muted-foreground/60 -mt-1">
-                    {conversionRate(
-                      stages[idx].rawCents,
-                      stages[idx + 1].rawCents
-                    )}
-                  </span>
-                </div>
-              )}
-            </React.Fragment>
-          ))}
+          </Link>
         </div>
 
-        {/* Vertical flow — mobile */}
-        <div className="md:hidden space-y-2">
-          {stages.map((stage, idx) => (
-            <React.Fragment key={stage.label}>
-              <Link href={stage.href}>
-                <div className="flex items-center gap-3 rounded-xl border border-border/50 p-3 hover:border-border transition-all">
-                  <div
-                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${stage.bgColor}`}
-                  >
-                    <stage.icon
-                      className={`h-4.5 w-4.5 ${stage.textColor}`}
-                    />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium">
-                      {stage.label}{" "}
-                      <span className="text-muted-foreground font-normal">
-                        {stage.sublabel}
+        {/* Flow pipeline — connected stages */}
+        <div className="relative">
+          {/* Background connector line */}
+          <div className="hidden md:block absolute top-[36px] left-[60px] right-[60px] h-[2px] bg-gradient-to-r from-blue-500/20 via-primary/20 via-amber-500/20 to-emerald-500/20 rounded-full" />
+          {/* Animated flow particle */}
+          <div className="hidden md:block absolute top-[35px] left-[60px] right-[60px] h-[4px] overflow-hidden rounded-full">
+            <div className="h-full w-[60px] rounded-full bg-gradient-to-r from-transparent via-primary/40 to-transparent" style={{ animation: "flowRight 3s ease-in-out infinite" }} />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-0">
+            {stages.map((stage, idx) => {
+              const cm = colorMap[stage.color];
+              const barWidth = Math.max((stage.rawCents / maxCents) * 100, 4);
+              const isActive = stage.rawCents > 0;
+              return (
+                <div key={stage.label} className="relative">
+                  <Link href={stage.href} className="group block">
+                    <div className={cn(
+                      "relative rounded-xl border bg-card transition-all duration-200 overflow-hidden",
+                      "md:rounded-none md:border-x-0 md:first:rounded-l-xl md:first:border-l md:last:rounded-r-xl md:last:border-r",
+                      isActive
+                        ? "border-border/40 hover:border-primary/20 hover:shadow-lg card-lift"
+                        : "border-border/20 opacity-60"
+                    )}>
+                      {/* Top accent */}
+                      <div className={cn("h-[3px]", cm.barColor, isActive ? "opacity-80" : "opacity-30")} />
+
+                      <div className="p-4 md:px-5 md:py-5">
+                        {/* Icon */}
+                        <div className={cn(
+                          "flex h-10 w-10 items-center justify-center rounded-xl transition-all duration-300 mb-3",
+                          cm.iconBg,
+                          isActive && `shadow-md ${cm.glowColor}`,
+                          "group-hover:scale-110"
+                        )}>
+                          <stage.icon className={cn("h-4.5 w-4.5", cm.iconText)} />
+                        </div>
+
+                        {/* Label */}
+                        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground/50 mb-1">
+                          {stage.label}
+                        </p>
+
+                        {/* Value */}
+                        <p className="text-2xl font-black tracking-tight leading-none stat-value mb-1">
+                          {stage.value}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground/60">{stage.sublabel}</p>
+
+                        {/* Bar */}
+                        <div className="mt-3 h-1.5 w-full rounded-full bg-muted/30 overflow-hidden">
+                          <div
+                            className={cn("h-full rounded-full transition-all duration-700 ease-out", cm.barColor)}
+                            style={{ width: `${barWidth}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </Link>
+
+                  {/* Conversion badge between stages */}
+                  {idx < stages.length - 1 && stage.conversion !== null && stage.conversion > 0 && (
+                    <div className="hidden md:flex absolute -right-[18px] top-[28px] z-10 flex-col items-center gap-0.5">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-card border-2 border-border/50 shadow-md">
+                        <ArrowRight className="h-3 w-3 text-muted-foreground/60" />
+                      </div>
+                      <span className="mt-0.5 rounded-full bg-card border border-border/40 px-2 py-0.5 text-[9px] font-bold text-primary shadow-sm">
+                        {stage.conversion}%
                       </span>
-                    </p>
-                    <p className="text-base font-bold tracking-tight">
-                      {stage.value}
-                    </p>
-                  </div>
-                  {idx < stages.length - 1 && (
-                    <span className="text-[10px] font-medium text-muted-foreground/60 shrink-0">
-                      {conversionRate(
-                        stage.rawCents,
-                        stages[idx + 1].rawCents
-                      )}
-                    </span>
+                    </div>
                   )}
                 </div>
-              </Link>
-            </React.Fragment>
-          ))}
+              );
+            })}
+          </div>
         </div>
       </CardContent>
     </Card>
@@ -655,44 +718,44 @@ export default function DashboardPage() {
   })();
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div className="space-y-1">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            {new Date().toLocaleDateString("nl-NL", {
-              weekday: "long",
-              day: "numeric",
-              month: "long",
-              year: "numeric",
-            })}
-          </p>
-          <h1 className="text-[28px] md:text-[32px] font-extrabold tracking-tight text-foreground leading-none">
-            {greeting}
-          </h1>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <Link href="/dashboard/projects/new">
-            <Button
-              size="sm"
-              className="gap-1.5 shadow-md shadow-primary/25 font-semibold"
-            >
-              <Plus className="h-4 w-4" />
-              Nieuw project
-            </Button>
-          </Link>
-          <Link href="/dashboard/quotes/new">
-            <Button size="sm" variant="outline" className="gap-1.5">
-              <ClipboardList className="h-4 w-4" />
-              Offerte
-            </Button>
-          </Link>
-          <Link href="/dashboard/invoices/new">
-            <Button size="sm" variant="outline" className="gap-1.5">
-              <FileText className="h-4 w-4" />
-              Factuur
-            </Button>
-          </Link>
+    <div className="space-y-6 page-enter">
+      {/* Hero welcome card */}
+      <div className="hero-card rounded-2xl p-6 md:p-8">
+        <div className="relative flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="space-y-1.5">
+            <h1 className="text-[28px] md:text-[32px] font-black tracking-tight leading-none text-gradient">
+              {greeting}
+            </h1>
+            <p className="text-[13px] text-muted-foreground/60">
+              {new Date().toLocaleDateString("nl-NL", {
+                weekday: "long",
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+              })}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {[
+              { label: "Nieuw project", href: "/dashboard/projects/new", icon: FolderKanban, primary: true },
+              { label: "Offerte", href: "/dashboard/quotes/new", icon: ClipboardList, primary: false },
+              { label: "Factuur", href: "/dashboard/invoices/new", icon: FileText, primary: false },
+            ].map((action) => (
+              <Link key={action.href} href={action.href}>
+                <Button
+                  size="sm"
+                  variant={action.primary ? "default" : "outline"}
+                  className={action.primary
+                    ? "gap-1.5 shadow-lg shadow-primary/25 font-semibold bg-gradient-to-r from-primary to-amber-600 hover:from-primary/90 hover:to-amber-600/90"
+                    : "gap-1.5 font-medium"
+                  }
+                >
+                  <action.icon className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">{action.label}</span>
+                </Button>
+              </Link>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -749,34 +812,46 @@ export default function DashboardPage() {
               testId="kpi-outstanding-invoices"
             />
             <KpiCard
-              title="Bezetting"
-              value={`${stats.staffUtilization.utilization_percent}%`}
-              icon={Users}
-              accent="bg-blue-500"
-              testId="kpi-staff-utilization"
-              subtitle={`${stats.staffUtilization.assigned_hours}/${stats.staffUtilization.available_hours} uur`}
+              title="Verlopen taken"
+              value={stats.overdueTasks}
+              icon={AlertCircle}
+              accent={stats.overdueTasks > 0 ? "bg-red-500" : "bg-emerald-500"}
+              testId="kpi-overdue-tasks"
+              subtitle={stats.overdueTasks > 0 ? "vereist aandacht" : "alles op schema"}
             />
           </div>
 
-          {/* Contract Pipeline */}
+          {/* Contract Pipeline — full width */}
           {pipeline && <ContractPipeline data={pipeline} />}
 
-          {/* Daily actions */}
-          <DailyActionsPanel
-            actions={buildDailyActions(
-              recentProjects as unknown as ProjectResponse[],
-              allInvoices,
-              pipeline,
-              upcomingTasks
-            )}
-          />
+          {/* Daily actions + Utilization row */}
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <div className="lg:col-span-2">
+              <DailyActionsPanel
+                actions={buildDailyActions(
+                  recentProjects as unknown as ProjectResponse[],
+                  allInvoices,
+                  pipeline,
+                  upcomingTasks
+                )}
+              />
+            </div>
+
+            {/* Staff utilization gauge */}
+            <UtilizationGauge
+              percent={stats.staffUtilization.utilization_percent}
+              assignedHours={stats.staffUtilization.assigned_hours}
+              availableHours={stats.staffUtilization.available_hours}
+            />
+          </div>
 
           {/* Content grid */}
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 stagger-children">
             {/* Recent Projects */}
-            <Card>
+            <Card className="card-gradient-border">
               <CardHeader className="flex flex-row items-center justify-between pb-3">
-                <CardTitle className="text-base font-semibold">
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <div className="h-5 w-1 rounded-full bg-blue-500" />
                   Recente Projecten
                 </CardTitle>
                 <Link href="/dashboard/projects">
@@ -839,9 +914,10 @@ export default function DashboardPage() {
             </Card>
 
             {/* Upcoming Tasks */}
-            <Card>
+            <Card className="card-gradient-border">
               <CardHeader className="flex flex-row items-center justify-between pb-3">
-                <CardTitle className="text-base font-semibold">
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <div className="h-5 w-1 rounded-full bg-emerald-500" />
                   Aankomende Taken
                 </CardTitle>
                 <Link href="/dashboard/agenda">
