@@ -206,7 +206,7 @@
 
 ## Priority: High (Phase 22 — Core Admin & Contracting UI)
 
-- [x] Frontend: Grouped sidebar navigation redesign — sections Projecten, Contracteren, Financieel, Inkoop, Team with uppercase labels, active indicator, Offertes + Klanten + Onderaannemers links — PR feat/sidebar-grouped-nav
+- [x] Frontend: Dashboard command center redesign — greeting header with Dutch time-of-day + date, quick-action buttons (Nieuw project, Nieuwe factuur), refined 4-KPI row (actieve projecten, openstaande facturen, omzet, achterstallige taken) with trend badges, actieve projecten cards with progress bars and status badges, Vandaag agenda strip with project color coding, Aandacht nodig panel for overdue invoices and behind-schedule tasks, loading skeletons, empty states with CTAs, consistent Dutch labels and euro formatting — PR #TBD
 
 ## Completed
 <!-- [x] Task description — PR #N -->
