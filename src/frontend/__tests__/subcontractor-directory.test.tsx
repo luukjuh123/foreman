@@ -135,7 +135,7 @@ describe("SubcontractorDirectoryPage — empty state", () => {
 describe("SubcontractorDirectoryPage — renders list", () => {
   beforeEach(() => vi.resetModules());
 
-  it("renders page heading Contracting", async () => {
+  it("renders page heading Onderaannemers", async () => {
     const apiFetch = await getApiFetch();
     apiFetch.mockResolvedValue(makeListResponse([]));
 
@@ -146,7 +146,7 @@ describe("SubcontractorDirectoryPage — renders list", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByRole("heading", { name: /contracting/i })
+        screen.getByRole("heading", { name: /onderaannemers/i })
       ).toBeInTheDocument();
     });
   });

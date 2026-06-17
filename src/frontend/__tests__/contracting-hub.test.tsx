@@ -92,7 +92,7 @@ async function getApiFetch() {
 describe("ContractingHubPage — page heading", () => {
   beforeEach(() => vi.resetModules());
 
-  it("renders Contracting heading", async () => {
+  it("renders Onderaannemers heading", async () => {
     const apiFetch = await getApiFetch();
     apiFetch.mockResolvedValue(makeListResponse([]));
 
@@ -103,7 +103,7 @@ describe("ContractingHubPage — page heading", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByRole("heading", { name: /contracting/i })
+        screen.getByRole("heading", { name: /onderaannemers/i })
       ).toBeInTheDocument();
     });
   });
