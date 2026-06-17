@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { listProjects, formatBudget } from "@/lib/projects";
 import { apiFetch } from "@/lib/api";
+import { PageHeader } from "@/components/page-header";
 import type { ProjectResponse } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -86,8 +87,14 @@ export default function FinancialsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <h1 className="text-2xl font-bold text-foreground">Overzicht Financiën</h1>
+      <PageHeader
+        title="Overzicht Financiën"
+        breadcrumbs={[
+          { label: "Dashboard", href: "/dashboard" },
+          { label: "Financieel" },
+          { label: "Financiën" },
+        ]}
+      />
 
       {/* Boekhouding navigation — always visible */}
       <div>

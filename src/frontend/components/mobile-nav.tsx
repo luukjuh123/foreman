@@ -16,6 +16,9 @@ import {
   BarChart2,
   Settings,
   X,
+  ClipboardList,
+  Hammer,
+  Receipt,
 } from "lucide-react";
 
 const PRIMARY_TABS = [
@@ -25,13 +28,36 @@ const PRIMARY_TABS = [
   { label: "Meldingen", href: "/dashboard/notifications", icon: Bell, exact: false },
 ];
 
-const MORE_ITEMS = [
-  { label: "Facturen", href: "/dashboard/invoices", icon: FileText },
-  { label: "Financiën", href: "/dashboard/financials", icon: TrendingUp },
-  { label: "Materialen", href: "/dashboard/materials", icon: Package },
-  { label: "Personeel", href: "/dashboard/staff", icon: Users },
-  { label: "Rapporten", href: "/dashboard/reports", icon: BarChart2 },
-  { label: "Instellingen", href: "/dashboard/settings", icon: Settings },
+interface MoreSection {
+  heading: string;
+  items: { label: string; href: string; icon: React.ElementType }[];
+}
+
+const MORE_SECTIONS: MoreSection[] = [
+  {
+    heading: "Administratie",
+    items: [
+      { label: "Offertes", href: "/dashboard/quotes", icon: ClipboardList },
+      { label: "Facturen", href: "/dashboard/invoices", icon: FileText },
+      { label: "Rapporten", href: "/dashboard/reports", icon: BarChart2 },
+      { label: "Onderaannemers", href: "/dashboard/subcontractors", icon: Hammer },
+      { label: "Personeel", href: "/dashboard/staff", icon: Users },
+    ],
+  },
+  {
+    heading: "Financieel",
+    items: [
+      { label: "Financiën", href: "/dashboard/financials", icon: TrendingUp },
+      { label: "BTW Aangifte", href: "/dashboard/btw", icon: Receipt },
+      { label: "Materialen", href: "/dashboard/materials", icon: Package },
+    ],
+  },
+  {
+    heading: "Instellingen",
+    items: [
+      { label: "Instellingen", href: "/dashboard/settings", icon: Settings },
+    ],
+  },
 ];
 
 export default function MobileNav() {
@@ -84,7 +110,7 @@ export default function MobileNav() {
             onClick={() => setSheetOpen(false)}
           />
           {/* Sheet panel */}
-          <div className="absolute bottom-0 left-0 right-0 rounded-t-2xl bg-card p-4">
+          <div className="absolute bottom-0 left-0 right-0 max-h-[80vh] overflow-y-auto rounded-t-2xl bg-card p-4">
             <div className="mb-4 flex items-center justify-between">
               <span className="text-sm font-medium">Meer</span>
               <button
@@ -95,19 +121,27 @@ export default function MobileNav() {
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <nav className="grid grid-cols-3 gap-2">
-              {MORE_ITEMS.map(({ label, href, icon: Icon }) => (
-                <Link
-                  key={href}
-                  href={href}
-                  onClick={() => setSheetOpen(false)}
-                  className="flex flex-col items-center gap-1.5 rounded-xl p-3 text-xs text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-                >
-                  <Icon className="h-6 w-6" />
-                  <span>{label}</span>
-                </Link>
-              ))}
-            </nav>
+
+            {MORE_SECTIONS.map((section) => (
+              <div key={section.heading} className="mb-4">
+                <p className="mb-2 px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  {section.heading}
+                </p>
+                <nav className="grid grid-cols-3 gap-2">
+                  {section.items.map(({ label, href, icon: Icon }) => (
+                    <Link
+                      key={href}
+                      href={href}
+                      onClick={() => setSheetOpen(false)}
+                      className="flex flex-col items-center gap-1.5 rounded-xl p-3 text-xs text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                    >
+                      <Icon className="h-6 w-6" />
+                      <span>{label}</span>
+                    </Link>
+                  ))}
+                </nav>
+              </div>
+            ))}
           </div>
         </div>
       )}
