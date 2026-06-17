@@ -67,6 +67,7 @@ export interface CustomerResponse {
   id: string;
   name: string;
   email: string | null;
+  phone: string | null;
   kvk_number: string | null;
   /** VAT number (replaces btw_number in the backend schema) */
   vat_number: string | null;
@@ -75,6 +76,7 @@ export interface CustomerResponse {
   postal_code: string | null;
   city: string | null;
   country_code: string;
+  notes: string | null;
   created_at: string;
   updated_at: string;
 }

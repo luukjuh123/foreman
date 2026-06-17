@@ -395,7 +395,7 @@ export default function KlantenPage() {
 
   useEffect(() => {
     listCustomers()
-      .then(setCustomers)
+      .then((res) => setCustomers(res.data))
       .catch(() => setCustomers([]))
       .finally(() => setLoading(false));
   }, []);
