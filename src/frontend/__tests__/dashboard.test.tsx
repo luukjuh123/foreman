@@ -249,6 +249,9 @@ describe("DashboardPage", () => {
         if (path.includes("/staff/utilization")) {
           return Promise.resolve({ utilization_percent: 0, assigned_hours: 0, available_hours: 0 });
         }
+        if (path.includes("/quotes/")) {
+          return Promise.resolve({ data: [] });
+        }
         return Promise.resolve({ data: { data: invoices, total: invoices.length }, error: null });
       }),
     }));

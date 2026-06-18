@@ -39,6 +39,8 @@ export interface ProjectResponse {
   end_date: string | null;
   budget_cents: number | null;
   phases: PhaseResponse[];
+  customer_id?: string | null;
+  customer_name?: string | null;
   created_at?: string;
   updated_at?: string;
 }

@@ -23,6 +23,10 @@ vi.mock("@/lib/projects", () => ({
     const done = phase.tasks.filter((t: { status: string }) => t.status === "done").length;
     return phase.tasks.length > 0 ? Math.round((done / phase.tasks.length) * 100) : 0;
   }),
+  calcTaskSummary: vi.fn((project) => {
+    const tasks = (project.phases ?? []).flatMap((ph: { tasks: { status: string }[] }) => ph.tasks ?? []);
+    return { done: tasks.filter((t: { status: string }) => t.status === "done").length, total: tasks.length };
+  }),
   formatBudget: vi.fn((c) => `€${(c / 100).toLocaleString("nl-NL")}`),
   formatDate: vi.fn((d) => d ?? ""),
 }));
@@ -86,18 +90,19 @@ describe("ProjectDetailPage", () => {
     const { default: DetailPage } = await import("@/app/dashboard/projects/[id]/page");
     render(<DetailPage params={Promise.resolve({ id: "proj-1" })} />);
     await waitFor(() => {
-      // Name appears in both breadcrumb and h1
+      // Name appears in h1
       const elements = screen.getAllByText("Kantoorpand Rotterdam");
       expect(elements.length).toBeGreaterThanOrEqual(1);
     });
   });
 
-  it("renders breadcrumb with link to Projecten", async () => {
+  it("renders back button with link to Projecten", async () => {
     const { default: DetailPage } = await import("@/app/dashboard/projects/[id]/page");
     render(<DetailPage params={Promise.resolve({ id: "proj-1" })} />);
     await waitFor(() => {
-      const link = screen.getByRole("link", { name: /projecten/i });
-      expect(link).toHaveAttribute("href", "/dashboard/projects");
+      const links = screen.getAllByRole("link");
+      const projectenLink = links.find((l) => l.getAttribute("href") === "/dashboard/projects");
+      expect(projectenLink).toBeInTheDocument();
     });
   });
 
@@ -107,24 +112,27 @@ describe("ProjectDetailPage", () => {
     await waitFor(() => expect(screen.getByText("Actief")).toBeInTheDocument());
   });
 
-  it("renders key facts: budget", async () => {
+  it("renders key facts: budget voortgang section", async () => {
     const { default: DetailPage } = await import("@/app/dashboard/projects/[id]/page");
     render(<DetailPage params={Promise.resolve({ id: "proj-1" })} />);
     await waitFor(() => {
-      // budget is displayed via formatBudget mock
-      expect(screen.getByText(/budget/i)).toBeInTheDocument();
+      // Budget is displayed via formatBudget mock in the hero inline-stat
+      expect(screen.getByText(/budget voortgang/i)).toBeInTheDocument();
     });
   });
 
   it("renders phase card with phase name", async () => {
     const { default: DetailPage } = await import("@/app/dashboard/projects/[id]/page");
     render(<DetailPage params={Promise.resolve({ id: "proj-1" })} />);
-    await waitFor(() => expect(screen.getByText("Fundering")).toBeInTheDocument());
+    await waitFor(() => {
+      // Phase name appears in both hero tooltip and phase card — use getAllByText
+      expect(screen.getAllByText("Fundering").length).toBeGreaterThanOrEqual(1);
+    });
   });
 
-  it("renders Documenten tab", async () => {
+  it("renders Fases section heading", async () => {
     const { default: DetailPage } = await import("@/app/dashboard/projects/[id]/page");
     render(<DetailPage params={Promise.resolve({ id: "proj-1" })} />);
-    await waitFor(() => expect(screen.getByRole("tab", { name: /documenten/i })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Fases")).toBeInTheDocument());
   });
 });

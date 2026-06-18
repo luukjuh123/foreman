@@ -121,7 +121,8 @@ describe("ProjectsPage", () => {
 
     await screen.findByText("Woningbouw Almere");
 
-    const activeTab = screen.getByRole("tab", { name: /actief/i });
+    // Filter tabs are plain <button> elements (not role="tab")
+    const activeTab = screen.getByRole("button", { name: /^actief/i });
     fireEvent.click(activeTab);
 
     expect(screen.getByText("Woningbouw Almere")).toBeInTheDocument();
