@@ -16,7 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Protocol
 
-from app.services.planning.cpm import CpmTask, compute_critical_path
+from app.services.planning.cpm import CpmTask, _critical_topo_sort
 
 _HOUR_S = 3_600
 _DAY_S = 86_400
@@ -80,41 +80,8 @@ def _topo_sort_critical_first(tasks: list[CpmTask]) -> list[CpmTask]:
     """Topological sort that ties-breaks by criticality + early_finish (longest first)."""
     if not tasks:
         return []
-    snapshot = [
-        CpmTask(id=t.id, name=t.name, duration_hours=t.duration_hours, dependencies=list(t.dependencies)) for t in tasks
-    ]
-    compute_critical_path(snapshot)
-    task_map = {t.id: t for t in snapshot}
-    in_degree: dict[str, int] = {t.id: 0 for t in snapshot}
-    successors: dict[str, list[str]] = {t.id: [] for t in snapshot}
-    for t in snapshot:
-        for d in t.dependencies:
-            in_degree[t.id] += 1
-            successors[d].append(t.id)
-
-    def key(tid: str) -> tuple[int, float, str]:
-        snap = task_map[tid]
-        return (0 if snap.is_critical else 1, -snap.early_finish, snap.id)
-
-    ready = sorted([t.id for t in snapshot if in_degree[t.id] == 0], key=key)
-    out: list[str] = []
-    while ready:
-        cur = ready.pop(0)
-        out.append(cur)
-        promoted: list[str] = []
-        for s in successors[cur]:
-            in_degree[s] -= 1
-            if in_degree[s] == 0:
-                promoted.append(s)
-        if promoted:
-            ready.extend(promoted)
-            ready.sort(key=key)
-
-    if len(out) != len(snapshot):
-        msg = "Dependency cycle detected"
-        raise ValueError(msg)
     original_map = {t.id: t for t in tasks}
-    return [original_map[i] for i in out]
+    return [original_map[tid] for tid in _critical_topo_sort(tasks)]
 
 
 class ScheduleOptimizer:

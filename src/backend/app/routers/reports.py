@@ -19,6 +19,7 @@ from app.schemas.report import (
 from app.services.reports.completion import generate_completion_report
 from app.services.reports.pdf import render_report_pdf
 from app.services.reports.weekly import generate_weekly_report
+from app.routers.deps import get_or_404
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import Response
 from sqlalchemy import func, select
@@ -34,11 +35,7 @@ router = APIRouter()
 
 async def _get_own_report_or_404(report_id: uuid.UUID, user: User, db: AsyncSession) -> Report:
     """Fetch a report owned by the current user, or 404."""
-    result = await db.execute(select(Report).where(Report.id == report_id, Report.created_by_id == user.id))
-    report = result.scalar_one_or_none()
-    if report is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
-    return report
+    return await get_or_404(db, Report, Report.id == report_id, Report.created_by_id == user.id)
 
 
 # ---------------------------------------------------------------------------

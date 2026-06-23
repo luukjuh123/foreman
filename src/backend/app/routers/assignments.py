@@ -8,6 +8,7 @@ from app.models.staff import Staff
 from app.models.user import User
 from app.routers.auth import get_current_user
 from app.schemas.assignment import StaffAssignmentCreate, StaffAssignmentResponse
+from app.routers.deps import get_or_404
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,17 +17,10 @@ router = APIRouter()
 
 
 async def _get_owned_staff(staff_id: uuid.UUID, user: User, db: AsyncSession) -> Staff:
-    result = await db.execute(
-        select(Staff).where(
-            Staff.id == staff_id,
-            Staff.owner_id == user.id,
-            Staff.deleted_at.is_(None),
-        )
+    return await get_or_404(
+        db, Staff,
+        Staff.id == staff_id, Staff.owner_id == user.id, Staff.deleted_at.is_(None),
     )
-    staff = result.scalar_one_or_none()
-    if staff is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Staff not found")
-    return staff
 
 
 async def _find_overlap(

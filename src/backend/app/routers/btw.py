@@ -20,6 +20,7 @@ from app.models.user import User
 from app.routers.auth import get_current_user
 from app.schemas.btw import BtwAangifteResponse, BtwAangifteUpdate, BtwGenerateRequest
 from app.services.btw.calculation import calculate_btw_boxes
+from app.routers.deps import get_or_404
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,16 +33,11 @@ async def _get_aangifte_or_404(
     owner_id: uuid.UUID,
     db: AsyncSession,
 ) -> BtwAangifte:
-    result = await db.execute(
-        select(BtwAangifte).where(
-            BtwAangifte.id == aangifte_id,
-            BtwAangifte.owner_id == owner_id,
-        )
+    return await get_or_404(
+        db, BtwAangifte,
+        BtwAangifte.id == aangifte_id, BtwAangifte.owner_id == owner_id,
+        detail="BTW aangifte not found",
     )
-    obj = result.scalar_one_or_none()
-    if obj is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="BTW aangifte not found")
-    return obj
 
 
 @router.post(

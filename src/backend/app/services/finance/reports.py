@@ -132,20 +132,17 @@ class BalanceSheet:
         )
 
     def to_dict(self) -> dict:
+        sections = {
+            name: {"accounts": [n.to_dict() for n in nodes], "total_cents": total}
+            for name, nodes, total in [
+                ("assets", self.assets, self.total_assets_cents),
+                ("liabilities", self.liabilities, self.total_liabilities_cents),
+                ("equity", self.equity, self.total_equity_cents),
+            ]
+        }
         return {
             "as_of": self.as_of.isoformat(),
-            "assets": {
-                "accounts": [n.to_dict() for n in self.assets],
-                "total_cents": self.total_assets_cents,
-            },
-            "liabilities": {
-                "accounts": [n.to_dict() for n in self.liabilities],
-                "total_cents": self.total_liabilities_cents,
-            },
-            "equity": {
-                "accounts": [n.to_dict() for n in self.equity],
-                "total_cents": self.total_equity_cents,
-            },
+            **sections,
             "retained_earnings_cents": self.retained_earnings_cents,
             "total_liabilities_and_equity_cents": (
                 self.total_liabilities_cents + self.total_equity_cents + self.retained_earnings_cents
@@ -293,12 +290,7 @@ class CashFlowLine:
     change_cents: int  # signed cash impact (positive = inflow)
 
     def to_dict(self) -> dict:
-        return {
-            "account_id": str(self.account_id),
-            "code": self.code,
-            "name": self.name,
-            "change_cents": self.change_cents,
-        }
+        return {"account_id": str(self.account_id), "code": self.code, "name": self.name, "change_cents": self.change_cents}
 
 
 @dataclass
@@ -324,22 +316,19 @@ class CashFlowStatement:
         ) == self.net_change_in_cash_cents
 
     def to_dict(self) -> dict:
+        activities = {
+            f"{k}_activities": {"lines": [l.to_dict() for l in lines], "total_cents": total}
+            for k, lines, total in [
+                ("operating", self.operating, self.operating_cash_flow_cents),
+                ("investing", self.investing, self.investing_cash_flow_cents),
+                ("financing", self.financing, self.financing_cash_flow_cents),
+            ]
+        }
         return {
             "start_date": self.start_date.isoformat(),
             "end_date": self.end_date.isoformat(),
             "net_income_cents": self.net_income_cents,
-            "operating_activities": {
-                "lines": [line.to_dict() for line in self.operating],
-                "total_cents": self.operating_cash_flow_cents,
-            },
-            "investing_activities": {
-                "lines": [line.to_dict() for line in self.investing],
-                "total_cents": self.investing_cash_flow_cents,
-            },
-            "financing_activities": {
-                "lines": [line.to_dict() for line in self.financing],
-                "total_cents": self.financing_cash_flow_cents,
-            },
+            **activities,
             "opening_cash_cents": self.opening_cash_cents,
             "ending_cash_cents": self.ending_cash_cents,
             "net_change_in_cash_cents": self.net_change_in_cash_cents,
@@ -371,11 +360,7 @@ def build_cash_flow_statement(
     The accounting identity ΔAssets - ΔLiab - ΔEquity = NetIncome guarantees
     OCF + ICF + FCF == ΔCash for any set of balanced journal entries.
     """
-    net_income = sum(
-        a.balance_cents
-        for a in period_aggregates
-        if a.account_type in ("revenue", "expense") and a.account_type == "revenue"
-    ) - sum(a.balance_cents for a in period_aggregates if a.account_type == "expense")
+    net_income = compute_net_income_cents(period_aggregates)
 
     changes = _period_change(opening_aggregates, closing_aggregates)
 
@@ -385,42 +370,19 @@ def build_cash_flow_statement(
     ending_cash = sum(a.balance_cents for a in closing_aggregates if a.account_id in cash_ids)
     net_change_cash = ending_cash - opening_cash
 
-    operating: list[CashFlowLine] = []
-    investing: list[CashFlowLine] = []
-    financing: list[CashFlowLine] = []
-
+    buckets: dict[str, list[CashFlowLine]] = {"operating": [], "investing": [], "financing": []}
     by_id = {a.account_id: a for a in closing_aggregates}
 
     for account_id, delta in changes.items():
         a = by_id.get(account_id)
-        if a is None or a.account_id in cash_ids:
+        if a is None or a.account_id in cash_ids or a.account_type in ("revenue", "expense") or delta == 0:
             continue
-        # Revenue and expense flow through net_income — skip
-        if a.account_type in ("revenue", "expense"):
-            continue
-        if delta == 0:
-            continue
-        # Cash effect: asset increase → cash out (-); liability/equity increase → cash in (+)
-        if a.normal_balance == "debit":  # asset
-            cash_effect = -delta
-        else:  # credit-normal: liability / equity
-            cash_effect = delta
-        line = CashFlowLine(
-            account_id=a.account_id,
-            code=a.code,
-            name=a.name,
-            change_cents=cash_effect,
-        )
+        cash_effect = -delta if a.normal_balance == "debit" else delta
         category = a.cashflow_category or "operating"
-        if category == "operating":
-            operating.append(line)
-        elif category == "investing":
-            investing.append(line)
-        elif category == "financing":
-            financing.append(line)
+        if category in buckets:
+            buckets[category].append(CashFlowLine(account_id=a.account_id, code=a.code, name=a.name, change_cents=cash_effect))
 
-    for bucket in (operating, investing, financing):
-        bucket.sort(key=lambda x: x.code)
+    operating, investing, financing = (sorted(buckets[k], key=lambda x: x.code) for k in ("operating", "investing", "financing"))
 
     operating_total = net_income + sum(line.change_cents for line in operating)
     investing_total = sum(line.change_cents for line in investing)

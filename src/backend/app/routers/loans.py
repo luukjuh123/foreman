@@ -15,6 +15,7 @@ from app.schemas.loan import (
     StaffOutstandingBalance,
 )
 from app.services.payroll.loans import compute_outstanding
+from app.routers.deps import get_or_404
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,17 +25,10 @@ router = APIRouter()
 
 
 async def _get_owned_staff(staff_id: uuid.UUID, user: User, db: AsyncSession) -> Staff:
-    result = await db.execute(
-        select(Staff).where(
-            Staff.id == staff_id,
-            Staff.owner_id == user.id,
-            Staff.deleted_at.is_(None),
-        )
+    return await get_or_404(
+        db, Staff,
+        Staff.id == staff_id, Staff.owner_id == user.id, Staff.deleted_at.is_(None),
     )
-    staff = result.scalar_one_or_none()
-    if staff is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Staff not found")
-    return staff
 
 
 async def _get_owned_loan(loan_id: uuid.UUID, user: User, db: AsyncSession) -> StaffLoan:
@@ -51,11 +45,9 @@ async def _get_owned_loan(loan_id: uuid.UUID, user: User, db: AsyncSession) -> S
 
 
 def _to_response(loan: StaffLoan) -> StaffLoanResponse:
-    deducted = sum(d.amount_cents for d in loan.deductions)
-    outstanding = compute_outstanding(loan.principal_cents, [d.amount_cents for d in loan.deductions])
+    amounts = [d.amount_cents for d in loan.deductions]
     resp = StaffLoanResponse.model_validate(loan)
-    resp.deducted_cents = deducted
-    resp.outstanding_cents = outstanding
+    resp.deducted_cents, resp.outstanding_cents = sum(amounts), compute_outstanding(loan.principal_cents, amounts)
     return resp
 
 
@@ -124,22 +116,17 @@ async def staff_balance(
     db: AsyncSession = Depends(get_db),
 ) -> StaffOutstandingBalance:
     await _get_owned_staff(staff_id, current_user, db)
-    rows = (
-        (
-            await db.execute(
-                select(StaffLoan)
-                .where(StaffLoan.staff_id == staff_id)
-                .options(selectinload(StaffLoan.deductions))
-                .order_by(StaffLoan.issued_date.asc())
-            )
-        )
-        .scalars()
-        .all()
+    result = await db.execute(
+        select(StaffLoan)
+        .where(StaffLoan.staff_id == staff_id)
+        .options(selectinload(StaffLoan.deductions))
+        .order_by(StaffLoan.issued_date.asc())
     )
-    loans = [_to_response(loan) for loan in rows]
-    total_principal = sum(loan.principal_cents for loan in loans)
-    total_deducted = sum(loan.deducted_cents for loan in loans)
-    outstanding = sum(loan.outstanding_cents for loan in loans)
+    loans = [_to_response(loan) for loan in result.scalars().all()]
+    total_principal, total_deducted, outstanding = (
+        sum(getattr(l, f) for l in loans)
+        for f in ("principal_cents", "deducted_cents", "outstanding_cents")
+    )
     return StaffOutstandingBalance(
         staff_id=staff_id,
         total_principal_cents=total_principal,

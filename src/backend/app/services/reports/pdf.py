@@ -178,11 +178,8 @@ def _render_completion(data: dict[str, Any]) -> str:
     totals = data["totals"]
 
     variance_class = "over" if cb["over_budget"] else "under"
-    variance_str = (
-        f"{_format_euros(cb['variance_cents'])} ({cb['variance_pct']:.1f}%)"
-        if cb["variance_pct"] is not None
-        else _format_euros(cb["variance_cents"])
-    )
+    v = _format_euros(cb["variance_cents"])
+    variance_str = f"{v} ({cb['variance_pct']:.1f}%)" if cb["variance_pct"] is not None else v
 
     sections = [
         _header(f"Completion report — {proj['name']}", f"Status: {proj['status']}"),
@@ -193,18 +190,10 @@ def _render_completion(data: dict[str, Any]) -> str:
             ("Actual cost", _format_euros(totals["labor_cost_cents"])),
         ),
         "<h2>Timeline</h2>",
-        _table(
-            ["", "Start", "End", "Duration (days)"],
-            [
-                [
-                    "Planned",
-                    tl["planned_start"] or "—",
-                    tl["planned_end"] or "—",
-                    str(tl["planned_duration_days"] or "—"),
-                ],
-                ["Actual", tl["actual_start"] or "—", tl["actual_end"] or "—", str(tl["actual_duration_days"] or "—")],
-            ],
-        ),
+        _table(["", "Start", "End", "Duration (days)"], [
+            [label, tl[f"{k}_start"] or "—", tl[f"{k}_end"] or "—", str(tl[f"{k}_duration_days"] or "—")]
+            for label, k in [("Planned", "planned"), ("Actual", "actual")]
+        ]),
         "<h2>Costs vs Budget</h2>",
         _table(
             ["Budget", "Actual", "Variance"],
@@ -234,28 +223,16 @@ def _render_completion(data: dict[str, Any]) -> str:
 
 def render_report_html(data: dict[str, Any]) -> str:
     """Render a report payload as a branded, self-contained HTML document."""
+    renderers = {"weekly": _render_weekly, "completion": _render_completion}
     rtype = data.get("type")
-    if rtype == "weekly":
-        body = _render_weekly(data)
-    elif rtype == "completion":
-        body = _render_completion(data)
-    else:
+    if rtype not in renderers:
         raise ValueError(f"Unknown report type: {rtype!r}")
-
-    return (
-        "<!DOCTYPE html>"
-        "<html lang='en'><head><meta charset='utf-8'>"
-        f"<title>{_h(data['project']['name'])} — report</title>"
-        f"<style>{_CSS}</style>"
-        f"</head><body>{body}</body></html>"
-    )
+    body = renderers[rtype](data)
+    return (f"<!DOCTYPE html><html lang='en'><head><meta charset='utf-8'>"
+            f"<title>{_h(data['project']['name'])} — report</title>"
+            f"<style>{_CSS}</style></head><body>{body}</body></html>")
 
 
-def render_report_pdf(
-    data: dict[str, Any],
-    renderer: PDFRenderer | None = None,
-) -> bytes:
+def render_report_pdf(data: dict[str, Any], renderer: PDFRenderer | None = None) -> bytes:
     """Render a report payload as PDF bytes."""
-    html = render_report_html(data)
-    r = renderer if renderer is not None else WeasyPrintRenderer()
-    return r.render(html)
+    return (renderer or WeasyPrintRenderer()).render(render_report_html(data))

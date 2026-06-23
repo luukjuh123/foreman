@@ -108,22 +108,18 @@ class HistoricalLearner:
                 ),
             )
 
-        # Fuzzy match across all rows
         all_rows = await self._store.all_observations()
         target_tokens = _tokens(task_name)
-        matched: list[DurationObservation] = []
-        best_score = 0.0
-        for r in all_rows:
-            score = _jaccard(target_tokens, _tokens(r.task_name))
-            if score >= self.FUZZY_THRESHOLD:
-                matched.append(r)
-                best_score = max(best_score, score)
+        scored = [(r, _jaccard(target_tokens, _tokens(r.task_name))) for r in all_rows]
+        matched = [(r, s) for r, s in scored if s >= self.FUZZY_THRESHOLD]
         if matched:
-            median_s = int(statistics.median(r.actual_duration_s for r in matched))
+            best_score = max(s for _, s in matched)
+            matched_rows = [r for r, _ in matched]
+            median_s = int(statistics.median(r.actual_duration_s for r in matched_rows))
             return Prediction(
                 duration_s=median_s,
-                confidence=_confidence(len(matched)) * best_score,
-                sample_size=len(matched),
+                confidence=_confidence(len(matched_rows)) * best_score,
+                sample_size=len(matched_rows),
                 reasoning=(
                     f"Predicted from {len(matched)} similar (fuzzy match, "
                     f"Jaccard ≥ {self.FUZZY_THRESHOLD}) historical task(s)."
@@ -173,12 +169,6 @@ class HistoricalLearner:
             reasoning=(f"Applied historical estimate→actual bias of {bias:.2f} (median over {len(rows)} pair(s))."),
         )
 
-    async def predict_many(
-        self,
-        tasks: list[tuple[str, int]],
-    ) -> dict[str, Prediction]:
-        """Bulk predict — returns {task_name: Prediction}. Convenience wrapper."""
-        out: dict[str, Prediction] = {}
-        for name, default_s in tasks:
-            out[name] = await self.predict(name, default_duration_s=default_s)
-        return out
+    async def predict_many(self, tasks: list[tuple[str, int]]) -> dict[str, Prediction]:
+        """Bulk predict — returns {task_name: Prediction}."""
+        return {name: (await self.predict(name, default_duration_s=default_s)) for name, default_s in tasks}

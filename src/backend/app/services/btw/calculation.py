@@ -74,26 +74,12 @@ async def calculate_btw_boxes(
     lines_result = await db.execute(lines_stmt)
     lines = lines_result.scalars().all()
 
-    # Aggregate by VAT rate.
     net_by_rate: dict[int, int] = {}
     for line in lines:
         net_by_rate[line.vat_rate_bp] = net_by_rate.get(line.vat_rate_bp, 0) + line.line_net_cents
 
-    box_1a = net_by_rate.get(2100, 0)
-    box_1b = net_by_rate.get(900, 0)
-    box_1c = net_by_rate.get(0, 0)
-
-    # Output VAT: sum of vat_cents by rate.
-    vat_21 = box_1a * 2100 // 10000
-    vat_9 = box_1b * 900 // 10000
-
-    # Also pick up any lines with different rates (future-proofing).
-    other_vat = 0
-    for rate_bp, net in net_by_rate.items():
-        if rate_bp not in (0, 900, 2100):
-            other_vat += net * rate_bp // 10000
-
-    box_5a = vat_21 + vat_9 + other_vat
+    box_1a, box_1b, box_1c = net_by_rate.get(2100, 0), net_by_rate.get(900, 0), net_by_rate.get(0, 0)
+    box_5a = sum(net * rate_bp // 10000 for rate_bp, net in net_by_rate.items() if rate_bp > 0)
 
     # box_5b: input VAT from purchase invoices/journal entries.
     # For now simplified to 0 — a full implementation would query

@@ -24,6 +24,7 @@ from app.services.invoices.numbering import allocate_invoice_number
 from app.services.invoices.totals import compute_line_totals
 from app.services.quotes.numbering import allocate_quote_number
 from app.services.quotes.status import apply_quote_transition
+from app.routers.deps import count_query, get_or_404
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -38,33 +39,18 @@ router = APIRouter()
 
 
 async def _load_customer(db: AsyncSession, owner_id: uuid.UUID, customer_id: uuid.UUID) -> Customer:
-    result = await db.execute(
-        select(Customer).where(
-            Customer.id == customer_id,
-            Customer.owner_id == owner_id,
-            Customer.deleted_at.is_(None),
-        )
+    return await get_or_404(
+        db, Customer,
+        Customer.id == customer_id, Customer.owner_id == owner_id, Customer.deleted_at.is_(None),
     )
-    customer = result.scalar_one_or_none()
-    if customer is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
-    return customer
 
 
 async def _load_quote(db: AsyncSession, owner_id: uuid.UUID, quote_id: uuid.UUID) -> Quote:
-    result = await db.execute(
-        select(Quote)
-        .where(
-            Quote.id == quote_id,
-            Quote.owner_id == owner_id,
-            Quote.deleted_at.is_(None),
-        )
-        .options(selectinload(Quote.lines))
+    return await get_or_404(
+        db, Quote,
+        Quote.id == quote_id, Quote.owner_id == owner_id, Quote.deleted_at.is_(None),
+        options=selectinload(Quote.lines),
     )
-    quote = result.scalar_one_or_none()
-    if quote is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quote not found")
-    return quote
 
 
 # ---------------------------------------------------------------------------
@@ -139,8 +125,7 @@ async def list_quotes(
     if status_filter:
         base = base.where(Quote.status == status_filter)
 
-    count_q = select(func.count()).select_from(base.subquery())
-    total = (await db.execute(count_q)).scalar_one()
+    total = await count_query(db, base)
 
     result = await db.execute(
         base.options(selectinload(Quote.lines)).order_by(Quote.created_at.desc()).offset(offset).limit(per_page)

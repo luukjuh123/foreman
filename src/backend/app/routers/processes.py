@@ -23,6 +23,7 @@ from app.services.process_analytics.analytics import (
     stats_all_processes,
     stats_for_process,
 )
+from app.routers.deps import apply_updates, get_or_404
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -79,11 +80,7 @@ async def create_process(
 
 
 async def _get_process_or_404(process_id: uuid.UUID, db: AsyncSession) -> Process:
-    result = await db.execute(select(Process).where(Process.id == process_id, Process.deleted_at.is_(None)))
-    proc = result.scalar_one_or_none()
-    if proc is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Process not found")
-    return proc
+    return await get_or_404(db, Process, Process.id == process_id, Process.deleted_at.is_(None))
 
 
 @router.get("/projects/{project_id}", response_model=ProjectProcessListResponse)
@@ -142,15 +139,11 @@ async def detach_process_from_project(
     db: AsyncSession = Depends(get_db),
 ) -> None:
     await _get_project_owned(project_id, user, db)
-    result = await db.execute(
-        select(ProjectProcess).where(
-            ProjectProcess.id == project_process_id,
-            ProjectProcess.project_id == project_id,
-        )
+    link = await get_or_404(
+        db, ProjectProcess,
+        ProjectProcess.id == project_process_id, ProjectProcess.project_id == project_id,
+        detail="Link not found",
     )
-    link = result.scalar_one_or_none()
-    if link is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Link not found")
     await db.delete(link)
     await db.commit()
 
@@ -195,18 +188,14 @@ async def update_process(
     db: AsyncSession = Depends(get_db),
 ) -> ProcessResponse:
     proc = await _get_process_or_404(process_id, db)
-    for field, value in body.model_dump(exclude_unset=True).items():
-        setattr(proc, field, value)
+    apply_updates(proc, body)
     await db.commit()
     await db.refresh(proc)
     return ProcessResponse.model_validate(proc)
 
 
 async def _get_project_owned(project_id: uuid.UUID, user: User, db: AsyncSession) -> Project:
-    result = await db.execute(select(Project).where(Project.id == project_id, Project.deleted_at.is_(None)))
-    project = result.scalar_one_or_none()
-    if project is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+    project = await get_or_404(db, Project, Project.id == project_id, Project.deleted_at.is_(None))
     if project.owner_id != user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your project")
     return project

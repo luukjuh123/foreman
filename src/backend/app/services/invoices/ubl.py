@@ -54,12 +54,7 @@ def _percent(bp: int) -> str:
 
 
 def _vat_category(bp: int) -> str:
-    # UBL/EN16931 tax category codes: S = standard, AA = reduced (we use S/AA), Z = zero
-    if bp == 0:
-        return "Z"
-    if bp < 2100:
-        return "AA"
-    return "S"
+    return "Z" if bp == 0 else ("AA" if bp < 2100 else "S")
 
 
 def _unit_code(unit: str) -> str:
@@ -74,39 +69,29 @@ def _SubElement(parent: ET.Element, tag: str, text: str | None = None, **attrib:
 
 
 def _add_party(parent: ET.Element, party: Mapping[str, Any], *, ns_prefix_cac: str) -> None:
-    party_elem = ET.SubElement(parent, f"{{{UBL_CAC_NS}}}Party")
-    name_block = ET.SubElement(party_elem, f"{{{UBL_CAC_NS}}}PartyName")
-    _SubElement(name_block, f"{{{UBL_CBC_NS}}}Name", party.get("name", ""))
+    cac, cbc = f"{{{UBL_CAC_NS}}}", f"{{{UBL_CBC_NS}}}"
+    party_elem = ET.SubElement(parent, f"{cac}Party")
+    _SubElement(ET.SubElement(party_elem, f"{cac}PartyName"), f"{cbc}Name", party.get("name", ""))
 
-    addr = ET.SubElement(party_elem, f"{{{UBL_CAC_NS}}}PostalAddress")
-    if party.get("address_line1"):
-        _SubElement(addr, f"{{{UBL_CBC_NS}}}StreetName", party["address_line1"])
-    if party.get("city"):
-        _SubElement(addr, f"{{{UBL_CBC_NS}}}CityName", party["city"])
-    if party.get("postal_code"):
-        _SubElement(addr, f"{{{UBL_CBC_NS}}}PostalZone", party["postal_code"])
-    country = ET.SubElement(addr, f"{{{UBL_CAC_NS}}}Country")
-    _SubElement(country, f"{{{UBL_CBC_NS}}}IdentificationCode", party.get("country_code", "NL"))
+    addr = ET.SubElement(party_elem, f"{cac}PostalAddress")
+    addr_fields = [("address_line1", "StreetName"), ("city", "CityName"), ("postal_code", "PostalZone")]
+    for key, tag in addr_fields:
+        if party.get(key):
+            _SubElement(addr, f"{cbc}{tag}", party[key])
+    _SubElement(ET.SubElement(addr, f"{cac}Country"), f"{cbc}IdentificationCode", party.get("country_code", "NL"))
 
     if party.get("vat_number"):
-        tax_scheme = ET.SubElement(party_elem, f"{{{UBL_CAC_NS}}}PartyTaxScheme")
-        _SubElement(tax_scheme, f"{{{UBL_CBC_NS}}}CompanyID", party["vat_number"])
-        scheme = ET.SubElement(tax_scheme, f"{{{UBL_CAC_NS}}}TaxScheme")
-        _SubElement(scheme, f"{{{UBL_CBC_NS}}}ID", "VAT")
+        tax_scheme = ET.SubElement(party_elem, f"{cac}PartyTaxScheme")
+        _SubElement(tax_scheme, f"{cbc}CompanyID", party["vat_number"])
+        _SubElement(ET.SubElement(tax_scheme, f"{cac}TaxScheme"), f"{cbc}ID", "VAT")
 
-    legal_entity = ET.SubElement(party_elem, f"{{{UBL_CAC_NS}}}PartyLegalEntity")
-    _SubElement(legal_entity, f"{{{UBL_CBC_NS}}}RegistrationName", party.get("name", ""))
+    legal = ET.SubElement(party_elem, f"{cac}PartyLegalEntity")
+    _SubElement(legal, f"{cbc}RegistrationName", party.get("name", ""))
     if party.get("kvk_number"):
-        _SubElement(
-            legal_entity,
-            f"{{{UBL_CBC_NS}}}CompanyID",
-            party["kvk_number"],
-            schemeID="0106",  # Dutch KvK identifier scheme
-        )
+        _SubElement(legal, f"{cbc}CompanyID", party["kvk_number"], schemeID="0106")
 
     if party.get("email"):
-        contact = ET.SubElement(party_elem, f"{{{UBL_CAC_NS}}}Contact")
-        _SubElement(contact, f"{{{UBL_CBC_NS}}}ElectronicMail", party["email"])
+        _SubElement(ET.SubElement(party_elem, f"{cac}Contact"), f"{cbc}ElectronicMail", party["email"])
 
 
 def _group_lines_by_vat(lines: Sequence[Mapping[str, Any]]) -> dict[int, dict[str, int]]:
@@ -127,107 +112,62 @@ def build_invoice_ubl_xml(
 ) -> bytes:
     """Render a UBL 2.1 / Peppol BIS Billing 3.0 invoice as XML bytes."""
 
-    ET.register_namespace("", UBL_INVOICE_NS)
-    ET.register_namespace("cac", UBL_CAC_NS)
-    ET.register_namespace("cbc", UBL_CBC_NS)
+    for prefix, ns in [("", UBL_INVOICE_NS), ("cac", UBL_CAC_NS), ("cbc", UBL_CBC_NS)]:
+        ET.register_namespace(prefix, ns)
 
+    cac, cbc = f"{{{UBL_CAC_NS}}}", f"{{{UBL_CBC_NS}}}"
     root = ET.Element(f"{{{UBL_INVOICE_NS}}}Invoice")
-    _SubElement(root, f"{{{UBL_CBC_NS}}}CustomizationID", CUSTOMIZATION_ID)
-    _SubElement(root, f"{{{UBL_CBC_NS}}}ProfileID", PROFILE_ID)
-    _SubElement(root, f"{{{UBL_CBC_NS}}}ID", str(invoice["invoice_number"]))
-
-    issue: date = invoice["issue_date"]
-    due: date = invoice["due_date"]
-    _SubElement(root, f"{{{UBL_CBC_NS}}}IssueDate", issue.isoformat())
-    _SubElement(root, f"{{{UBL_CBC_NS}}}DueDate", due.isoformat())
-    _SubElement(root, f"{{{UBL_CBC_NS}}}InvoiceTypeCode", "380")
-    if invoice.get("notes"):
-        _SubElement(root, f"{{{UBL_CBC_NS}}}Note", str(invoice["notes"]))
+    issue, due = invoice["issue_date"], invoice["due_date"]
     currency = invoice.get("currency", "EUR")
-    _SubElement(root, f"{{{UBL_CBC_NS}}}DocumentCurrencyCode", currency)
 
-    supplier_block = ET.SubElement(root, f"{{{UBL_CAC_NS}}}AccountingSupplierParty")
-    _add_party(supplier_block, supplier, ns_prefix_cac="cac")
-    customer_block = ET.SubElement(root, f"{{{UBL_CAC_NS}}}AccountingCustomerParty")
-    _add_party(customer_block, customer, ns_prefix_cac="cac")
+    for tag, text in [("CustomizationID", CUSTOMIZATION_ID), ("ProfileID", PROFILE_ID),
+                      ("ID", str(invoice["invoice_number"])), ("IssueDate", issue.isoformat()),
+                      ("DueDate", due.isoformat()), ("InvoiceTypeCode", "380")]:
+        _SubElement(root, f"{cbc}{tag}", text)
+    if invoice.get("notes"):
+        _SubElement(root, f"{cbc}Note", str(invoice["notes"]))
+    _SubElement(root, f"{cbc}DocumentCurrencyCode", currency)
 
-    # Payment means: IBAN credit transfer (Peppol code 30)
+    for tag, party in [("AccountingSupplierParty", supplier), ("AccountingCustomerParty", customer)]:
+        _add_party(ET.SubElement(root, f"{cac}{tag}"), party, ns_prefix_cac="cac")
+
     if supplier.get("iban"):
-        pm = ET.SubElement(root, f"{{{UBL_CAC_NS}}}PaymentMeans")
-        _SubElement(pm, f"{{{UBL_CBC_NS}}}PaymentMeansCode", "30")
-        _SubElement(pm, f"{{{UBL_CBC_NS}}}PaymentDueDate", due.isoformat())
-        payee = ET.SubElement(pm, f"{{{UBL_CAC_NS}}}PayeeFinancialAccount")
-        _SubElement(payee, f"{{{UBL_CBC_NS}}}ID", supplier["iban"])
+        pm = ET.SubElement(root, f"{cac}PaymentMeans")
+        _SubElement(pm, f"{cbc}PaymentMeansCode", "30")
+        _SubElement(pm, f"{cbc}PaymentDueDate", due.isoformat())
+        _SubElement(ET.SubElement(pm, f"{cac}PayeeFinancialAccount"), f"{cbc}ID", supplier["iban"])
 
-    # Tax totals
-    tax_total = ET.SubElement(root, f"{{{UBL_CAC_NS}}}TaxTotal")
-    _SubElement(
-        tax_total,
-        f"{{{UBL_CBC_NS}}}TaxAmount",
-        _euro(int(invoice["vat_total_cents"])),
-        currencyID=currency,
-    )
+    tax_total = ET.SubElement(root, f"{cac}TaxTotal")
+    _SubElement(tax_total, f"{cbc}TaxAmount", _euro(int(invoice["vat_total_cents"])), currencyID=currency)
     for rate_bp, totals in sorted(_group_lines_by_vat(invoice["lines"]).items()):
-        sub = ET.SubElement(tax_total, f"{{{UBL_CAC_NS}}}TaxSubtotal")
-        _SubElement(
-            sub,
-            f"{{{UBL_CBC_NS}}}TaxableAmount",
-            _euro(totals["net"]),
-            currencyID=currency,
-        )
-        _SubElement(
-            sub,
-            f"{{{UBL_CBC_NS}}}TaxAmount",
-            _euro(totals["vat"]),
-            currencyID=currency,
-        )
-        cat = ET.SubElement(sub, f"{{{UBL_CAC_NS}}}TaxCategory")
-        _SubElement(cat, f"{{{UBL_CBC_NS}}}ID", _vat_category(rate_bp))
-        _SubElement(cat, f"{{{UBL_CBC_NS}}}Percent", _percent(rate_bp))
-        scheme = ET.SubElement(cat, f"{{{UBL_CAC_NS}}}TaxScheme")
-        _SubElement(scheme, f"{{{UBL_CBC_NS}}}ID", "VAT")
+        sub = ET.SubElement(tax_total, f"{cac}TaxSubtotal")
+        _SubElement(sub, f"{cbc}TaxableAmount", _euro(totals["net"]), currencyID=currency)
+        _SubElement(sub, f"{cbc}TaxAmount", _euro(totals["vat"]), currencyID=currency)
+        cat = ET.SubElement(sub, f"{cac}TaxCategory")
+        _SubElement(cat, f"{cbc}ID", _vat_category(rate_bp))
+        _SubElement(cat, f"{cbc}Percent", _percent(rate_bp))
+        _SubElement(ET.SubElement(cat, f"{cac}TaxScheme"), f"{cbc}ID", "VAT")
 
-    # Legal monetary totals
-    lmt = ET.SubElement(root, f"{{{UBL_CAC_NS}}}LegalMonetaryTotal")
-    subtotal = int(invoice["subtotal_cents"])
-    vat_total = int(invoice["vat_total_cents"])
-    total = int(invoice["total_cents"])
-    _SubElement(lmt, f"{{{UBL_CBC_NS}}}LineExtensionAmount", _euro(subtotal), currencyID=currency)
-    _SubElement(lmt, f"{{{UBL_CBC_NS}}}TaxExclusiveAmount", _euro(subtotal), currencyID=currency)
-    _SubElement(lmt, f"{{{UBL_CBC_NS}}}TaxInclusiveAmount", _euro(subtotal + vat_total), currencyID=currency)
-    _SubElement(lmt, f"{{{UBL_CBC_NS}}}PayableAmount", _euro(total), currencyID=currency)
+    lmt = ET.SubElement(root, f"{cac}LegalMonetaryTotal")
+    subtotal, vat_total, total = int(invoice["subtotal_cents"]), int(invoice["vat_total_cents"]), int(invoice["total_cents"])
+    for tag, amt in [("LineExtensionAmount", subtotal), ("TaxExclusiveAmount", subtotal),
+                     ("TaxInclusiveAmount", subtotal + vat_total), ("PayableAmount", total)]:
+        _SubElement(lmt, f"{cbc}{tag}", _euro(amt), currencyID=currency)
 
-    # Invoice lines
     for idx, line in enumerate(invoice["lines"], start=1):
-        line_elem = ET.SubElement(root, f"{{{UBL_CAC_NS}}}InvoiceLine")
-        _SubElement(line_elem, f"{{{UBL_CBC_NS}}}ID", str(idx))
-        _SubElement(
-            line_elem,
-            f"{{{UBL_CBC_NS}}}InvoicedQuantity",
-            _qty(float(line["quantity"])),
-            unitCode=_unit_code(str(line.get("unit", "piece"))),
-        )
-        _SubElement(
-            line_elem,
-            f"{{{UBL_CBC_NS}}}LineExtensionAmount",
-            _euro(int(line["line_net_cents"])),
-            currencyID=currency,
-        )
-        item = ET.SubElement(line_elem, f"{{{UBL_CAC_NS}}}Item")
-        _SubElement(item, f"{{{UBL_CBC_NS}}}Name", str(line["description"]))
-        cat = ET.SubElement(item, f"{{{UBL_CAC_NS}}}ClassifiedTaxCategory")
-        _SubElement(cat, f"{{{UBL_CBC_NS}}}ID", _vat_category(int(line["vat_rate_bp"])))
-        _SubElement(cat, f"{{{UBL_CBC_NS}}}Percent", _percent(int(line["vat_rate_bp"])))
-        scheme = ET.SubElement(cat, f"{{{UBL_CAC_NS}}}TaxScheme")
-        _SubElement(scheme, f"{{{UBL_CBC_NS}}}ID", "VAT")
-
-        price = ET.SubElement(line_elem, f"{{{UBL_CAC_NS}}}Price")
-        _SubElement(
-            price,
-            f"{{{UBL_CBC_NS}}}PriceAmount",
-            _euro(int(line["unit_price_cents"])),
-            currencyID=currency,
-        )
+        le = ET.SubElement(root, f"{cac}InvoiceLine")
+        _SubElement(le, f"{cbc}ID", str(idx))
+        _SubElement(le, f"{cbc}InvoicedQuantity", _qty(float(line["quantity"])),
+                    unitCode=_unit_code(str(line.get("unit", "piece"))))
+        _SubElement(le, f"{cbc}LineExtensionAmount", _euro(int(line["line_net_cents"])), currencyID=currency)
+        item = ET.SubElement(le, f"{cac}Item")
+        _SubElement(item, f"{cbc}Name", str(line["description"]))
+        cat = ET.SubElement(item, f"{cac}ClassifiedTaxCategory")
+        _SubElement(cat, f"{cbc}ID", _vat_category(int(line["vat_rate_bp"])))
+        _SubElement(cat, f"{cbc}Percent", _percent(int(line["vat_rate_bp"])))
+        _SubElement(ET.SubElement(cat, f"{cac}TaxScheme"), f"{cbc}ID", "VAT")
+        _SubElement(ET.SubElement(le, f"{cac}Price"), f"{cbc}PriceAmount",
+                    _euro(int(line["unit_price_cents"])), currencyID=currency)
 
     return b'<?xml version="1.0" encoding="UTF-8"?>\n' + ET.tostring(root, encoding="utf-8")
 
@@ -266,21 +206,10 @@ def validate_ubl(xml_bytes: bytes) -> list[str]:
         errors.append("Root element must be Invoice")
 
     ns = {"cbc": UBL_CBC_NS, "cac": UBL_CAC_NS}
-    for name in _REQUIRED_ELEMENTS:
-        prefix = (
-            "cac"
-            if name
-            in {
-                "AccountingSupplierParty",
-                "AccountingCustomerParty",
-                "TaxTotal",
-                "LegalMonetaryTotal",
-                "InvoiceLine",
-            }
-            else "cbc"
-        )
-        found = root.find(f"{prefix}:{name}", ns)
-        if found is None:
-            errors.append(f"Missing required element: {name}")
-
+    _CAC_ELEMENTS = {"AccountingSupplierParty", "AccountingCustomerParty", "TaxTotal", "LegalMonetaryTotal", "InvoiceLine"}
+    errors.extend(
+        f"Missing required element: {name}"
+        for name in _REQUIRED_ELEMENTS
+        if root.find(f"{'cac' if name in _CAC_ELEMENTS else 'cbc'}:{name}", ns) is None
+    )
     return errors

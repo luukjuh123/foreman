@@ -14,6 +14,7 @@ from app.schemas.incident import (
     IncidentStatsResponse,
     IncidentUpdate,
 )
+from app.routers.deps import get_or_404
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,11 +28,7 @@ router = APIRouter()
 
 
 async def _get_incident_or_404(incident_id: uuid.UUID, owner_id: uuid.UUID, db: AsyncSession) -> Incident:
-    result = await db.execute(select(Incident).where(Incident.id == incident_id, Incident.owner_id == owner_id))
-    incident = result.scalar_one_or_none()
-    if incident is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Incident not found")
-    return incident
+    return await get_or_404(db, Incident, Incident.id == incident_id, Incident.owner_id == owner_id)
 
 
 # ---------------------------------------------------------------------------

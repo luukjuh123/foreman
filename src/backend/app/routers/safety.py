@@ -26,6 +26,7 @@ from app.schemas.safety import (
     SafetyDashboardResponse,
 )
 from app.services.safety import compute_cert_status
+from app.routers.deps import apply_updates, get_or_404
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -41,45 +42,22 @@ _EXPIRY_WARN_DAYS = 30
 
 
 async def _get_cert_or_404(cert_id: uuid.UUID, owner_id: uuid.UUID, db: AsyncSession) -> SafetyCertification:
-    row = (
-        await db.execute(
-            select(SafetyCertification).where(
-                SafetyCertification.id == cert_id,
-                SafetyCertification.owner_id == owner_id,
-            )
-        )
-    ).scalar_one_or_none()
-    if row is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Certification not found")
-    return row
+    return await get_or_404(db, SafetyCertification, SafetyCertification.id == cert_id, SafetyCertification.owner_id == owner_id, detail="Certification not found")
 
 
 async def _get_incident_or_404(incident_id: uuid.UUID, owner_id: uuid.UUID, db: AsyncSession) -> SafetyIncident:
-    row = (
-        await db.execute(
-            select(SafetyIncident).where(
-                SafetyIncident.id == incident_id,
-                SafetyIncident.owner_id == owner_id,
-            )
-        )
-    ).scalar_one_or_none()
-    if row is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Incident not found")
-    return row
+    return await get_or_404(db, SafetyIncident, SafetyIncident.id == incident_id, SafetyIncident.owner_id == owner_id, detail="Incident not found")
 
 
 async def _get_rie_or_404(rie_id: uuid.UUID, owner_id: uuid.UUID, db: AsyncSession) -> RIEChecklist:
-    row = (
-        await db.execute(
-            select(RIEChecklist).where(
-                RIEChecklist.id == rie_id,
-                RIEChecklist.owner_id == owner_id,
-            )
-        )
-    ).scalar_one_or_none()
-    if row is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="RI&E checklist not found")
-    return row
+    return await get_or_404(db, RIEChecklist, RIEChecklist.id == rie_id, RIEChecklist.owner_id == owner_id, detail="RI&E checklist not found")
+
+
+async def _paginated_list(db: AsyncSession, model: type, response_cls: type, list_cls: type, conditions: list, page: int, per_page: int):
+    """Generic paginated list query: returns list_cls(data=[response_cls(...)], total, page, per_page)."""
+    total = (await db.execute(select(func.count()).select_from(model).where(*conditions))).scalar_one()
+    rows = (await db.execute(select(model).where(*conditions).offset((page - 1) * per_page).limit(per_page))).scalars().all()
+    return list_cls(data=[response_cls.model_validate(r) for r in rows], total=total, page=page, per_page=per_page)
 
 
 # ---------------------------------------------------------------------------
@@ -122,28 +100,13 @@ async def list_certifications(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> CertificationListResponse:
-    conditions = [SafetyCertification.owner_id == current_user.id]
-    if staff_id is not None:
-        conditions.append(SafetyCertification.staff_id == staff_id)
-    if cert_type is not None:
-        conditions.append(SafetyCertification.cert_type == cert_type)
-    if cert_status is not None:
-        conditions.append(SafetyCertification.status == cert_status)
-
-    total = (await db.execute(select(func.count()).select_from(SafetyCertification).where(*conditions))).scalar_one()
-    offset = (page - 1) * per_page
-    rows = (
-        (await db.execute(select(SafetyCertification).where(*conditions).offset(offset).limit(per_page)))
-        .scalars()
-        .all()
-    )
-
-    return CertificationListResponse(
-        data=[CertificationResponse.model_validate(r) for r in rows],
-        total=total,
-        page=page,
-        per_page=per_page,
-    )
+    conditions = [
+        SafetyCertification.owner_id == current_user.id,
+        *([SafetyCertification.staff_id == staff_id] if staff_id is not None else []),
+        *([SafetyCertification.cert_type == cert_type] if cert_type is not None else []),
+        *([SafetyCertification.status == cert_status] if cert_status is not None else []),
+    ]
+    return await _paginated_list(db, SafetyCertification, CertificationResponse, CertificationListResponse, conditions, page, per_page)
 
 
 @router.post("/certifications/", response_model=CertificationResponse, status_code=status.HTTP_201_CREATED)
@@ -152,18 +115,9 @@ async def create_certification(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> CertificationResponse:
-    cert_status = compute_cert_status(body.expiry_date)
     cert = SafetyCertification(
-        owner_id=current_user.id,
-        staff_id=body.staff_id,
-        company_wide=body.company_wide,
-        cert_type=body.cert_type,
-        cert_name=body.cert_name,
-        issued_date=body.issued_date,
-        expiry_date=body.expiry_date,
-        issuing_body=body.issuing_body,
-        document_url=body.document_url,
-        status=cert_status,
+        owner_id=current_user.id, **body.model_dump(),
+        status=compute_cert_status(body.expiry_date),
     )
     db.add(cert)
     await db.commit()
@@ -189,8 +143,7 @@ async def update_certification(
     db: AsyncSession = Depends(get_db),
 ) -> CertificationResponse:
     cert = await _get_cert_or_404(cert_id, current_user.id, db)
-    for field, value in body.model_dump(exclude_unset=True).items():
-        setattr(cert, field, value)
+    apply_updates(cert, body)
     # Recompute status if expiry_date changed
     if body.expiry_date is not None:
         cert.status = compute_cert_status(cert.expiry_date)
@@ -220,20 +173,13 @@ async def get_incident_stats(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> IncidentStatsResponse:
-    rows = (await db.execute(select(SafetyIncident).where(SafetyIncident.owner_id == current_user.id))).scalars().all()
-
+    rows = list((await db.execute(select(SafetyIncident).where(SafetyIncident.owner_id == current_user.id))).scalars().all())
     by_severity: dict[str, int] = {}
     by_project: dict[str, int] = {}
     for inc in rows:
         by_severity[inc.severity] = by_severity.get(inc.severity, 0) + 1
-        pid = str(inc.project_id)
-        by_project[pid] = by_project.get(pid, 0) + 1
-
-    return IncidentStatsResponse(
-        total=len(rows),
-        by_severity=by_severity,
-        by_project=by_project,
-    )
+        by_project[str(inc.project_id)] = by_project.get(str(inc.project_id), 0) + 1
+    return IncidentStatsResponse(total=len(rows), by_severity=by_severity, by_project=by_project)
 
 
 @router.get("/incidents/", response_model=IncidentListResponse)
@@ -245,22 +191,12 @@ async def list_incidents(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> IncidentListResponse:
-    conditions = [SafetyIncident.owner_id == current_user.id]
-    if project_id is not None:
-        conditions.append(SafetyIncident.project_id == project_id)
-    if severity is not None:
-        conditions.append(SafetyIncident.severity == severity)
-
-    total = (await db.execute(select(func.count()).select_from(SafetyIncident).where(*conditions))).scalar_one()
-    offset = (page - 1) * per_page
-    rows = (await db.execute(select(SafetyIncident).where(*conditions).offset(offset).limit(per_page))).scalars().all()
-
-    return IncidentListResponse(
-        data=[IncidentResponse.model_validate(r) for r in rows],
-        total=total,
-        page=page,
-        per_page=per_page,
-    )
+    conditions = [
+        SafetyIncident.owner_id == current_user.id,
+        *([SafetyIncident.project_id == project_id] if project_id is not None else []),
+        *([SafetyIncident.severity == severity] if severity is not None else []),
+    ]
+    return await _paginated_list(db, SafetyIncident, IncidentResponse, IncidentListResponse, conditions, page, per_page)
 
 
 @router.post("/incidents/", response_model=IncidentResponse, status_code=status.HTTP_201_CREATED)
@@ -269,15 +205,7 @@ async def create_incident(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> IncidentResponse:
-    incident = SafetyIncident(
-        owner_id=current_user.id,
-        project_id=body.project_id,
-        reported_by_user_id=body.reported_by_user_id,
-        incident_date=body.incident_date,
-        severity=body.severity,
-        description=body.description,
-        corrective_action=body.corrective_action,
-    )
+    incident = SafetyIncident(owner_id=current_user.id, **body.model_dump())
     db.add(incident)
     await db.commit()
     await db.refresh(incident)
@@ -302,8 +230,7 @@ async def update_incident(
     db: AsyncSession = Depends(get_db),
 ) -> IncidentResponse:
     incident = await _get_incident_or_404(incident_id, current_user.id, db)
-    for field, value in body.model_dump(exclude_unset=True).items():
-        setattr(incident, field, value)
+    apply_updates(incident, body)
     await db.commit()
     await db.refresh(incident)
     return IncidentResponse.model_validate(incident)
@@ -333,20 +260,11 @@ async def list_rie(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> RIEListResponse:
-    conditions = [RIEChecklist.owner_id == current_user.id]
-    if project_id is not None:
-        conditions.append(RIEChecklist.project_id == project_id)
-
-    total = (await db.execute(select(func.count()).select_from(RIEChecklist).where(*conditions))).scalar_one()
-    offset = (page - 1) * per_page
-    rows = (await db.execute(select(RIEChecklist).where(*conditions).offset(offset).limit(per_page))).scalars().all()
-
-    return RIEListResponse(
-        data=[RIEResponse.model_validate(r) for r in rows],
-        total=total,
-        page=page,
-        per_page=per_page,
-    )
+    conditions = [
+        RIEChecklist.owner_id == current_user.id,
+        *([RIEChecklist.project_id == project_id] if project_id is not None else []),
+    ]
+    return await _paginated_list(db, RIEChecklist, RIEResponse, RIEListResponse, conditions, page, per_page)
 
 
 @router.post("/rie/", response_model=RIEResponse, status_code=status.HTTP_201_CREATED)
@@ -355,12 +273,7 @@ async def create_rie(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> RIEResponse:
-    checklist = RIEChecklist(
-        owner_id=current_user.id,
-        project_id=body.project_id,
-        template_name=body.template_name,
-        items=body.items,
-    )
+    checklist = RIEChecklist(owner_id=current_user.id, **body.model_dump())
     db.add(checklist)
     await db.commit()
     await db.refresh(checklist)
@@ -385,8 +298,7 @@ async def update_rie(
     db: AsyncSession = Depends(get_db),
 ) -> RIEResponse:
     checklist = await _get_rie_or_404(rie_id, current_user.id, db)
-    for field, value in body.model_dump(exclude_unset=True).items():
-        setattr(checklist, field, value)
+    apply_updates(checklist, body)
     await db.commit()
     await db.refresh(checklist)
     return RIEResponse.model_validate(checklist)
@@ -416,42 +328,24 @@ async def get_dashboard(
     today = date.today()
     cutoff = today + timedelta(days=_EXPIRY_WARN_DAYS)
 
-    expiring_count = (
-        await db.execute(
-            select(func.count())
-            .select_from(SafetyCertification)
-            .where(
-                SafetyCertification.owner_id == current_user.id,
-                SafetyCertification.expiry_date >= today,
-                SafetyCertification.expiry_date <= cutoff,
-            )
-        )
-    ).scalar_one()
-
-    open_incidents_count = (
-        await db.execute(
-            select(func.count())
-            .select_from(SafetyIncident)
-            .where(
-                SafetyIncident.owner_id == current_user.id,
-                SafetyIncident.resolved_at.is_(None),
-            )
-        )
-    ).scalar_one()
-
-    incomplete_checklists_count = (
-        await db.execute(
-            select(func.count())
-            .select_from(RIEChecklist)
-            .where(
-                RIEChecklist.owner_id == current_user.id,
-                RIEChecklist.completed_at.is_(None),
-            )
-        )
-    ).scalar_one()
+    async def _count(model: type, *filters: object) -> int:
+        return (await db.execute(select(func.count()).select_from(model).where(*filters))).scalar_one()
 
     return SafetyDashboardResponse(
-        expiring_certs_count=expiring_count,
-        open_incidents_count=open_incidents_count,
-        incomplete_checklists_count=incomplete_checklists_count,
+        expiring_certs_count=await _count(
+            SafetyCertification,
+            SafetyCertification.owner_id == current_user.id,
+            SafetyCertification.expiry_date >= today,
+            SafetyCertification.expiry_date <= cutoff,
+        ),
+        open_incidents_count=await _count(
+            SafetyIncident,
+            SafetyIncident.owner_id == current_user.id,
+            SafetyIncident.resolved_at.is_(None),
+        ),
+        incomplete_checklists_count=await _count(
+            RIEChecklist,
+            RIEChecklist.owner_id == current_user.id,
+            RIEChecklist.completed_at.is_(None),
+        ),
     )

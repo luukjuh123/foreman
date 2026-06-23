@@ -204,15 +204,12 @@ export default function MaterialsPage() {
 
     setCalculating(true);
     try {
-      const materials = materialRows.map((row) => {
-        if (row.type === "paint" || row.type === "tiles") {
-          return { type: row.type, surface: row.surface ?? "" };
-        }
-        if (row.type === "concrete") {
-          return { type: row.type, dikte: row.dikte ?? "" };
-        }
-        return { type: row.type, total_length: row.totalLength ?? "" };
-      });
+      const materials = materialRows.map((row) => ({
+        type: row.type,
+        ...(row.type === "paint" || row.type === "tiles" ? { surface: row.surface ?? "" }
+          : row.type === "concrete" ? { dikte: row.dikte ?? "" }
+          : { total_length: row.totalLength ?? "" }),
+      }));
 
       const res = await estimateMaterials({
         length_m: l,
@@ -344,66 +341,32 @@ export default function MaterialsPage() {
                     </select>
                   </div>
 
-                  {/* Type-specific fields */}
-                  {(row.type === "paint" || row.type === "tiles") && (
-                    <div className="flex flex-col gap-1">
-                      <label
-                        htmlFor={`mat-surface-${row.id}`}
-                        className="text-sm font-medium text-foreground"
-                      >
-                        Oppervlak (m²)
-                      </label>
-                      <input
-                        id={`mat-surface-${row.id}`}
-                        type="number"
-                        min="0"
-                        step="0.1"
-                        value={row.surface ?? ""}
-                        onChange={(e) => updateRow(row.id, { surface: e.target.value })}
-                        className="rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                      />
-                    </div>
-                  )}
-
-                  {row.type === "concrete" && (
-                    <div className="flex flex-col gap-1">
-                      <label
-                        htmlFor={`mat-dikte-${row.id}`}
-                        className="text-sm font-medium text-foreground"
-                      >
-                        Dikte (cm)
-                      </label>
-                      <input
-                        id={`mat-dikte-${row.id}`}
-                        type="number"
-                        min="0"
-                        step="0.1"
-                        value={row.dikte ?? ""}
-                        onChange={(e) => updateRow(row.id, { dikte: e.target.value })}
-                        className="rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                      />
-                    </div>
-                  )}
-
-                  {row.type === "lumber" && (
-                    <div className="flex flex-col gap-1">
-                      <label
-                        htmlFor={`mat-length-${row.id}`}
-                        className="text-sm font-medium text-foreground"
-                      >
-                        Totale lengte (m)
-                      </label>
-                      <input
-                        id={`mat-length-${row.id}`}
-                        type="number"
-                        min="0"
-                        step="0.1"
-                        value={row.totalLength ?? ""}
-                        onChange={(e) => updateRow(row.id, { totalLength: e.target.value })}
-                        className="rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                      />
-                    </div>
-                  )}
+                  {/* Type-specific field */}
+                  {(() => {
+                    const fieldMap: Record<string, { id: string; label: string; field: keyof MaterialRow; value: string }> = {
+                      paint:    { id: "surface", label: "Oppervlak (m²)",    field: "surface",     value: row.surface ?? "" },
+                      tiles:    { id: "surface", label: "Oppervlak (m²)",    field: "surface",     value: row.surface ?? "" },
+                      concrete: { id: "dikte",   label: "Dikte (cm)",        field: "dikte",       value: row.dikte ?? "" },
+                      lumber:   { id: "length",  label: "Totale lengte (m)", field: "totalLength", value: row.totalLength ?? "" },
+                    };
+                    const cfg = fieldMap[row.type];
+                    return cfg ? (
+                      <div className="flex flex-col gap-1">
+                        <label htmlFor={`mat-${cfg.id}-${row.id}`} className="text-sm font-medium text-foreground">
+                          {cfg.label}
+                        </label>
+                        <input
+                          id={`mat-${cfg.id}-${row.id}`}
+                          type="number"
+                          min="0"
+                          step="0.1"
+                          value={cfg.value}
+                          onChange={(e) => updateRow(row.id, { [cfg.field]: e.target.value })}
+                          className="rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                        />
+                      </div>
+                    ) : null;
+                  })()}
 
                   {/* Remove button */}
                   <button
@@ -599,21 +562,16 @@ export default function MaterialsPage() {
                         {priceFmt ? priceFmt(item.price_cents) : item.price_cents}
                       </td>
                       <td className="px-4 py-2">
-                        {item.in_stock ? (
-                          <span
-                            data-testid="badge-in-stock"
-                            className="inline-block rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/40 dark:text-green-300"
-                          >
-                            Op voorraad
-                          </span>
-                        ) : (
-                          <span
-                            data-testid="badge-out-of-stock"
-                            className="inline-block rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800 dark:bg-red-900/40 dark:text-red-300"
-                          >
-                            Niet op voorraad
-                          </span>
-                        )}
+                        <span
+                          data-testid={item.in_stock ? "badge-in-stock" : "badge-out-of-stock"}
+                          className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
+                            item.in_stock
+                              ? "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300"
+                              : "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300"
+                          }`}
+                        >
+                          {item.in_stock ? "Op voorraad" : "Niet op voorraad"}
+                        </span>
                       </td>
                       <td className="px-4 py-2">
                         <a

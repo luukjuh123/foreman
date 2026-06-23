@@ -18,6 +18,7 @@ from app.schemas.customer import (
     InvoiceSummaryItem,
     ProjectSummaryItem,
 )
+from app.routers.deps import apply_updates, count_query, get_or_404
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,17 +31,10 @@ def _fmt_date(d: date | None) -> str | None:
 
 
 async def _get_or_404(customer_id: uuid.UUID, owner_id: uuid.UUID, db: AsyncSession) -> Customer:
-    result = await db.execute(
-        select(Customer).where(
-            Customer.id == customer_id,
-            Customer.owner_id == owner_id,
-            Customer.deleted_at.is_(None),
-        )
+    return await get_or_404(
+        db, Customer,
+        Customer.id == customer_id, Customer.owner_id == owner_id, Customer.deleted_at.is_(None),
     )
-    customer = result.scalar_one_or_none()
-    if customer is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
-    return customer
 
 
 @router.post("/", response_model=CustomerResponse, status_code=status.HTTP_201_CREATED)
@@ -72,9 +66,7 @@ async def list_customers(
         term = f"%{search}%"
         base_q = base_q.where(Customer.name.ilike(term) | Customer.city.ilike(term) | Customer.email.ilike(term))
 
-    count_q = select(func.count()).select_from(base_q.subquery())
-    total_result = await db.execute(count_q)
-    total = total_result.scalar_one()
+    total = await count_query(db, base_q)
 
     items_q = base_q.order_by(Customer.name).offset((page - 1) * per_page).limit(per_page)
     result = await db.execute(items_q)
@@ -164,8 +156,7 @@ async def update_customer(
     db: AsyncSession = Depends(get_db),
 ) -> Customer:
     customer = await _get_or_404(customer_id, current_user.id, db)
-    for field, value in body.model_dump(exclude_unset=True).items():
-        setattr(customer, field, value)
+    apply_updates(customer, body)
     await db.commit()
     await db.refresh(customer)
     return customer

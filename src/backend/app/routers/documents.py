@@ -14,6 +14,7 @@ from app.models.project import Project
 from app.models.user import User
 from app.routers.auth import get_current_user
 from app.schemas.document import DocumentListResponse, DocumentResponse
+from app.routers.deps import count_query, get_or_404
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
@@ -26,21 +27,14 @@ VALID_CATEGORIES = {"contract", "permit", "drawing", "photo", "other"}
 
 
 async def _get_project_owned(project_id: uuid.UUID, user: User, db: AsyncSession) -> Project:
-    result = await db.execute(select(Project).where(Project.id == project_id, Project.deleted_at.is_(None)))
-    project = result.scalar_one_or_none()
-    if project is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+    project = await get_or_404(db, Project, Project.id == project_id, Project.deleted_at.is_(None))
     if project.owner_id != user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your project")
     return project
 
 
 async def _get_document_or_404(document_id: uuid.UUID, db: AsyncSession) -> Document:
-    result = await db.execute(select(Document).where(Document.id == document_id, Document.deleted_at.is_(None)))
-    doc = result.scalar_one_or_none()
-    if doc is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
-    return doc
+    return await get_or_404(db, Document, Document.id == document_id, Document.deleted_at.is_(None))
 
 
 def _storage_path(project_id: uuid.UUID, document_id: uuid.UUID, filename: str) -> Path:
@@ -126,8 +120,7 @@ async def list_documents(
     if category is not None:
         query = query.where(Document.category == category)
 
-    count_result = await db.execute(select(func.count()).select_from(query.subquery()))
-    total = count_result.scalar_one()
+    total = await count_query(db, query)
 
     docs_result = await db.execute(query.order_by(Document.created_at).offset(offset).limit(limit))
     docs = list(docs_result.scalars().all())

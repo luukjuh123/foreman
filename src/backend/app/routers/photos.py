@@ -20,6 +20,7 @@ from app.services.recognition.photo_client import (
     PhotoRecognitionClient,
     get_default_client,
 )
+from app.routers.deps import get_or_404
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,10 +29,7 @@ router = APIRouter()
 
 
 async def _get_project_owned(project_id: uuid.UUID, user: User, db: AsyncSession) -> Project:
-    result = await db.execute(select(Project).where(Project.id == project_id, Project.deleted_at.is_(None)))
-    project = result.scalar_one_or_none()
-    if project is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+    project = await get_or_404(db, Project, Project.id == project_id, Project.deleted_at.is_(None))
     if project.owner_id != user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your project")
     return project

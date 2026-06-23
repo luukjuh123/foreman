@@ -25,6 +25,7 @@ from app.schemas.equipment import (
     MaintenanceCreate,
     MaintenanceResponse,
 )
+from app.routers.deps import apply_updates, count_query, get_or_404
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,17 +34,10 @@ router = APIRouter()
 
 
 async def _get_owned_equipment_or_404(eq_id: uuid.UUID, user: User, db: AsyncSession) -> Equipment:
-    result = await db.execute(
-        select(Equipment).where(
-            Equipment.id == eq_id,
-            Equipment.owner_id == user.id,
-            Equipment.deleted_at.is_(None),
-        )
+    return await get_or_404(
+        db, Equipment,
+        Equipment.id == eq_id, Equipment.owner_id == user.id, Equipment.deleted_at.is_(None),
     )
-    eq = result.scalar_one_or_none()
-    if eq is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Equipment not found")
-    return eq
 
 
 # ---------------------------------------------------------------------------
@@ -157,8 +151,7 @@ async def update_equipment(
     db: AsyncSession = Depends(get_db),
 ) -> EquipmentResponse:
     eq = await _get_owned_equipment_or_404(eq_id, current_user, db)
-    for field, value in body.model_dump(exclude_unset=True).items():
-        setattr(eq, field, value)
+    apply_updates(eq, body)
     await db.commit()
     await db.refresh(eq)
     return EquipmentResponse.model_validate(eq)
@@ -234,17 +227,11 @@ async def release_equipment(
     db: AsyncSession = Depends(get_db),
 ) -> AssignmentResponse:
     await _get_owned_equipment_or_404(eq_id, current_user, db)
-    result = await db.execute(
-        select(EquipmentAssignment).where(
-            EquipmentAssignment.id == assignment_id,
-            EquipmentAssignment.equipment_id == eq_id,
-        )
+    assignment = await get_or_404(
+        db, EquipmentAssignment,
+        EquipmentAssignment.id == assignment_id, EquipmentAssignment.equipment_id == eq_id,
     )
-    assignment = result.scalar_one_or_none()
-    if assignment is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assignment not found")
-    for field, value in body.model_dump(exclude_unset=True).items():
-        setattr(assignment, field, value)
+    apply_updates(assignment, body)
     await db.commit()
     await db.refresh(assignment)
     return AssignmentResponse.model_validate(assignment)

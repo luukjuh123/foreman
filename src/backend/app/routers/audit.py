@@ -7,6 +7,7 @@ from app.models.audit_log import AuditLog
 from app.models.user import User
 from app.routers.auth import get_current_user
 from app.schemas.audit_log import AuditLogListResponse, AuditLogResponse
+from app.routers.deps import get_or_404
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -62,8 +63,5 @@ async def get_audit_log(
     _current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> AuditLogResponse:
-    result = await db.execute(select(AuditLog).where(AuditLog.id == entry_id))
-    entry = result.scalar_one_or_none()
-    if entry is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Audit log entry not found")
+    entry = await get_or_404(db, AuditLog, AuditLog.id == entry_id, detail="Audit log entry not found")
     return AuditLogResponse.model_validate(entry)

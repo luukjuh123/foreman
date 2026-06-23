@@ -25,6 +25,7 @@ from app.services.reviews.google_client import (
     GoogleBusinessClient,
     get_google_business_client,
 )
+from app.routers.deps import get_or_404
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -149,10 +150,7 @@ async def draft_reply_for_review(
     db: AsyncSession = Depends(get_db),
 ) -> Envelope:
     """Generate a professional Dutch reply draft for a review."""
-    result = await db.execute(select(Review).where(Review.id == review_id))
-    review = result.scalar_one_or_none()
-    if review is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Review not found")
+    review = await get_or_404(db, Review, Review.id == review_id)
     draft_text = await ai_draft_reply(
         author_name=review.author_name,
         rating=review.rating,
@@ -170,10 +168,7 @@ async def reply_to_review(
     google: GoogleBusinessClient = Depends(get_google_business_client),
 ) -> Envelope:
     """Send a reply via the Google client and persist it locally."""
-    result = await db.execute(select(Review).where(Review.id == review_id))
-    review = result.scalar_one_or_none()
-    if review is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Review not found")
+    review = await get_or_404(db, Review, Review.id == review_id)
     await google.reply_to_review(review.location_id, review.external_id, body.text)
     review.reply_text = body.text
     review.replied_at = datetime.now(UTC)

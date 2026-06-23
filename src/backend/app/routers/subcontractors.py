@@ -29,6 +29,7 @@ from app.schemas.subcontractor import (
     SubcontractorResponse,
     SubcontractorUpdate,
 )
+from app.routers.deps import apply_updates, count_query, get_or_404
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -41,19 +42,11 @@ router = APIRouter()
 
 
 async def _get_owned_sub_or_404(sub_id: uuid.UUID, user: User, db: AsyncSession) -> Subcontractor:
-    result = await db.execute(
-        select(Subcontractor)
-        .where(
-            Subcontractor.id == sub_id,
-            Subcontractor.owner_id == user.id,
-            Subcontractor.deleted_at.is_(None),
-        )
-        .options(selectinload(Subcontractor.certifications))
+    return await get_or_404(
+        db, Subcontractor,
+        Subcontractor.id == sub_id, Subcontractor.owner_id == user.id, Subcontractor.deleted_at.is_(None),
+        options=selectinload(Subcontractor.certifications),
     )
-    sub = result.scalar_one_or_none()
-    if sub is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subcontractor not found")
-    return sub
 
 
 def _compute_assignment_cost(assignment: SubcontractorAssignment) -> int:
@@ -82,7 +75,7 @@ async def list_subcontractors(
     if specialty:
         base_query = base_query.where(Subcontractor.specialties_json.contains(specialty))
 
-    count = (await db.execute(select(func.count()).select_from(base_query.subquery()))).scalar_one()
+    count = await count_query(db, base_query)
     offset = (page - 1) * per_page
     rows = (
         (
@@ -110,20 +103,9 @@ async def create_subcontractor(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> SubcontractorResponse:
-    sub = Subcontractor(
-        owner_id=current_user.id,
-        company_name=body.company_name,
-        kvk_number=body.kvk_number,
-        contact_name=body.contact_name,
-        email=body.email,
-        phone=body.phone,
-        specialties_json=json.dumps(body.specialties),
-        hourly_rate_cents=body.hourly_rate_cents,
-        fixed_rate_cents=body.fixed_rate_cents,
-        rating=body.rating,
-        notes=body.notes,
-        active=body.active,
-    )
+    data = body.model_dump()
+    data["specialties_json"] = json.dumps(data.pop("specialties"))
+    sub = Subcontractor(owner_id=current_user.id, **data)
     db.add(sub)
     await db.commit()
     result = await db.execute(
@@ -188,11 +170,7 @@ async def add_certification(
     db: AsyncSession = Depends(get_db),
 ) -> CertificationResponse:
     await _get_owned_sub_or_404(sub_id, current_user, db)
-    cert = SubcontractorCertification(
-        subcontractor_id=sub_id,
-        cert_type=body.cert_type,
-        expiry_date=body.expiry_date,
-    )
+    cert = SubcontractorCertification(subcontractor_id=sub_id, **body.model_dump())
     db.add(cert)
     await db.commit()
     await db.refresh(cert)
@@ -219,7 +197,7 @@ async def list_assignments(
     if subcontractor_id:
         base_query = base_query.where(SubcontractorAssignment.subcontractor_id == subcontractor_id)
 
-    count = (await db.execute(select(func.count()).select_from(base_query.subquery()))).scalar_one()
+    count = await count_query(db, base_query)
     offset = (page - 1) * per_page
     rows = (
         (await db.execute(base_query.order_by(SubcontractorAssignment.created_at.asc()).offset(offset).limit(per_page)))
@@ -240,17 +218,7 @@ async def create_assignment(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> AssignmentResponse:
-    assignment = SubcontractorAssignment(
-        owner_id=current_user.id,
-        subcontractor_id=body.subcontractor_id,
-        project_id=body.project_id,
-        phase_id=body.phase_id,
-        task_id=body.task_id,
-        description=body.description,
-        estimated_hours=body.estimated_hours,
-        agreed_rate_cents=body.agreed_rate_cents,
-        agreed_fixed_cost_cents=body.agreed_fixed_cost_cents,
-    )
+    assignment = SubcontractorAssignment(owner_id=current_user.id, **body.model_dump())
     assignment.total_cost_cents = _compute_assignment_cost(assignment)
     db.add(assignment)
     await db.commit()
@@ -264,15 +232,10 @@ async def get_assignment(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> AssignmentResponse:
-    result = await db.execute(
-        select(SubcontractorAssignment).where(
-            SubcontractorAssignment.id == assignment_id,
-            SubcontractorAssignment.owner_id == current_user.id,
-        )
+    assignment = await get_or_404(
+        db, SubcontractorAssignment,
+        SubcontractorAssignment.id == assignment_id, SubcontractorAssignment.owner_id == current_user.id,
     )
-    assignment = result.scalar_one_or_none()
-    if assignment is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assignment not found")
     return AssignmentResponse.model_validate(assignment)
 
 
@@ -283,17 +246,11 @@ async def update_assignment(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> AssignmentResponse:
-    result = await db.execute(
-        select(SubcontractorAssignment).where(
-            SubcontractorAssignment.id == assignment_id,
-            SubcontractorAssignment.owner_id == current_user.id,
-        )
+    assignment = await get_or_404(
+        db, SubcontractorAssignment,
+        SubcontractorAssignment.id == assignment_id, SubcontractorAssignment.owner_id == current_user.id,
     )
-    assignment = result.scalar_one_or_none()
-    if assignment is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assignment not found")
-    for field, value in body.model_dump(exclude_unset=True).items():
-        setattr(assignment, field, value)
+    apply_updates(assignment, body)
     assignment.total_cost_cents = _compute_assignment_cost(assignment)
     await db.commit()
     await db.refresh(assignment)
@@ -320,7 +277,7 @@ async def list_subcontractor_invoices(
     if subcontractor_id:
         base_query = base_query.where(SubcontractorInvoice.subcontractor_id == subcontractor_id)
 
-    count = (await db.execute(select(func.count()).select_from(base_query.subquery()))).scalar_one()
+    count = await count_query(db, base_query)
     offset = (page - 1) * per_page
     rows = (
         (await db.execute(base_query.order_by(SubcontractorInvoice.invoice_date.asc()).offset(offset).limit(per_page)))
@@ -341,17 +298,7 @@ async def create_subcontractor_invoice(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> SubcontractorInvoiceResponse:
-    inv = SubcontractorInvoice(
-        owner_id=current_user.id,
-        subcontractor_id=body.subcontractor_id,
-        project_id=body.project_id,
-        assignment_id=body.assignment_id,
-        invoice_reference=body.invoice_reference,
-        invoice_date=body.invoice_date,
-        description=body.description,
-        amount_cents=body.amount_cents,
-        vat_cents=body.vat_cents,
-    )
+    inv = SubcontractorInvoice(owner_id=current_user.id, **body.model_dump())
     db.add(inv)
     await db.commit()
     await db.refresh(inv)
@@ -365,15 +312,11 @@ async def reconcile_subcontractor_invoice(
     db: AsyncSession = Depends(get_db),
 ) -> SubcontractorInvoiceResponse:
     """Auto-reconcile the invoice by creating a journal entry for the subcontractor cost."""
-    result = await db.execute(
-        select(SubcontractorInvoice).where(
-            SubcontractorInvoice.id == invoice_id,
-            SubcontractorInvoice.owner_id == current_user.id,
-        )
+    inv = await get_or_404(
+        db, SubcontractorInvoice,
+        SubcontractorInvoice.id == invoice_id, SubcontractorInvoice.owner_id == current_user.id,
+        detail="Invoice not found",
     )
-    inv = result.scalar_one_or_none()
-    if inv is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
     if inv.status == "reconciled":
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Invoice already reconciled")
 

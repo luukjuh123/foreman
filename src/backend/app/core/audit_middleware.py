@@ -87,18 +87,12 @@ def _safe_json(body: bytes) -> dict[str, Any] | None:
 
 
 def _get_session_factory(app: Any) -> Any | None:
-    """Resolve session factory: prefer app.state override (used in tests).
-
-    Returns None if no usable session factory is available (e.g. DB not configured).
-    """
-    state = getattr(app, "state", None)
-    if state is not None:
-        sf = getattr(state, "audit_session_factory", None)
-        if sf is not None:
-            return sf
+    """Resolve session factory: prefer app.state override (used in tests)."""
+    sf = getattr(getattr(app, "state", None), "audit_session_factory", None)
+    if sf is not None:
+        return sf
     try:
         from app.core.database import _get_session_factory as _default
-
         return _default()
     except Exception:
         return None
@@ -106,13 +100,11 @@ def _get_session_factory(app: Any) -> Any | None:
 
 async def _fetch_entity_snapshot(sf: Any, entity_type: str, entity_id: uuid.UUID) -> dict[str, Any] | None:
     """Fetch a shallow snapshot of an entity row before mutation."""
-    from sqlalchemy import inspect as sa_inspect
-    from sqlalchemy import select
+    from sqlalchemy import inspect as sa_inspect, select
 
     model_map: dict[str, Any] = {}
     try:
         from app.models.project import Project
-
         model_map["project"] = Project
     except ImportError:
         pass
@@ -120,23 +112,17 @@ async def _fetch_entity_snapshot(sf: Any, entity_type: str, entity_id: uuid.UUID
     model = model_map.get(entity_type)
     if model is None:
         return None
-
     try:
         async with sf() as db:
-            result = await db.execute(select(model).where(model.id == entity_id))
-            obj = result.scalar_one_or_none()
+            obj = (await db.execute(select(model).where(model.id == entity_id))).scalar_one_or_none()
             if obj is None:
                 return None
             mapper = sa_inspect(type(obj))
-            snapshot: dict[str, Any] = {}
-            for col in mapper.columns:
-                val = getattr(obj, col.key)
-                if isinstance(val, uuid.UUID):
-                    val = str(val)
-                elif hasattr(val, "isoformat"):
-                    val = val.isoformat()
-                snapshot[col.key] = val
-            return snapshot
+            return {
+                col.key: str(v) if isinstance(v := getattr(obj, col.key), uuid.UUID)
+                else v.isoformat() if hasattr(v, "isoformat") else v
+                for col in mapper.columns
+            }
     except Exception:
         return None
 
@@ -184,37 +170,21 @@ class AuditLogMiddleware:
         self.app = app
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] != "http":
-            await self.app(scope, receive, send)
-            return
+        method, path = scope.get("method", ""), scope.get("path", "")
 
-        method: str = scope.get("method", "")
-        path: str = scope.get("path", "")
-
-        # Skip non-write methods and the audit-log path itself
-        if method not in _WRITE_METHODS or "audit-log" in path:
+        # Fast-path: skip non-HTTP, non-write methods, audit-log endpoints, or unresolvable entities/users
+        if scope["type"] != "http" or method not in _WRITE_METHODS or "audit-log" in path:
             await self.app(scope, receive, send)
             return
 
         entity_type, entity_id = _parse_entity_info(path)
-        if entity_type is None:
-            await self.app(scope, receive, send)
-            return
-
-        headers: list[tuple[bytes, bytes]] = list(scope.get("headers", []))
-        user_id = _parse_user_id(headers)
-        if user_id is None:
+        user_id = _parse_user_id(list(scope.get("headers", []))) if entity_type else None
+        sf = _get_session_factory(scope.get("app")) if user_id else None
+        if not all((entity_type, user_id, sf)):
             await self.app(scope, receive, send)
             return
 
         action = _method_to_action(method)
-        fastapi_app = scope.get("app")
-        sf = _get_session_factory(fastapi_app)
-
-        # If no session factory is available (e.g. DB not configured), pass through
-        if sf is None:
-            await self.app(scope, receive, send)
-            return
 
         # Capture before-state for update/delete
         before_data: dict[str, Any] | None = None
@@ -259,29 +229,19 @@ class AuditLogMiddleware:
 
         await self.app(scope, receive, send_interceptor)
 
-        # Determine after_data and resolve entity_id from create response
         response_body = b"".join(response_body_parts)
-
-        # Only log successful mutations (2xx)
         if not (200 <= status_code < 300):
             return
 
-        after_data: dict[str, Any] | None = None
-        if action == "create":
-            parsed = _safe_json(response_body)
-            after_data = parsed
-            if entity_id is None and parsed and "id" in parsed:
-                with contextlib.suppress(ValueError, AttributeError):
-                    entity_id = uuid.UUID(str(parsed["id"]))
-        elif action == "update":
-            after_data = _safe_json(response_body)
-        # delete: after_data stays None
+        after_data = _safe_json(response_body) if action in ("create", "update") else None
+        if action == "create" and entity_id is None and after_data and "id" in after_data:
+            with contextlib.suppress(ValueError, AttributeError):
+                entity_id = uuid.UUID(str(after_data["id"]))
 
         if entity_id is None:
             return
 
-        client = scope.get("client")
-        ip_address = client[0] if client else None
+        ip_address = scope["client"][0] if scope.get("client") else None
 
         await _persist_audit_entry(
             sf=sf,
