@@ -23,6 +23,10 @@ export function getAccessToken(): string | null {
   return localStorage.getItem(ACCESS_TOKEN_KEY);
 }
 
+export function token(): string | undefined {
+  return getAccessToken() ?? undefined;
+}
+
 export function getAuthHeaders(): { Authorization: string } | Record<string, never> {
   const token = getAccessToken();
   if (!token) return {};

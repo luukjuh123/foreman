@@ -1,5 +1,5 @@
 import { apiFetch } from "./api";
-import { getAccessToken } from "./auth";
+import { token } from "./auth";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -86,17 +86,7 @@ export interface SubcontractorCostSummary {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function token(): string | undefined {
-  return getAccessToken() ?? undefined;
-}
-
-export function formatRate(cents: number): string {
-  return new Intl.NumberFormat("nl-NL", {
-    style: "currency",
-    currency: "EUR",
-    minimumFractionDigits: 2,
-  }).format(cents / 100);
-}
+export { formatEuroCents as formatRate } from "./customers";
 
 /**
  * Returns "amber" if expiry is within 60 days, "red" if expired, null otherwise.

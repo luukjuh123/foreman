@@ -38,6 +38,21 @@ async def _get_own_report_or_404(report_id: uuid.UUID, user: User, db: AsyncSess
     return await get_or_404(db, Report, Report.id == report_id, Report.created_by_id == user.id)
 
 
+def _to_response(report: Report) -> ReportResponse:
+    return ReportResponse(
+        id=str(report.id),
+        project_id=str(report.project_id),
+        type=report.type,
+        title=report.title,
+        period_start=report.period_start,
+        period_end=report.period_end,
+        data=report.data,
+        is_shared=report.is_shared,
+        share_token=report.share_token,
+        created_at=report.created_at,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
@@ -89,18 +104,7 @@ async def generate_report(
     await db.commit()
     await db.refresh(report)
 
-    return ReportResponse(
-        id=str(report.id),
-        project_id=str(report.project_id),
-        type=report.type,
-        title=report.title,
-        period_start=report.period_start,
-        period_end=report.period_end,
-        data=report.data,
-        is_shared=report.is_shared,
-        share_token=report.share_token,
-        created_at=report.created_at,
-    )
+    return _to_response(report)
 
 
 @router.get("/", response_model=ReportListResponse)
@@ -157,18 +161,7 @@ async def get_shared_report(
     if report is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
 
-    return ReportResponse(
-        id=str(report.id),
-        project_id=str(report.project_id),
-        type=report.type,
-        title=report.title,
-        period_start=report.period_start,
-        period_end=report.period_end,
-        data=report.data,
-        is_shared=report.is_shared,
-        share_token=report.share_token,
-        created_at=report.created_at,
-    )
+    return _to_response(report)
 
 
 @router.get("/{report_id}", response_model=ReportResponse)
@@ -178,18 +171,7 @@ async def get_report(
     db: AsyncSession = Depends(get_db),
 ) -> ReportResponse:
     report = await _get_own_report_or_404(report_id, current_user, db)
-    return ReportResponse(
-        id=str(report.id),
-        project_id=str(report.project_id),
-        type=report.type,
-        title=report.title,
-        period_start=report.period_start,
-        period_end=report.period_end,
-        data=report.data,
-        is_shared=report.is_shared,
-        share_token=report.share_token,
-        created_at=report.created_at,
-    )
+    return _to_response(report)
 
 
 @router.get("/{report_id}/pdf")

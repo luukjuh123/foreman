@@ -1,14 +1,10 @@
 import { apiFetch } from "./api";
-import { getAccessToken } from "./auth";
+import { token } from "./auth";
 import type {
   ProjectProcessListResponse,
   TimeEntryResponse,
   TimeEntryListResponse,
 } from "./types";
-
-function token(): string | undefined {
-  return getAccessToken() ?? undefined;
-}
 
 export async function listProjectProcesses(projectId: string): Promise<ProjectProcessListResponse> {
   return apiFetch<ProjectProcessListResponse>(`/processes/projects/${projectId}`, {

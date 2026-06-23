@@ -32,7 +32,6 @@ class GammaClient(StoreClient):
     base_url = "https://www.gamma.nl"
 
     def __init__(self, **kwargs: object) -> None:
-        kwargs.setdefault("rate_per_second", 2.0)
         super().__init__(**kwargs)  # type: ignore[arg-type]
 
     async def search(self, query: str, max_results: int = 10) -> list[ProductResult]:

@@ -1,5 +1,5 @@
 import { apiFetch } from "./api";
-import { getAccessToken } from "./auth";
+import { token } from "./auth";
 import type {
   ProjectCreate,
   ProjectResponse,
@@ -41,10 +41,6 @@ export function formatDate(iso: string | null | undefined): string {
   if (!iso) return "";
   const [y, m, d] = iso.split("T")[0].split("-");
   return `${d}-${m}-${y}`;
-}
-
-function token(): string | undefined {
-  return getAccessToken() ?? undefined;
 }
 
 export async function listProjects(page = 1, perPage = 20): Promise<ProjectListResponse> {

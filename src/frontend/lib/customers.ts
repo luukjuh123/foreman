@@ -1,5 +1,5 @@
 import { apiFetch } from "./api";
-import { getAccessToken } from "./auth";
+import { token } from "./auth";
 import type { CustomerResponse, CustomerCreate, CustomerUpdate } from "./types";
 
 // Re-export types so pages can import them from "@/lib/customers"
@@ -45,6 +45,7 @@ export interface PaginatedCustomers {
 // Helpers
 // ---------------------------------------------------------------------------
 
+/** Format euro cents as Dutch locale currency string, e.g. € 1.234,56 */
 export function formatEuroCents(cents: number): string {
   const euros = cents / 100;
   return new Intl.NumberFormat("nl-NL", {
@@ -56,10 +57,6 @@ export function formatEuroCents(cents: number): string {
 // ---------------------------------------------------------------------------
 // API functions
 // ---------------------------------------------------------------------------
-
-function token(): string | undefined {
-  return getAccessToken() ?? undefined;
-}
 
 export async function listCustomers(
   page = 1,

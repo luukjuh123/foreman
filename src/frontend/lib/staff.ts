@@ -1,5 +1,5 @@
 import { apiFetch } from "./api";
-import { getAccessToken } from "./auth";
+import { token } from "./auth";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -51,17 +51,7 @@ export interface StaffUpdate {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function token(): string | undefined {
-  return getAccessToken() ?? undefined;
-}
-
-export function formatHourlyRate(cents: number): string {
-  return new Intl.NumberFormat("nl-NL", {
-    style: "currency",
-    currency: "EUR",
-    minimumFractionDigits: 2,
-  }).format(cents / 100);
-}
+export { formatEuroCents as formatHourlyRate } from "./customers";
 
 // ---------------------------------------------------------------------------
 // API functions
