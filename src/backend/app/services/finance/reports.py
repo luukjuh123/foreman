@@ -49,18 +49,9 @@ async def aggregate_balances(
     beginning of time (used for balance sheet cumulative). For income
     statement use `start_date` and `end_date`. Entries must be posted.
     """
-    acc_result = await db.execute(select(Account).where(Account.owner_id == owner_id))
-    accounts = list(acc_result.scalars().all())
+    accounts = list((await db.execute(select(Account).where(Account.owner_id == owner_id))).scalars().all())
     aggregates: dict[uuid.UUID, AccountAggregate] = {
-        a.id: AccountAggregate(
-            account_id=a.id,
-            code=a.code,
-            name=a.name,
-            account_type=a.account_type,
-            normal_balance=a.normal_balance,
-            parent_id=a.parent_id,
-            cashflow_category=a.cashflow_category,
-        )
+        a.id: AccountAggregate(a.id, a.code, a.name, a.account_type, a.normal_balance, a.parent_id, a.cashflow_category)
         for a in accounts
     }
 
@@ -81,13 +72,10 @@ async def aggregate_balances(
     if end_date is not None:
         stmt = stmt.where(JournalEntry.entry_date <= end_date)
 
-    result = await db.execute(stmt)
-    for account_id, debit, credit in result.all():
-        agg = aggregates.get(account_id)
-        if agg is None:
-            continue
-        agg.debit_total_cents += int(debit or 0)
-        agg.credit_total_cents += int(credit or 0)
+    for account_id, debit, credit in (await db.execute(stmt)).all():
+        if (agg := aggregates.get(account_id)) is not None:
+            agg.debit_total_cents += int(debit or 0)
+            agg.credit_total_cents += int(credit or 0)
     return list(aggregates.values())
 
 
@@ -159,12 +147,7 @@ def _build_tree(aggregates: list[AccountAggregate], type_filter: str) -> tuple[l
     """
     relevant = [a for a in aggregates if a.account_type == type_filter]
     by_id: dict[uuid.UUID, BalanceSheetNode] = {
-        a.account_id: BalanceSheetNode(
-            account_id=a.account_id,
-            code=a.code,
-            name=a.name,
-            balance_cents=a.balance_cents,
-        )
+        a.account_id: BalanceSheetNode(a.account_id, a.code, a.name, a.balance_cents)
         for a in relevant
     }
     relevant_ids = set(by_id)
@@ -202,26 +185,21 @@ def build_balance_sheet(
     net_income_to_date_cents: int,
 ) -> BalanceSheet:
     """Balance sheet at `as_of`. Net income flows to retained earnings."""
-    assets, total_assets = _build_tree(aggregates_to_date, "asset")
-    liabilities, total_liab = _build_tree(aggregates_to_date, "liability")
-    equity, total_equity = _build_tree(aggregates_to_date, "equity")
+    trees = {t: _build_tree(aggregates_to_date, t) for t in ("asset", "liability", "equity")}
     return BalanceSheet(
         as_of=as_of,
-        assets=assets,
-        liabilities=liabilities,
-        equity=equity,
-        total_assets_cents=total_assets,
-        total_liabilities_cents=total_liab,
-        total_equity_cents=total_equity,
-        retained_earnings_cents=net_income_to_date_cents,
+        assets=trees["asset"][0], liabilities=trees["liability"][0], equity=trees["equity"][0],
+        total_assets_cents=trees["asset"][1], total_liabilities_cents=trees["liability"][1],
+        total_equity_cents=trees["equity"][1], retained_earnings_cents=net_income_to_date_cents,
     )
 
 
 def compute_net_income_cents(aggregates: list[AccountAggregate]) -> int:
     """Net income = revenue (credit-normal) - expense (debit-normal)."""
-    revenue = sum(a.balance_cents for a in aggregates if a.account_type == "revenue")
-    expense = sum(a.balance_cents for a in aggregates if a.account_type == "expense")
-    return revenue - expense
+    return sum(
+        a.balance_cents * (1 if a.account_type == "revenue" else -1)
+        for a in aggregates if a.account_type in ("revenue", "expense")
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -265,15 +243,12 @@ def build_income_statement(
     start_date: date,
     end_date: date,
 ) -> IncomeStatement:
-    revenue_tree, total_rev = _build_tree(aggregates_for_period, "revenue")
-    expense_tree, total_exp = _build_tree(aggregates_for_period, "expense")
+    rev, tot_rev = _build_tree(aggregates_for_period, "revenue")
+    exp, tot_exp = _build_tree(aggregates_for_period, "expense")
     return IncomeStatement(
-        start_date=start_date,
-        end_date=end_date,
-        revenue=revenue_tree,
-        expenses=expense_tree,
-        total_revenue_cents=total_rev,
-        total_expenses_cents=total_exp,
+        start_date=start_date, end_date=end_date,
+        revenue=rev, expenses=exp,
+        total_revenue_cents=tot_rev, total_expenses_cents=tot_exp,
     )
 
 
@@ -338,8 +313,8 @@ class CashFlowStatement:
 
 def _period_change(opening: list[AccountAggregate], closing: list[AccountAggregate]) -> dict[uuid.UUID, int]:
     """For each account: closing balance - opening balance (signed)."""
-    opening_by_id = {a.account_id: a.balance_cents for a in opening}
-    return {a.account_id: a.balance_cents - opening_by_id.get(a.account_id, 0) for a in closing}
+    op = {a.account_id: a.balance_cents for a in opening}
+    return {a.account_id: a.balance_cents - op.get(a.account_id, 0) for a in closing}
 
 
 def build_cash_flow_statement(
@@ -366,9 +341,10 @@ def build_cash_flow_statement(
 
     # Identify cash accounts and compute opening/closing/net change in cash.
     cash_ids = {a.account_id for a in closing_aggregates if a.cashflow_category == "cash"}
-    opening_cash = sum(a.balance_cents for a in opening_aggregates if a.account_id in cash_ids)
-    ending_cash = sum(a.balance_cents for a in closing_aggregates if a.account_id in cash_ids)
-    net_change_cash = ending_cash - opening_cash
+    opening_cash, ending_cash = (
+        sum(a.balance_cents for a in aggs if a.account_id in cash_ids)
+        for aggs in (opening_aggregates, closing_aggregates)
+    )
 
     buckets: dict[str, list[CashFlowLine]] = {"operating": [], "investing": [], "financing": []}
     by_id = {a.account_id: a for a in closing_aggregates}
@@ -382,23 +358,16 @@ def build_cash_flow_statement(
         if category in buckets:
             buckets[category].append(CashFlowLine(account_id=a.account_id, code=a.code, name=a.name, change_cents=cash_effect))
 
-    operating, investing, financing = (sorted(buckets[k], key=lambda x: x.code) for k in ("operating", "investing", "financing"))
-
-    operating_total = net_income + sum(line.change_cents for line in operating)
-    investing_total = sum(line.change_cents for line in investing)
-    financing_total = sum(line.change_cents for line in financing)
+    sorted_buckets = {k: sorted(v, key=lambda x: x.code) for k, v in buckets.items()}
+    totals = {k: sum(ln.change_cents for ln in v) for k, v in sorted_buckets.items()}
+    totals["operating"] += net_income
 
     return CashFlowStatement(
-        start_date=start_date,
-        end_date=end_date,
-        net_income_cents=net_income,
-        operating=operating,
-        investing=investing,
-        financing=financing,
-        operating_cash_flow_cents=operating_total,
-        investing_cash_flow_cents=investing_total,
-        financing_cash_flow_cents=financing_total,
-        opening_cash_cents=opening_cash,
-        ending_cash_cents=ending_cash,
-        net_change_in_cash_cents=net_change_cash,
+        start_date=start_date, end_date=end_date, net_income_cents=net_income,
+        **{k: sorted_buckets[k] for k in ("operating", "investing", "financing")},
+        operating_cash_flow_cents=totals["operating"],
+        investing_cash_flow_cents=totals["investing"],
+        financing_cash_flow_cents=totals["financing"],
+        opening_cash_cents=opening_cash, ending_cash_cents=ending_cash,
+        net_change_in_cash_cents=ending_cash - opening_cash,
     )

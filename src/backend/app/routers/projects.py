@@ -1,5 +1,3 @@
-"""Projects router — CRUD for projects, phases, tasks, and task dependencies."""
-
 import io
 import json
 import uuid
@@ -40,46 +38,27 @@ from sqlalchemy.orm import selectinload
 
 router = APIRouter()
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 _PROJECT_LOAD = selectinload(Project.phases).selectinload(Phase.tasks)
 _PHASE_LOAD = selectinload(Phase.tasks)
 
 
 async def _get_project_or_404(project_id: uuid.UUID, db: AsyncSession) -> Project:
-    return await get_or_404(
-        db, Project, Project.id == project_id, Project.deleted_at.is_(None), options=_PROJECT_LOAD,
-    )
-
-
-def _assert_owner(project: Project, user: User) -> None:
-    if project.owner_id != user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your project")
+    return await get_or_404(db, Project, Project.id == project_id, Project.deleted_at.is_(None), options=_PROJECT_LOAD)
 
 
 async def _owned_project(project_id: uuid.UUID, user: User, db: AsyncSession) -> Project:
-    """Fetch project and assert ownership in one call."""
     project = await _get_project_or_404(project_id, db)
-    _assert_owner(project, user)
+    if project.owner_id != user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your project")
     return project
 
 
-async def _reload_project(project: Project, db: AsyncSession) -> ProjectResponse:
-    """Commit, reload with relationships, return validated response."""
+async def _reload(obj: Project | Phase, db: AsyncSession) -> ProjectResponse | PhaseResponse:
     await db.commit()
-    await db.refresh(project)
-    result = await db.execute(select(Project).where(Project.id == project.id).options(_PROJECT_LOAD))
-    return ProjectResponse.model_validate(result.scalar_one())
-
-
-async def _reload_phase(phase: Phase, db: AsyncSession) -> PhaseResponse:
-    """Commit, reload with tasks, return validated response."""
-    await db.commit()
-    await db.refresh(phase)
-    result = await db.execute(select(Phase).where(Phase.id == phase.id).options(_PHASE_LOAD))
-    return PhaseResponse.model_validate(result.scalar_one())
+    await db.refresh(obj)
+    if isinstance(obj, Project):
+        return ProjectResponse.model_validate((await db.execute(select(Project).where(Project.id == obj.id).options(_PROJECT_LOAD))).scalar_one())
+    return PhaseResponse.model_validate((await db.execute(select(Phase).where(Phase.id == obj.id).options(_PHASE_LOAD))).scalar_one())
 
 
 async def _get_phase_or_404(project_id: uuid.UUID, phase_id: uuid.UUID, db: AsyncSession) -> Phase:
@@ -91,24 +70,15 @@ async def _get_task_or_404(phase_id: uuid.UUID, task_id: uuid.UUID, db: AsyncSes
 
 
 async def _get_task_in_project_or_404(project_id: uuid.UUID, task_id: uuid.UUID, db: AsyncSession) -> Task:
-    """Get a task that belongs to any phase of the given project."""
-    result = await db.execute(
+    if (task := (await db.execute(
         select(Task).join(Phase, Task.phase_id == Phase.id).where(Task.id == task_id, Phase.project_id == project_id)
-    )
-    task = result.scalar_one_or_none()
-    if task is None:
+    )).scalar_one_or_none()) is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
     return task
 
 
 def _pick(obj: object, *attrs: str) -> dict:
-    """Extract named attributes from an ORM object into a dict."""
     return {a: getattr(obj, a) for a in attrs}
-
-
-# ---------------------------------------------------------------------------
-# Project endpoints
-# ---------------------------------------------------------------------------
 
 
 @router.get("/", response_model=ProjectListResponse)
@@ -120,13 +90,8 @@ async def list_projects(
 ) -> ProjectListResponse:
     where = (Project.owner_id == current_user.id, Project.deleted_at.is_(None))
     total = (await db.execute(select(func.count()).select_from(Project).where(*where))).scalar_one()
-    result = await db.execute(
-        select(Project).where(*where).options(_PROJECT_LOAD).offset((page - 1) * per_page).limit(per_page)
-    )
-    return ProjectListResponse(
-        data=[ProjectResponse.model_validate(p) for p in result.scalars().all()],
-        total=total, page=page, per_page=per_page,
-    )
+    result = await db.execute(select(Project).where(*where).options(_PROJECT_LOAD).offset((page - 1) * per_page).limit(per_page))
+    return ProjectListResponse(data=[ProjectResponse.model_validate(p) for p in result.scalars().all()], total=total, page=page, per_page=per_page)
 
 
 @router.post("/", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
@@ -138,10 +103,8 @@ async def create_project(
     await enforce_project_limit(current_user.id, db)
     project = Project(owner_id=current_user.id, **body.model_dump())
     db.add(project)
-    await db.commit()
-    await db.refresh(project)
     await increment_projects(current_user.id, db, +1)
-    return await _reload_project(project, db)
+    return await _reload(project, db)
 
 
 @router.get("/{project_id}", response_model=ProjectResponse)
@@ -162,7 +125,7 @@ async def update_project(
 ) -> ProjectResponse:
     project = await _owned_project(project_id, current_user, db)
     apply_updates(project, body)
-    return await _reload_project(project, db)
+    return await _reload(project, db)
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -177,11 +140,6 @@ async def delete_project(
     await db.commit()
 
 
-# ---------------------------------------------------------------------------
-# Phase endpoints
-# ---------------------------------------------------------------------------
-
-
 @router.post("/{project_id}/phases", response_model=PhaseResponse, status_code=status.HTTP_201_CREATED)
 async def create_phase(
     project_id: uuid.UUID,
@@ -192,7 +150,7 @@ async def create_phase(
     await _owned_project(project_id, current_user, db)
     phase = Phase(project_id=project_id, **body.model_dump())
     db.add(phase)
-    return await _reload_phase(phase, db)
+    return await _reload(phase, db)
 
 
 @router.put("/{project_id}/phases/{phase_id}", response_model=PhaseResponse)
@@ -206,7 +164,7 @@ async def update_phase(
     await _owned_project(project_id, current_user, db)
     phase = await _get_phase_or_404(project_id, phase_id, db)
     apply_updates(phase, body)
-    return await _reload_phase(phase, db)
+    return await _reload(phase, db)
 
 
 @router.delete("/{project_id}/phases/{phase_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -220,11 +178,6 @@ async def delete_phase(
     phase = await _get_phase_or_404(project_id, phase_id, db)
     await db.delete(phase)
     await db.commit()
-
-
-# ---------------------------------------------------------------------------
-# Task endpoints
-# ---------------------------------------------------------------------------
 
 
 @router.post("/{project_id}/phases/{phase_id}/tasks", response_model=TaskResponse, status_code=status.HTTP_201_CREATED)
@@ -275,11 +228,6 @@ async def delete_task(
     await db.commit()
 
 
-# ---------------------------------------------------------------------------
-# Task dependency endpoints
-# ---------------------------------------------------------------------------
-
-
 @router.post("/{project_id}/tasks/{task_id}/dependencies", response_model=TaskDependencyResponse, status_code=status.HTTP_201_CREATED)
 async def add_dependency(
     project_id: uuid.UUID,
@@ -309,17 +257,10 @@ async def remove_dependency(
     db: AsyncSession = Depends(get_db),
 ) -> None:
     await _owned_project(project_id, current_user, db)
-    dep = await get_or_404(
-        db, TaskDependency, TaskDependency.id == dependency_id, TaskDependency.task_id == task_id,
-        detail="Dependency not found",
-    )
+    dep = await get_or_404(db, TaskDependency, TaskDependency.id == dependency_id, TaskDependency.task_id == task_id, detail="Dependency not found")
     await db.delete(dep)
     await db.commit()
 
-
-# ---------------------------------------------------------------------------
-# Data export
-# ---------------------------------------------------------------------------
 
 _PROJECT_EXPORT_FIELDS = ("id", "name", "description", "status", "start_date", "end_date", "budget_cents", "created_at")
 _PHASE_EXPORT_FIELDS = ("id", "name", "description", "order_index", "status", "start_date", "end_date")
@@ -338,45 +279,26 @@ async def export_project(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> StreamingResponse:
-    """Stream a ZIP archive of the project's JSON data, invoices, reports, and photo metadata."""
     project = await _owned_project(project_id, current_user, db)
-
-    # Fetch related data in parallel-style (sequential but compact)
     invoices = (await db.execute(select(Invoice).where(Invoice.project_id == project_id))).scalars().all()
     reports = (await db.execute(select(Report).where(Report.project_id == project_id))).scalars().all()
     photos = (await db.execute(select(ProcessPhoto).where(ProcessPhoto.project_id == project_id))).scalars().all()
-
-    project_dict = {
-        **_pick(project, *_PROJECT_EXPORT_FIELDS),
-        "phases": [
-            {**_pick(ph, *_PHASE_EXPORT_FIELDS), "tasks": [_pick(t, *_TASK_EXPORT_FIELDS) for t in ph.tasks]}
-            for ph in project.phases
-        ],
-    }
-
     files = {
-        "project.json": project_dict,
+        "project.json": {
+            **_pick(project, *_PROJECT_EXPORT_FIELDS),
+            "phases": [{**_pick(ph, *_PHASE_EXPORT_FIELDS), "tasks": [_pick(t, *_TASK_EXPORT_FIELDS) for t in ph.tasks]} for ph in project.phases],
+        },
         "invoices.json": [_pick(i, "id", "status", "total_cents", "created_at") for i in invoices],
         "reports.json": [_pick(r, "id", "type", "title", "created_at") for r in reports],
         "photos.json": [_pick(p, "id", "image_url", "completion_pct", "created_at") for p in photos],
     }
-
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
         for name, data in files.items():
             zf.writestr(name, json.dumps(data, default=_default, indent=2))
     buf.seek(0)
-
     safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in project.name)
-    return StreamingResponse(
-        buf, media_type="application/zip",
-        headers={"Content-Disposition": f'attachment; filename="{safe_name}_{project_id}.zip"'},
-    )
-
-
-# ---------------------------------------------------------------------------
-# Health score endpoint
-# ---------------------------------------------------------------------------
+    return StreamingResponse(buf, media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="{safe_name}_{project_id}.zip"'})
 
 
 @router.get("/{project_id}/health-score", response_model=HealthScoreResult)
@@ -385,5 +307,4 @@ async def get_health_score(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> HealthScoreResult:
-    """Return a 0-100 health score for a project."""
     return calculate_health_score(await _owned_project(project_id, current_user, db))

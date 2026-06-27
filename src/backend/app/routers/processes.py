@@ -43,15 +43,10 @@ async def list_processes(
     _user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ProcessListResponse:
-    count = (
-        await db.execute(select(func.count()).select_from(Process).where(Process.deleted_at.is_(None)))
-    ).scalar_one()
-    result = await db.execute(select(Process).where(Process.deleted_at.is_(None)).order_by(Process.slug))
-    items = result.scalars().all()
-    return ProcessListResponse(
-        data=[ProcessResponse.model_validate(p) for p in items],
-        total=count,
-    )
+    where = Process.deleted_at.is_(None)
+    count = (await db.execute(select(func.count()).select_from(Process).where(where))).scalar_one()
+    items = (await db.execute(select(Process).where(where).order_by(Process.slug))).scalars().all()
+    return ProcessListResponse(data=[ProcessResponse.model_validate(p) for p in items], total=count)
 
 
 @router.post("/", response_model=ProcessResponse, status_code=status.HTTP_201_CREATED)
@@ -60,12 +55,7 @@ async def create_process(
     _user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ProcessResponse:
-    proc = Process(
-        slug=body.slug,
-        name=body.name,
-        description=body.description,
-        unit=body.unit,
-    )
+    proc = Process(**body.model_dump())
     db.add(proc)
     try:
         await db.commit()

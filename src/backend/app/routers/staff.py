@@ -85,11 +85,10 @@ async def staff_utilization(
         .where(*_OWNER_ACTIVE(current_user), StaffAssignment.start_at < week_end, StaffAssignment.end_at > week_start)
     )).scalars().all()
 
-    assigned_hours = 0.0
-    for a in assignments:
-        h = (min(_ensure_utc(a.end_at), week_end) - max(_ensure_utc(a.start_at), week_start)).total_seconds() / 3600
-        if h > 0:
-            assigned_hours += h
+    assigned_hours = sum(
+        max(0, (min(_ensure_utc(a.end_at), week_end) - max(_ensure_utc(a.start_at), week_start)).total_seconds() / 3600)
+        for a in assignments
+    )
 
     utilization_percent = round((assigned_hours / available_hours) * 100, 1) if available_hours > 0 else 0.0
     return StaffUtilizationResponse(

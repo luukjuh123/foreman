@@ -367,17 +367,18 @@ async def year_end_report(
     period_agg = await aggregate_balances(db, user.id, start_date=period.start_date, end_date=period.end_date)
     closing = await aggregate_balances(db, user.id, end_date=period.end_date)
     opening = await aggregate_balances(db, user.id, end_date=period.start_date - timedelta(days=1))
+    sd, ed = period.start_date, period.end_date
     return {
         "period": {
             "id": str(period.id), "name": period.name,
-            "start_date": period.start_date.isoformat(), "end_date": period.end_date.isoformat(),
+            "start_date": sd.isoformat(), "end_date": ed.isoformat(),
             "is_locked": period.is_locked, "locked_at": period.locked_at.isoformat() if period.locked_at else None,
         },
-        "balance_sheet": build_balance_sheet(closing, as_of=period.end_date, net_income_to_date_cents=compute_net_income_cents(closing)).to_dict(),
-        "income_statement": build_income_statement(period_agg, start_date=period.start_date, end_date=period.end_date).to_dict(),
+        "balance_sheet": build_balance_sheet(closing, as_of=ed, net_income_to_date_cents=compute_net_income_cents(closing)).to_dict(),
+        "income_statement": build_income_statement(period_agg, start_date=sd, end_date=ed).to_dict(),
         "cash_flow_statement": build_cash_flow_statement(
             opening_aggregates=opening, closing_aggregates=closing,
-            period_aggregates=period_agg, start_date=period.start_date, end_date=period.end_date,
+            period_aggregates=period_agg, start_date=sd, end_date=ed,
         ).to_dict(),
     }
 
@@ -423,11 +424,8 @@ async def get_material_cost(
 ) -> MaterialCostResponse:
     await _project_for_user_or_404(project_id, current_user, db)
     report = await MaterialCostAggregator(provider).aggregate(project_id, db)
-    return MaterialCostResponse(
-        total_cents=report.total_cents,
-        items=[MaterialLineResponse(**asdict(i)) for i in report.items],
-        missing=[MaterialLineResponse(**asdict(i)) for i in report.missing],
-    )
+    to_resp = lambda lst: [MaterialLineResponse(**asdict(i)) for i in lst]
+    return MaterialCostResponse(total_cents=report.total_cents, items=to_resp(report.items), missing=to_resp(report.missing))
 
 
 @router.get("/projects/{project_id}/budget", response_model=BudgetResponse)
@@ -436,15 +434,10 @@ async def get_budget(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> BudgetResponse:
-    from app.models.material import Budget
     await _project_for_user_or_404(project_id, current_user, db)
-    budget = (await db.execute(select(Budget).where(Budget.project_id == project_id).options(selectinload(Budget.items)))).scalar_one_or_none()
-    if budget is None:
-        budget = Budget(project_id=project_id)
-        db.add(budget)
-        await db.commit()
-        budget = await _budget_with_items(db, budget.id)
-    return _budget_response(budget)
+    budget = await _get_or_create_budget(project_id, db)
+    await db.commit()
+    return _budget_response(await _budget_with_items(db, budget.id))
 
 
 @router.put("/projects/{project_id}/budget", response_model=BudgetResponse)
@@ -454,16 +447,11 @@ async def upsert_budget(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> BudgetResponse:
-    from app.models.material import Budget
     await _project_for_user_or_404(project_id, current_user, db)
-    budget = (await db.execute(select(Budget).where(Budget.project_id == project_id).options(selectinload(Budget.items)))).scalar_one_or_none()
-    if budget is None:
-        budget = Budget(project_id=project_id)
-        db.add(budget)
+    budget = await _get_or_create_budget(project_id, db)
     budget.total_budget_cents = payload.total_budget_cents
     budget.contingency_pct = payload.contingency_pct
     await db.commit()
-    await db.refresh(budget)
     return _budget_response(await _budget_with_items(db, budget.id))
 
 
@@ -477,12 +465,9 @@ async def create_budget_item(
     from app.models.material import BudgetItem
     await _project_for_user_or_404(project_id, current_user, db)
     budget = await _get_or_create_budget(project_id, db)
-    item = BudgetItem(budget_id=budget.id, category=payload.category, name=payload.name,
-                      description=payload.description, estimated_cents=payload.estimated_cents, actual_cents=payload.actual_cents)
+    item = BudgetItem(budget_id=budget.id, **payload.model_dump())
     db.add(item)
-    await db.commit()
-    await db.refresh(item)
-    return BudgetItemResponse.model_validate(item)
+    return BudgetItemResponse.model_validate(await _commit_and_refresh(db, item))
 
 
 @router.put("/projects/{project_id}/budget/items/{item_id}", response_model=BudgetItemResponse)
@@ -496,9 +481,7 @@ async def update_budget_item(
     await _project_for_user_or_404(project_id, current_user, db)
     item = await _get_budget_item_or_404(db, project_id, item_id)
     apply_updates(item, payload)
-    await db.commit()
-    await db.refresh(item)
-    return BudgetItemResponse.model_validate(item)
+    return BudgetItemResponse.model_validate(await _commit_and_refresh(db, item))
 
 
 @router.delete("/projects/{project_id}/budget/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -116,37 +116,16 @@ async def list_reports(
     db: AsyncSession = Depends(get_db),
 ) -> ReportListResponse:
     base = select(Report).where(Report.created_by_id == current_user.id)
-    count_base = select(func.count()).select_from(Report).where(Report.created_by_id == current_user.id)
-
     if project_id:
-        pid = uuid.UUID(project_id)
-        base = base.where(Report.project_id == pid)
-        count_base = count_base.where(Report.project_id == pid)
+        base = base.where(Report.project_id == uuid.UUID(project_id))
 
-    total_result = await db.execute(count_base)
-    total = total_result.scalar() or 0
+    total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar() or 0
+    reports = (await db.execute(base.order_by(Report.created_at.desc()).offset((page - 1) * per_page).limit(per_page))).scalars().all()
 
-    offset = (page - 1) * per_page
-    result = await db.execute(base.order_by(Report.created_at.desc()).offset(offset).limit(per_page))
-    reports = result.scalars().all()
-
+    _SUMMARY_FIELDS = ("id", "project_id", "type", "title", "period_start", "period_end", "is_shared", "created_at")
     return ReportListResponse(
-        data=[
-            ReportSummaryResponse(
-                id=str(r.id),
-                project_id=str(r.project_id),
-                type=r.type,
-                title=r.title,
-                period_start=r.period_start,
-                period_end=r.period_end,
-                is_shared=r.is_shared,
-                created_at=r.created_at,
-            )
-            for r in reports
-        ],
-        total=total,
-        page=page,
-        per_page=per_page,
+        data=[ReportSummaryResponse(**{f: (str(getattr(r, f)) if f in ("id", "project_id") else getattr(r, f)) for f in _SUMMARY_FIELDS}) for r in reports],
+        total=total, page=page, per_page=per_page,
     )
 
 
@@ -199,23 +178,11 @@ async def toggle_share(
 ) -> ReportShareResponse:
     report = await _get_own_report_or_404(report_id, current_user, db)
 
-    if not report.is_shared:
-        # Enable sharing
-        report.is_shared = True
-        report.share_token = secrets.token_urlsafe(32)
-        await db.commit()
-        await db.refresh(report)
-        return ReportShareResponse(
-            share_token=report.share_token,
-            share_url=f"/report/{report.id!s}",
-        )
-    else:
-        # Disable sharing
-        report.is_shared = False
-        report.share_token = None
-        await db.commit()
-        await db.refresh(report)
-        return ReportShareResponse(
-            share_token=None,
-            share_url="",
-        )
+    report.is_shared = not report.is_shared
+    report.share_token = secrets.token_urlsafe(32) if report.is_shared else None
+    await db.commit()
+    await db.refresh(report)
+    return ReportShareResponse(
+        share_token=report.share_token,
+        share_url=f"/report/{report.id!s}" if report.is_shared else "",
+    )

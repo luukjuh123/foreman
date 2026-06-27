@@ -7,9 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Plus, ChevronDown, ChevronUp } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 
-// ---------------------------------------------------------------------------
 // Types
-// ---------------------------------------------------------------------------
 
 interface StaffResponse {
   id: string;
@@ -56,9 +54,7 @@ interface StaffOutstandingBalance {
   loans: StaffLoanResponse[];
 }
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 function formatMoney(cents: number): string {
   return new Intl.NumberFormat("nl-NL", {
@@ -73,18 +69,13 @@ function formatDate(iso: string): string {
   return `${d}-${m}-${y}`;
 }
 
-// ---------------------------------------------------------------------------
 // Sub-components
-// ---------------------------------------------------------------------------
 
-interface NewLoanFormProps {
-  staffId: string;
-  staffList: StaffResponse[];
-  onSave: () => void;
+function MoneyForm({ title, amountPlaceholder, notesPlaceholder, className, onSubmit, onCancel }: {
+  title: string; amountPlaceholder: string; notesPlaceholder: string; className: string;
+  onSubmit: (cents: number, date: string, notes: string | undefined) => Promise<void>;
   onCancel: () => void;
-}
-
-function NewLoanForm({ staffId, onSave, onCancel }: NewLoanFormProps) {
+}) {
   const [amountEuros, setAmountEuros] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState("");
@@ -94,166 +85,61 @@ function NewLoanForm({ staffId, onSave, onCancel }: NewLoanFormProps) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const euros = parseFloat(amountEuros.replace(",", "."));
-    if (isNaN(euros) || euros <= 0) {
-      setError("Voer een geldig bedrag in.");
-      return;
-    }
-    const principal_cents = Math.round(euros * 100);
-    setSaving(true);
-    setError(null);
-    try {
-      await apiFetch("/loans/", {
-        method: "POST",
-        body: JSON.stringify({
-          staff_id: staffId,
-          principal_cents,
-          issued_date: date,
-          notes: notes || undefined,
-        }),
-      });
-      onSave();
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Fout bij opslaan.");
-    } finally {
-      setSaving(false);
-    }
+    if (isNaN(euros) || euros <= 0) { setError("Voer een geldig bedrag in."); return; }
+    setSaving(true); setError(null);
+    try { await onSubmit(Math.round(euros * 100), date, notes || undefined); }
+    catch (e: unknown) { setError(e instanceof Error ? e.message : "Fout bij opslaan."); }
+    finally { setSaving(false); }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 p-4 border rounded-lg bg-muted/30">
-      <h3 className="font-semibold text-sm">Nieuw voorschot</h3>
-      {error && <p className="text-sm text-destructive">{error}</p>}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div>
-          <label className="text-xs text-muted-foreground mb-1 block">
-            Bedrag (€)
-          </label>
-          <Input
-            type="text"
-            placeholder="500,00"
-            value={amountEuros}
-            onChange={(e) => setAmountEuros(e.target.value)}
-            required
-          />
-        </div>
-        <div>
-          <label className="text-xs text-muted-foreground mb-1 block">Datum</label>
-          <Input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            required
-          />
-        </div>
+    <form onSubmit={handleSubmit} className={`space-y-3 border rounded-lg ${className}`}>
+      <h4 className="font-semibold text-sm">{title}</h4>
+      {error && <p className="text-xs text-destructive">{error}</p>}
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {[
+          { label: "Bedrag (€)", type: "text", placeholder: amountPlaceholder, value: amountEuros, onChange: setAmountEuros, required: true },
+          { label: "Datum", type: "date", placeholder: "", value: date, onChange: setDate, required: true },
+        ].map((f) => (
+          <div key={f.label}>
+            <label className="text-xs text-muted-foreground mb-1 block">{f.label}</label>
+            <Input type={f.type} placeholder={f.placeholder} value={f.value} onChange={(e) => f.onChange(e.target.value)} required={f.required} />
+          </div>
+        ))}
         <div className="sm:col-span-2">
-          <label className="text-xs text-muted-foreground mb-1 block">
-            Opmerkingen (optioneel)
-          </label>
-          <Input
-            type="text"
-            placeholder="Reden voor voorschot…"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-          />
+          <label className="text-xs text-muted-foreground mb-1 block">Opmerkingen (optioneel)</label>
+          <Input type="text" placeholder={notesPlaceholder} value={notes} onChange={(e) => setNotes(e.target.value)} />
         </div>
       </div>
       <div className="flex gap-2">
-        <Button type="submit" size="sm" disabled={saving}>
-          {saving ? "Opslaan…" : "Opslaan"}
-        </Button>
-        <Button type="button" variant="outline" size="sm" onClick={onCancel}>
-          Annuleren
-        </Button>
+        <Button type="submit" size="sm" disabled={saving}>{saving ? "Opslaan…" : "Opslaan"}</Button>
+        <Button type="button" variant="outline" size="sm" onClick={onCancel}>Annuleren</Button>
       </div>
     </form>
   );
 }
 
-interface AddDeductionFormProps {
-  loanId: string;
-  onSave: () => void;
-  onCancel: () => void;
+function NewLoanForm({ staffId, onSave, onCancel }: { staffId: string; staffList: StaffResponse[]; onSave: () => void; onCancel: () => void }) {
+  return (
+    <MoneyForm title="Nieuw voorschot" amountPlaceholder="500,00" notesPlaceholder="Reden voor voorschot…" className="p-4 bg-muted/30"
+      onSubmit={async (cents, date, notes) => {
+        await apiFetch("/loans/", { method: "POST", body: JSON.stringify({ staff_id: staffId, principal_cents: cents, issued_date: date, notes }) });
+        onSave();
+      }}
+      onCancel={onCancel}
+    />
+  );
 }
 
-function AddDeductionForm({ loanId, onSave, onCancel }: AddDeductionFormProps) {
-  const [amountEuros, setAmountEuros] = useState("");
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
-  const [notes, setNotes] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const euros = parseFloat(amountEuros.replace(",", "."));
-    if (isNaN(euros) || euros <= 0) {
-      setError("Voer een geldig bedrag in.");
-      return;
-    }
-    const amount_cents = Math.round(euros * 100);
-    setSaving(true);
-    setError(null);
-    try {
-      await apiFetch(`/loans/${loanId}/deductions`, {
-        method: "POST",
-        body: JSON.stringify({
-          amount_cents,
-          deduction_date: date,
-          notes: notes || undefined,
-        }),
-      });
-      onSave();
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Fout bij opslaan.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
+function AddDeductionForm({ loanId, onSave, onCancel }: { loanId: string; onSave: () => void; onCancel: () => void }) {
   return (
-    <form onSubmit={handleSubmit} className="space-y-3 p-3 border rounded-lg bg-muted/20 mt-2">
-      <h4 className="font-medium text-xs">Inhouding toevoegen</h4>
-      {error && <p className="text-xs text-destructive">{error}</p>}
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <div>
-          <label className="text-xs text-muted-foreground mb-1 block">Bedrag (€)</label>
-          <Input
-            type="text"
-            placeholder="50,00"
-            value={amountEuros}
-            onChange={(e) => setAmountEuros(e.target.value)}
-            required
-          />
-        </div>
-        <div>
-          <label className="text-xs text-muted-foreground mb-1 block">Datum</label>
-          <Input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            required
-          />
-        </div>
-        <div className="sm:col-span-2">
-          <label className="text-xs text-muted-foreground mb-1 block">
-            Opmerkingen (optioneel)
-          </label>
-          <Input
-            type="text"
-            placeholder="Inhouding op loon…"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-          />
-        </div>
-      </div>
-      <div className="flex gap-2">
-        <Button type="submit" size="sm" disabled={saving}>
-          {saving ? "Opslaan…" : "Opslaan"}
-        </Button>
-        <Button type="button" variant="outline" size="sm" onClick={onCancel}>
-          Annuleren
-        </Button>
-      </div>
-    </form>
+    <MoneyForm title="Inhouding toevoegen" amountPlaceholder="50,00" notesPlaceholder="Inhouding op loon…" className="p-3 bg-muted/20 mt-2"
+      onSubmit={async (cents, date, notes) => {
+        await apiFetch(`/loans/${loanId}/deductions`, { method: "POST", body: JSON.stringify({ amount_cents: cents, deduction_date: date, notes }) });
+        onSave();
+      }}
+      onCancel={onCancel}
+    />
   );
 }
 
@@ -270,24 +156,17 @@ function LoanRow({ loan, onDeductionAdded }: LoanRowProps) {
     <div className="border rounded-lg overflow-hidden">
       <div className="flex flex-wrap items-center gap-4 p-4 bg-card">
         <div className="min-w-0 flex-1 grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-4 text-sm">
-          <div>
-            <span className="text-xs text-muted-foreground block">Datum</span>
-            <span className="font-medium">{formatDate(loan.issued_date)}</span>
-          </div>
-          <div>
-            <span className="text-xs text-muted-foreground block">Verstrekt</span>
-            <span className="font-medium">{formatMoney(loan.principal_cents)}</span>
-          </div>
-          <div>
-            <span className="text-xs text-muted-foreground block">Ingehouden</span>
-            <span className="font-medium">{formatMoney(loan.deducted_cents)}</span>
-          </div>
-          <div>
-            <span className="text-xs text-muted-foreground block">Openstaand</span>
-            <span className="font-semibold text-destructive">
-              {formatMoney(loan.outstanding_cents)}
-            </span>
-          </div>
+          {([
+            { label: "Datum", value: formatDate(loan.issued_date), cls: "font-medium" },
+            { label: "Verstrekt", value: formatMoney(loan.principal_cents), cls: "font-medium" },
+            { label: "Ingehouden", value: formatMoney(loan.deducted_cents), cls: "font-medium" },
+            { label: "Openstaand", value: formatMoney(loan.outstanding_cents), cls: "font-semibold text-destructive" },
+          ]).map((item) => (
+            <div key={item.label}>
+              <span className="text-xs text-muted-foreground block">{item.label}</span>
+              <span className={item.cls}>{item.value}</span>
+            </div>
+          ))}
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <Button
@@ -340,9 +219,9 @@ function LoanRow({ loan, onDeductionAdded }: LoanRowProps) {
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left">
-                <th className="px-4 py-2 text-xs font-medium text-muted-foreground">Datum</th>
-                <th className="px-4 py-2 text-xs font-medium text-muted-foreground">Bedrag</th>
-                <th className="px-4 py-2 text-xs font-medium text-muted-foreground">Opmerkingen</th>
+                {["Datum", "Bedrag", "Opmerkingen"].map((h) => (
+                  <th key={h} className="px-4 py-2 text-xs font-medium text-muted-foreground">{h}</th>
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -361,9 +240,7 @@ function LoanRow({ loan, onDeductionAdded }: LoanRowProps) {
   );
 }
 
-// ---------------------------------------------------------------------------
 // Page
-// ---------------------------------------------------------------------------
 
 export default function LoanTrackingPage() {
   const [staffList, setStaffList] = useState<StaffResponse[]>([]);
@@ -383,28 +260,17 @@ export default function LoanTrackingPage() {
       .finally(() => setLoadingStaff(false));
   }, []);
 
-  // Load balance when staff selected
-  useEffect(() => {
-    if (!selectedStaffId) {
-      setBalance(null);
-      return;
-    }
-    setLoadingBalance(true);
-    setError(null);
-    apiFetch<StaffOutstandingBalance>(`/loans/staff/${selectedStaffId}/balance`)
-      .then((res) => setBalance(res))
-      .catch((e: Error) => setError(e.message))
-      .finally(() => setLoadingBalance(false));
-  }, [selectedStaffId]);
-
   function refreshBalance() {
-    if (!selectedStaffId) return;
-    setLoadingBalance(true);
+    if (!selectedStaffId) { setBalance(null); return; }
+    setLoadingBalance(true); setError(null);
     apiFetch<StaffOutstandingBalance>(`/loans/staff/${selectedStaffId}/balance`)
       .then((res) => setBalance(res))
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoadingBalance(false));
   }
+
+  // Load balance when staff selected
+  useEffect(() => { refreshBalance(); }, [selectedStaffId]);
 
   // ------------------------------------------------------------------
   // Render
@@ -478,38 +344,20 @@ export default function LoanTrackingPage() {
         <>
           {/* Summary cards */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  Totaal verstrekt
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold">{formatMoney(balance.total_principal_cents)}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  Ingehouden
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold">{formatMoney(balance.total_deducted_cents)}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  Openstaand
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold text-destructive">
-                  {formatMoney(balance.outstanding_cents)}
-                </p>
-              </CardContent>
-            </Card>
+            {([
+              { label: "Totaal verstrekt", value: formatMoney(balance.total_principal_cents), cls: "" },
+              { label: "Ingehouden", value: formatMoney(balance.total_deducted_cents), cls: "" },
+              { label: "Openstaand", value: formatMoney(balance.outstanding_cents), cls: "text-destructive" },
+            ]).map((item) => (
+              <Card key={item.label}>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{item.label}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className={`text-2xl font-bold ${item.cls}`}>{item.value}</p>
+                </CardContent>
+              </Card>
+            ))}
           </div>
 
           {/* Loan list */}

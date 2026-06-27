@@ -39,12 +39,11 @@ _CUSTOMER_FIELDS = ("name", "email", "kvk_number", "postal_code", "city")
 
 
 def _customer_schema_to_model(data: dict, owner_id: uuid.UUID) -> dict:
-    mapped = {"owner_id": owner_id}
-    for k in _CUSTOMER_FIELDS:
-        mapped[k] = data.get(k)
-    for schema_k, model_k in _CUSTOMER_FIELD_MAP.items():
-        mapped[model_k] = data.get(schema_k)
-    return mapped
+    return {
+        "owner_id": owner_id,
+        **{k: data.get(k) for k in _CUSTOMER_FIELDS},
+        **{model_k: data.get(schema_k) for schema_k, model_k in _CUSTOMER_FIELD_MAP.items()},
+    }
 
 
 def _customer_to_response(c: Customer) -> CustomerResponse:
@@ -103,21 +102,16 @@ async def _load_invoice(db: AsyncSession, owner_id: uuid.UUID, invoice_id: uuid.
 
 
 def _build_lines(invoice: Invoice, lines) -> None:
-    subtotal = vat_total = 0
     for idx, ln in enumerate(lines):
-        net, vat = compute_line_totals(
-            quantity=ln.quantity, unit_price_cents=ln.unit_price_cents, vat_rate_bp=ln.vat_rate_bp,
-        )
+        net, vat = compute_line_totals(quantity=ln.quantity, unit_price_cents=ln.unit_price_cents, vat_rate_bp=ln.vat_rate_bp)
         invoice.lines.append(InvoiceLine(
             position=idx, description=ln.description, quantity=ln.quantity, unit=ln.unit,
             unit_price_cents=ln.unit_price_cents, vat_rate_bp=ln.vat_rate_bp,
             line_net_cents=net, line_vat_cents=vat,
         ))
-        subtotal += net
-        vat_total += vat
-    invoice.subtotal_cents = subtotal
-    invoice.vat_total_cents = vat_total
-    invoice.total_cents = subtotal + vat_total
+    invoice.subtotal_cents = sum(ln.line_net_cents for ln in invoice.lines)
+    invoice.vat_total_cents = sum(ln.line_vat_cents for ln in invoice.lines)
+    invoice.total_cents = invoice.subtotal_cents + invoice.vat_total_cents
 
 
 async def _create_and_save(db: AsyncSession, invoice: Invoice, lines, owner_id: uuid.UUID) -> InvoiceResponse:
@@ -239,13 +233,12 @@ async def sweep_overdue_endpoint(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     today = body.as_of if body and body.as_of else _date.today()
-    result = await db.execute(
+    invoices = (await db.execute(
         select(Invoice).where(
             Invoice.owner_id == current_user.id, Invoice.status == "sent",
             Invoice.due_date < today, Invoice.deleted_at.is_(None),
         )
-    )
-    invoices = result.scalars().all()
+    )).scalars().all()
     for inv in invoices:
         inv.status = "overdue"
     await db.commit()

@@ -15,6 +15,8 @@ from app.schemas.incident import (
     IncidentUpdate,
 )
 from app.routers.deps import get_or_404
+from collections import Counter
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -48,22 +50,12 @@ async def list_incidents(
     db: AsyncSession = Depends(get_db),
 ) -> IncidentListResponse:
     conditions = [Incident.owner_id == current_user.id]
-    if severity:
-        conditions.append(Incident.severity == severity)
-    if category:
-        conditions.append(Incident.category == category)
-    if status_filter:
-        conditions.append(Incident.status == status_filter)
-    if project_id:
-        conditions.append(Incident.project_id == project_id)
+    for col, val in ((Incident.severity, severity), (Incident.category, category), (Incident.status, status_filter), (Incident.project_id, project_id)):
+        if val:
+            conditions.append(col == val)
 
-    offset = (page - 1) * per_page
-
-    count_result = await db.execute(select(func.count()).select_from(Incident).where(*conditions))
-    total = count_result.scalar_one()
-
-    result = await db.execute(select(Incident).where(*conditions).offset(offset).limit(per_page))
-    incidents = result.scalars().all()
+    total = (await db.execute(select(func.count()).select_from(Incident).where(*conditions))).scalar_one()
+    incidents = (await db.execute(select(Incident).where(*conditions).offset((page - 1) * per_page).limit(per_page))).scalars().all()
 
     return IncidentListResponse(
         data=[IncidentResponse.model_validate(i) for i in incidents],
@@ -79,21 +71,7 @@ async def create_incident(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> IncidentResponse:
-    incident = Incident(
-        owner_id=current_user.id,
-        project_id=body.project_id,
-        title=body.title,
-        description=body.description,
-        severity=body.severity,
-        category=body.category,
-        incident_date=body.incident_date,
-        incident_time=body.incident_time,
-        location=body.location,
-        reported_by=body.reported_by,
-        witnesses=body.witnesses,
-        corrective_action=body.corrective_action,
-        damage_cost_cents=body.damage_cost_cents,
-    )
+    incident = Incident(owner_id=current_user.id, **body.model_dump())
     db.add(incident)
     await db.commit()
     await db.refresh(incident)
@@ -105,23 +83,12 @@ async def get_stats(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> IncidentStatsResponse:
-    result = await db.execute(select(Incident).where(Incident.owner_id == current_user.id))
-    incidents = result.scalars().all()
-
-    by_severity: dict[str, int] = {}
-    by_category: dict[str, int] = {}
-    total_damage = 0
-
-    for inc in incidents:
-        by_severity[inc.severity] = by_severity.get(inc.severity, 0) + 1
-        by_category[inc.category] = by_category.get(inc.category, 0) + 1
-        total_damage += inc.damage_cost_cents
-
+    incidents = (await db.execute(select(Incident).where(Incident.owner_id == current_user.id))).scalars().all()
     return IncidentStatsResponse(
         total_incidents=len(incidents),
-        by_severity=by_severity,
-        by_category=by_category,
-        total_damage_cost_cents=total_damage,
+        by_severity=dict(Counter(i.severity for i in incidents)),
+        by_category=dict(Counter(i.category for i in incidents)),
+        total_damage_cost_cents=sum(i.damage_cost_cents for i in incidents),
     )
 
 
