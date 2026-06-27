@@ -58,14 +58,8 @@ STORE_NAMES = ["hornbach", "gamma", "praxis", "bouwmaat"]
 
 def _to_schema(p: ProductResult) -> ProductResultSchema:
     return ProductResultSchema(
-        store=p.store,
-        product_id=p.product_id,
-        name=p.name,
-        url=p.url,
-        price_cents=p.price_cents,
-        in_stock=p.in_stock,
-        unit=p.unit,
-        extra=dict(p.extra),
+        store=p.store, product_id=p.product_id, name=p.name, url=p.url,
+        price_cents=p.price_cents, in_stock=p.in_stock, unit=p.unit, extra=dict(p.extra),
     )
 
 
@@ -88,42 +82,21 @@ async def search_materials(query: str = "") -> dict:
     still contribute results. Returns results ranked: in-stock first, then
     cheapest, then store name.
     """
-    clients = [
-        HornbachClient(),
-        GammaClient(),
-        PraxisClient(),
-        BouwmaatClient(),
-    ]
+    clients = _make_clients()
     try:
         results = await compare_prices(query, clients)
     finally:
         for c in clients:
             await c.aclose()
-
-    data = [
-        {
-            "store": r.store,
-            "product_id": r.product_id,
-            "name": r.name,
-            "url": r.url,
-            "price_cents": r.price_cents,
-            "in_stock": r.in_stock,
-            "unit": r.unit,
-        }
-        for r in results
-    ]
-    return {"data": data, "error": None, "query": query}
+    return {"data": [{"store": r.store, "product_id": r.product_id, "name": r.name, "url": r.url, "price_cents": r.price_cents, "in_stock": r.in_stock, "unit": r.unit} for r in results], "error": None, "query": query}
 
 
 def _surface_area_m2(length_m: float, width_m: float, height_m: float, surface: str) -> float:
     """Compute the relevant surface area for a given room face."""
-    if surface == "floor" or surface == "ceiling":
-        return length_m * width_m
-    if surface == "walls":
-        # 4 walls of a rectangular room.
-        return 2.0 * (length_m + width_m) * height_m
-    msg = f"Unknown surface: {surface!r}"
-    raise ValueError(msg)
+    areas = {"floor": length_m * width_m, "ceiling": length_m * width_m, "walls": 2.0 * (length_m + width_m) * height_m}
+    if surface not in areas:
+        raise ValueError(f"Unknown surface: {surface!r}")
+    return areas[surface]
 
 
 @router.post("/estimate", response_model=RoomEstimateResponse)
@@ -161,19 +134,9 @@ async def estimate_room_materials(payload: RoomEstimateRequest) -> RoomEstimateR
             msg = f"Unhandled material spec: {type(spec).__name__}"
             raise TypeError(msg)
 
-        estimates.append(
-            EstimateItem(
-                material=est.material,
-                quantity=est.quantity,
-                unit=est.unit,
-                notes=est.notes,
-            )
-        )
+        estimates.append(EstimateItem(material=est.material, quantity=est.quantity, unit=est.unit, notes=est.notes))
 
-    return RoomEstimateResponse(
-        data=RoomEstimateResponseData(estimates=estimates),
-        error=None,
-    )
+    return RoomEstimateResponse(data=RoomEstimateResponseData(estimates=estimates), error=None)
 
 
 # ---------------------------------------------------------------------------

@@ -37,8 +37,6 @@ class HornbachClient(StoreClient):
     base_url = "https://www.hornbach.nl"
 
     def __init__(self, **kwargs: object) -> None:
-        # 2 requests per second per the polite-crawler default.
-        kwargs.setdefault("rate_per_second", 2.0)
         super().__init__(**kwargs)  # type: ignore[arg-type]
 
     async def search(self, query: str, max_results: int = 10) -> list[ProductResult]:

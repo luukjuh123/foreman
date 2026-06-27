@@ -8,22 +8,25 @@ interface TabsContextValue {
   onValueChange: (value: string) => void;
 }
 
-const TabsContext = React.createContext<TabsContextValue>({
-  value: "",
-  onValueChange: () => {},
-});
+const TabsContext = React.createContext<TabsContextValue | null>(null);
 
-interface TabsProps {
-  value: string;
-  onValueChange: (value: string) => void;
-  className?: string;
-  children: React.ReactNode;
+function useTabs() {
+  const ctx = React.useContext(TabsContext);
+  if (!ctx) throw new Error("Tabs compound components must be used within <Tabs>");
+  return ctx;
 }
 
-function Tabs({ value, onValueChange, className, children }: TabsProps) {
+interface TabsProps extends React.HTMLAttributes<HTMLDivElement> {
+  value: string;
+  onValueChange: (value: string) => void;
+}
+
+function Tabs({ value, onValueChange, className, children, ...props }: TabsProps) {
   return (
     <TabsContext.Provider value={{ value, onValueChange }}>
-      <div className={cn("space-y-4", className)}>{children}</div>
+      <div className={cn("w-full", className)} {...props}>
+        {children}
+      </div>
     </TabsContext.Provider>
   );
 }
@@ -34,7 +37,7 @@ const TabsList = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivEl
       ref={ref}
       role="tablist"
       className={cn(
-        "inline-flex items-center gap-1 rounded-lg bg-muted/60 p-1",
+        "inline-flex items-center gap-1 rounded-xl bg-muted/50 p-1 border border-border/50",
         className
       )}
       {...props}
@@ -49,21 +52,23 @@ interface TabsTriggerProps extends React.ButtonHTMLAttributes<HTMLButtonElement>
 
 const TabsTrigger = React.forwardRef<HTMLButtonElement, TabsTriggerProps>(
   ({ className, value, children, ...props }, ref) => {
-    const ctx = React.useContext(TabsContext);
-    const active = ctx.value === value;
+    const { value: selectedValue, onValueChange } = useTabs();
+    const isActive = selectedValue === value;
+
     return (
       <button
         ref={ref}
         role="tab"
         type="button"
-        aria-selected={active}
-        data-state={active ? "active" : "inactive"}
-        onClick={() => ctx.onValueChange(value)}
+        aria-selected={isActive}
+        data-state={isActive ? "active" : "inactive"}
+        onClick={() => onValueChange(value)}
         className={cn(
-          "inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
-          active
-            ? "bg-background text-foreground shadow-sm"
-            : "text-muted-foreground hover:text-foreground",
+          "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
+          isActive
+            ? "bg-card text-foreground shadow-sm border border-border/50"
+            : "text-muted-foreground hover:text-foreground hover:bg-muted/80",
           className
         )}
         {...props}
@@ -75,15 +80,20 @@ const TabsTrigger = React.forwardRef<HTMLButtonElement, TabsTriggerProps>(
 );
 TabsTrigger.displayName = "TabsTrigger";
 
-const TabsContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement> & { value: string }>(
+interface TabsContentProps extends React.HTMLAttributes<HTMLDivElement> {
+  value: string;
+}
+
+const TabsContent = React.forwardRef<HTMLDivElement, TabsContentProps>(
   ({ className, value, children, ...props }, ref) => {
-    const ctx = React.useContext(TabsContext);
-    if (ctx.value !== value) return null;
+    const { value: selectedValue } = useTabs();
+    if (selectedValue !== value) return null;
+
     return (
       <div
         ref={ref}
         role="tabpanel"
-        className={cn("mt-2", className)}
+        className={cn("mt-4 animate-in", className)}
         {...props}
       >
         {children}

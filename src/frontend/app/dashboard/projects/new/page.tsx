@@ -391,28 +391,20 @@ function Step4({ data, submitting, error, onSubmit }: Step4Props) {
       <div className="space-y-2">
         <h3 className="font-semibold">Project</h3>
         <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-          <dt className="text-muted-foreground">Naam</dt>
-          <dd>{data.name}</dd>
-          {data.description && (
-            <>
-              <dt className="text-muted-foreground">Omschrijving</dt>
-              <dd>{data.description}</dd>
-            </>
-          )}
-          {data.start_date && (
-            <>
-              <dt className="text-muted-foreground">Start</dt>
-              <dd>{data.start_date}</dd>
-            </>
-          )}
-          {data.end_date && (
-            <>
-              <dt className="text-muted-foreground">Einde</dt>
-              <dd>{data.end_date}</dd>
-            </>
-          )}
-          <dt className="text-muted-foreground">Budget</dt>
-          <dd>{budgetDisplay}</dd>
+          {([
+            ["Naam", data.name],
+            ["Omschrijving", data.description],
+            ["Start", data.start_date],
+            ["Einde", data.end_date],
+            ["Budget", budgetDisplay],
+          ] as const)
+            .filter(([, v]) => v)
+            .map(([label, value]) => (
+              <React.Fragment key={label}>
+                <dt className="text-muted-foreground">{label}</dt>
+                <dd>{value}</dd>
+              </React.Fragment>
+            ))}
         </dl>
       </div>
 
@@ -422,17 +414,13 @@ function Step4({ data, submitting, error, onSubmit }: Step4Props) {
           {data.phases.map((phase, idx) => (
             <div key={idx} className="pl-2 border-l-2 border-muted space-y-1">
               <p className="text-sm font-medium">{phase.name}</p>
-              {phase.tasks.length > 0 && (
+              {phase.tasks.length > 0 ? (
                 <ul className="text-sm text-muted-foreground list-disc list-inside space-y-0.5">
                   {phase.tasks.map((t, ti) => (
-                    <li key={ti}>
-                      {t.name || "(naamloos)"}
-                      {t.estimated_hours && ` — ${t.estimated_hours}u`}
-                    </li>
+                    <li key={ti}>{t.name || "(naamloos)"}{t.estimated_hours && ` — ${t.estimated_hours}u`}</li>
                   ))}
                 </ul>
-              )}
-              {phase.tasks.length === 0 && (
+              ) : (
                 <p className="text-xs text-muted-foreground">Geen taken</p>
               )}
             </div>

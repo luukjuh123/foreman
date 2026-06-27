@@ -62,59 +62,27 @@ def parse_command(utterance: str) -> ParsedCommand:
     """
     text = (utterance or "").strip()
     if not text:
-        return ParsedCommand(
-            intent=CommandIntent.UNKNOWN,
-            reasoning="empty utterance",
-            confidence=0.0,
-            source="rule",
-        )
+        return ParsedCommand(intent=CommandIntent.UNKNOWN, reasoning="empty utterance")
 
-    m = _CREATE_TASK_RE.match(text)
-    if m:
-        return ParsedCommand(
-            intent=CommandIntent.CREATE_TASK,
-            slots={"name": m.group("name").strip()},
-            confidence=0.95,
-            source="rule",
-            reasoning="matched create-task pattern",
-        )
+    if m := _CREATE_TASK_RE.match(text):
+        return ParsedCommand(intent=CommandIntent.CREATE_TASK, slots={"name": m.group("name").strip()},
+                             confidence=0.95, source="rule", reasoning="matched create-task pattern")
 
-    m = _LOG_HOURS_RE.match(text)
-    if m:
-        return ParsedCommand(
-            intent=CommandIntent.LOG_HOURS,
-            slots={"hours": float(m.group("hours")), "task": m.group("task").strip()},
-            confidence=0.95,
-            source="rule",
-            reasoning="matched log-hours pattern",
-        )
+    if m := _LOG_HOURS_RE.match(text):
+        return ParsedCommand(intent=CommandIntent.LOG_HOURS,
+                             slots={"hours": float(m.group("hours")), "task": m.group("task").strip()},
+                             confidence=0.95, source="rule", reasoning="matched log-hours pattern")
 
-    m = _SCHEDULE_WHEN_RE.search(text)
-    if m:
-        when = m.group("when").lower().replace(" ", "_")
-        return ParsedCommand(
-            intent=CommandIntent.CHECK_SCHEDULE,
-            slots={"when": when},
-            confidence=0.9,
-            source="rule",
-            reasoning="matched schedule-with-when pattern",
-        )
+    if m := _SCHEDULE_WHEN_RE.search(text):
+        return ParsedCommand(intent=CommandIntent.CHECK_SCHEDULE,
+                             slots={"when": m.group("when").lower().replace(" ", "_")},
+                             confidence=0.9, source="rule", reasoning="matched schedule-with-when pattern")
 
     if _CHECK_SCHEDULE_PLAIN_RE.match(text):
-        return ParsedCommand(
-            intent=CommandIntent.CHECK_SCHEDULE,
-            slots={},
-            confidence=0.9,
-            source="rule",
-            reasoning="matched check-schedule pattern",
-        )
+        return ParsedCommand(intent=CommandIntent.CHECK_SCHEDULE, slots={},
+                             confidence=0.9, source="rule", reasoning="matched check-schedule pattern")
 
-    return ParsedCommand(
-        intent=CommandIntent.UNKNOWN,
-        confidence=0.0,
-        source="rule",
-        reasoning="no rule matched",
-    )
+    return ParsedCommand(intent=CommandIntent.UNKNOWN, source="rule", reasoning="no rule matched")
 
 
 # --- LLM fallback interface ---
@@ -143,13 +111,8 @@ class FakeCommandLLMFallback(CommandLLMFallback):
     async def classify(self, utterance: str) -> ParsedCommand:
         self.calls += 1
         self.last_utterance = utterance
-        return ParsedCommand(
-            intent=self.intent,
-            slots=dict(self.slots),
-            confidence=0.6,
-            source="llm",
-            reasoning="fake LLM fallback classification",
-        )
+        return ParsedCommand(intent=self.intent, slots=dict(self.slots), confidence=0.6,
+                             source="llm", reasoning="fake LLM fallback classification")
 
 
 def get_command_llm_fallback() -> CommandLLMFallback:
@@ -157,14 +120,9 @@ def get_command_llm_fallback() -> CommandLLMFallback:
     return FakeCommandLLMFallback()
 
 
-async def parse_command_async(
-    utterance: str,
-    llm_fallback: CommandLLMFallback,
-) -> ParsedCommand:
+async def parse_command_async(utterance: str, llm_fallback: CommandLLMFallback) -> ParsedCommand:
     """Parse with rules first; fall back to the LLM when rules fail."""
-    rule_result = parse_command(utterance)
-    if rule_result.intent is not CommandIntent.UNKNOWN:
-        return rule_result
-    if not (utterance or "").strip():
-        return rule_result
+    result = parse_command(utterance)
+    if result.intent is not CommandIntent.UNKNOWN or not (utterance or "").strip():
+        return result
     return await llm_fallback.classify(utterance)

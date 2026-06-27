@@ -16,9 +16,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 
-// ---------------------------------------------------------------------------
 // Constants
-// ---------------------------------------------------------------------------
 
 const ONBOARDING_KEY = "foreman_onboarding_done";
 
@@ -38,17 +36,9 @@ const SAMPLE_PHASES: SamplePhase[] = [
   { name: "Afwerking", tasks: ["Sanitair plaatsen", "Schilderwerk"] },
 ];
 
-// ---------------------------------------------------------------------------
 // Stepper
-// ---------------------------------------------------------------------------
 
-interface StepperProps {
-  currentStep: number;
-  totalSteps: number;
-  labels: string[];
-}
-
-function Stepper({ currentStep, totalSteps, labels }: StepperProps) {
+function Stepper({ currentStep, totalSteps, labels }: { currentStep: number; totalSteps: number; labels: string[] }) {
   return (
     <div className="flex items-center justify-center gap-0 mb-8" role="navigation" aria-label="Wizard stappen">
       {Array.from({ length: totalSteps }, (_, i) => {
@@ -95,16 +85,9 @@ function Stepper({ currentStep, totalSteps, labels }: StepperProps) {
   );
 }
 
-// ---------------------------------------------------------------------------
 // Step 1 — Welkom
-// ---------------------------------------------------------------------------
 
-interface Step1Props {
-  onBegin: () => void;
-  onSkip: () => void;
-}
-
-function Step1Welcome({ onBegin, onSkip }: Step1Props) {
+function Step1Welcome({ onBegin, onSkip }: { onBegin: () => void; onSkip: () => void }) {
   const features = [
     {
       icon: <FolderKanban className="h-5 w-5 text-amber-400" />,
@@ -152,44 +135,33 @@ function Step1Welcome({ onBegin, onSkip }: Step1Props) {
         ))}
       </div>
 
-      <div className="flex items-center justify-between pt-2">
-        <Button variant="ghost" size="sm" onClick={onSkip}>
-          Overslaan
-        </Button>
-        <Button
-          onClick={onBegin}
-          className="bg-amber-500 hover:bg-amber-400 text-black font-semibold gap-2"
-        >
-          Begin <ChevronRight className="h-4 w-4" />
-        </Button>
-      </div>
+      <WizardNav onSkip={onSkip} onNext={onBegin} nextLabel="Begin" />
     </div>
   );
 }
 
-// ---------------------------------------------------------------------------
 // Step 2 — Uw eerste project
-// ---------------------------------------------------------------------------
 
-interface Step2Props {
-  projectName: string;
-  projectDescription: string;
-  onChangeName: (v: string) => void;
-  onChangeDescription: (v: string) => void;
-  onNext: () => void;
-  onBack: () => void;
-  onSkip: () => void;
+function WizardNav({ onSkip, onBack, onNext, nextLabel, isLoading }: {
+  onSkip: () => void; onBack?: () => void; onNext: () => void; nextLabel: string; isLoading?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between pt-2">
+      <div className="flex gap-2">
+        <Button variant="ghost" size="sm" onClick={onSkip} disabled={isLoading}>Overslaan</Button>
+        {onBack && <Button variant="outline" size="sm" onClick={onBack} disabled={isLoading}>Vorige</Button>}
+      </div>
+      <Button onClick={onNext} disabled={isLoading} className="bg-amber-500 hover:bg-amber-400 text-black font-semibold gap-2">
+        {nextLabel} <ChevronRight className="h-4 w-4" />
+      </Button>
+    </div>
+  );
 }
 
-function Step2Project({
-  projectName,
-  projectDescription,
-  onChangeName,
-  onChangeDescription,
-  onNext,
-  onBack,
-  onSkip,
-}: Step2Props) {
+function Step2Project({ projectName, projectDescription, onChangeName, onChangeDescription, onNext, onBack, onSkip }: {
+  projectName: string; projectDescription: string; onChangeName: (v: string) => void;
+  onChangeDescription: (v: string) => void; onNext: () => void; onBack: () => void; onSkip: () => void;
+}) {
   return (
     <div className="space-y-6">
       <div>
@@ -198,78 +170,29 @@ function Step2Project({
           We hebben alvast een voorbeeldproject voor u klaargezet. U kunt het aanpassen of direct doorgaan.
         </p>
       </div>
-
       <div className="space-y-4">
         <div className="space-y-1.5">
-          <label htmlFor="project-name" className="text-sm font-medium text-foreground">
-            Projectnaam
-          </label>
-          <Input
-            id="project-name"
-            value={projectName}
-            onChange={(e) => onChangeName(e.target.value)}
-            placeholder="Naam van het project"
-          />
+          <label htmlFor="project-name" className="text-sm font-medium text-foreground">Projectnaam</label>
+          <Input id="project-name" value={projectName} onChange={(e) => onChangeName(e.target.value)} placeholder="Naam van het project" />
         </div>
-
         <div className="space-y-1.5">
-          <label htmlFor="project-description" className="text-sm font-medium text-foreground">
-            Beschrijving
-          </label>
-          <textarea
-            id="project-description"
-            role="textbox"
-            aria-label="Beschrijving"
-            value={projectDescription}
-            onChange={(e) => onChangeDescription(e.target.value)}
-            rows={3}
+          <label htmlFor="project-description" className="text-sm font-medium text-foreground">Beschrijving</label>
+          <textarea id="project-description" role="textbox" aria-label="Beschrijving" value={projectDescription}
+            onChange={(e) => onChangeDescription(e.target.value)} rows={3}
             className="w-full rounded-md border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
-            placeholder="Optionele beschrijving"
-          />
+            placeholder="Optionele beschrijving" />
         </div>
       </div>
-
-      <div className="flex items-center justify-between pt-2">
-        <div className="flex gap-2">
-          <Button variant="ghost" size="sm" onClick={onSkip}>
-            Overslaan
-          </Button>
-          <Button variant="outline" size="sm" onClick={onBack}>
-            Vorige
-          </Button>
-        </div>
-        <Button
-          onClick={onNext}
-          className="bg-amber-500 hover:bg-amber-400 text-black font-semibold gap-2"
-        >
-          Volgende <ChevronRight className="h-4 w-4" />
-        </Button>
-      </div>
+      <WizardNav onSkip={onSkip} onBack={onBack} onNext={onNext} nextLabel="Volgende" />
     </div>
   );
 }
 
-// ---------------------------------------------------------------------------
 // Step 3 — Fasen & taken
-// ---------------------------------------------------------------------------
 
-interface Step3Props {
-  projectName: string;
-  onComplete: () => void;
-  onBack: () => void;
-  onSkip: () => void;
-  isLoading: boolean;
-  progress: number;
-}
-
-function Step3Phases({
-  projectName,
-  onComplete,
-  onBack,
-  onSkip,
-  isLoading,
-  progress,
-}: Step3Props) {
+function Step3Phases({ projectName, onComplete, onBack, onSkip, isLoading, progress }: {
+  projectName: string; onComplete: () => void; onBack: () => void; onSkip: () => void; isLoading: boolean; progress: number;
+}) {
   return (
     <div className="space-y-6">
       <div>
@@ -320,37 +243,14 @@ function Step3Phases({
         ))}
       </div>
 
-      <div className="flex items-center justify-between pt-2">
-        <div className="flex gap-2">
-          <Button variant="ghost" size="sm" onClick={onSkip} disabled={isLoading}>
-            Overslaan
-          </Button>
-          <Button variant="outline" size="sm" onClick={onBack} disabled={isLoading}>
-            Vorige
-          </Button>
-        </div>
-        <Button
-          onClick={onComplete}
-          disabled={isLoading}
-          className="bg-amber-500 hover:bg-amber-400 text-black font-semibold gap-2"
-        >
-          {isLoading ? "Bezig..." : "Voltooien"}
-        </Button>
-      </div>
+      <WizardNav onSkip={onSkip} onBack={onBack} onNext={onComplete} nextLabel={isLoading ? "Bezig..." : "Voltooien"} isLoading={isLoading} />
     </div>
   );
 }
 
-// ---------------------------------------------------------------------------
 // Step 4 — Klaar!
-// ---------------------------------------------------------------------------
 
-interface Step4Props {
-  projectId: string;
-  projectName: string;
-}
-
-function Step4Done({ projectId, projectName }: Step4Props) {
+function Step4Done({ projectId, projectName }: { projectId: string; projectName: string }) {
   return (
     <div className="space-y-6 text-center">
       <div className="flex justify-center">
@@ -404,9 +304,7 @@ function Step4Done({ projectId, projectName }: Step4Props) {
   );
 }
 
-// ---------------------------------------------------------------------------
 // Main wizard component
-// ---------------------------------------------------------------------------
 
 const STEP_LABELS = ["Welkom", "Project", "Fasen", "Klaar!"];
 

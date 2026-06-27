@@ -18,6 +18,7 @@ from app.models.project import Phase, Project
 from app.models.share_token import ShareToken
 from app.models.user import User
 from app.routers.auth import get_current_user
+from app.routers.deps import get_or_404
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -125,15 +126,11 @@ async def _resolve_token(token: str, db: AsyncSession) -> ShareToken:
 
 
 async def _get_project(project_id: uuid.UUID, db: AsyncSession) -> Project:
-    result = await db.execute(
-        select(Project)
-        .where(Project.id == project_id, Project.deleted_at.is_(None))
-        .options(selectinload(Project.phases).selectinload(Phase.tasks))
+    return await get_or_404(
+        db, Project,
+        Project.id == project_id, Project.deleted_at.is_(None),
+        options=selectinload(Project.phases).selectinload(Phase.tasks),
     )
-    project = result.scalar_one_or_none()
-    if project is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
-    return project
 
 
 def _date_str(d) -> str | None:
@@ -178,10 +175,7 @@ async def generate_share_token(
     db: AsyncSession = Depends(get_db),
 ) -> ShareTokenResponse:
     """Generate a shareable token for a project.  Auth required; only owner can generate."""
-    result = await db.execute(select(Project).where(Project.id == project_id, Project.deleted_at.is_(None)))
-    project = result.scalar_one_or_none()
-    if project is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+    project = await get_or_404(db, Project, Project.id == project_id, Project.deleted_at.is_(None))
     if project.owner_id != user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your project")
 

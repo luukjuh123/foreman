@@ -91,19 +91,14 @@ async def payroll_summary(
             detail="period_end must be on or after period_start",
         )
     await _get_owned_staff(staff_id, current_user, db)
-    rows = (
-        (
-            await db.execute(
-                select(TimeEntry).where(
-                    TimeEntry.staff_id == staff_id,
-                    TimeEntry.work_date >= period_start,
-                    TimeEntry.work_date <= period_end,
-                )
-            )
+    result = await db.execute(
+        select(TimeEntry).where(
+            TimeEntry.staff_id == staff_id,
+            TimeEntry.work_date >= period_start,
+            TimeEntry.work_date <= period_end,
         )
-        .scalars()
-        .all()
     )
+    rows = result.scalars().all()
     entries = [
         _Entry(
             project_id=r.project_id,

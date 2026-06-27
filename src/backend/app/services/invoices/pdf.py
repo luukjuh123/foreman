@@ -62,22 +62,12 @@ table.lines td.num, table.lines th.num { text-align: right; }
 """
 
 
-def _supplier_html(supplier: Mapping[str, Any]) -> str:
+def _party_html(party: Mapping[str, Any]) -> str:
     parts = [
-        f"<strong>{escape(supplier.get('name', ''))}</strong>",
-        escape(supplier.get("address_line1", "")),
-        f"{escape(supplier.get('postal_code', ''))} {escape(supplier.get('city', ''))}",
-        escape(supplier.get("country_code", "NL")),
-    ]
-    return "<br>".join(p for p in parts if p)
-
-
-def _customer_html(customer: Mapping[str, Any]) -> str:
-    parts = [
-        f"<strong>{escape(customer.get('name', ''))}</strong>",
-        escape(customer.get("address_line1", "")),
-        f"{escape(customer.get('postal_code', ''))} {escape(customer.get('city', ''))}",
-        escape(customer.get("country_code", "NL")),
+        f"<strong>{escape(party.get('name', ''))}</strong>",
+        escape(party.get("address_line1", "")),
+        f"{escape(party.get('postal_code', ''))} {escape(party.get('city', ''))}",
+        escape(party.get("country_code", "NL")),
     ]
     return "<br>".join(p for p in parts if p)
 
@@ -151,11 +141,11 @@ def render_invoice_html(
   <div class="parties">
     <div class="box">
       <h3>Afzender</h3>
-      {_supplier_html(supplier)}
+      {_party_html(supplier)}
     </div>
     <div class="box">
       <h3>Geadresseerde</h3>
-      {_customer_html(customer)}
+      {_party_html(customer)}
       <br>BTW: {escape(str(customer.get("vat_number", "")))}
     </div>
   </div>

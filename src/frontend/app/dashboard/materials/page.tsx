@@ -7,9 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { estimateMaterials, type MaterialResult } from "@/lib/materials";
 import BulkMaterialImportDialog from "@/components/bulk-material-import-dialog";
 
-// ---------------------------------------------------------------------------
-// Store colour mapping
-// ---------------------------------------------------------------------------
+//Store colour mapping
 
 const STORE_COLORS: Record<string, string> = {
   hornbach: "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300",
@@ -25,9 +23,7 @@ function storeBadgeClass(store: string): string {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Sort: in-stock first, then cheapest
-// ---------------------------------------------------------------------------
+//Sort: in-stock first, then cheapest
 
 function sortResults(results: MaterialResult[]): MaterialResult[] {
   return [...results].sort((a, b) => {
@@ -36,9 +32,7 @@ function sortResults(results: MaterialResult[]): MaterialResult[] {
   });
 }
 
-// ---------------------------------------------------------------------------
-// Calculator types
-// ---------------------------------------------------------------------------
+//Calculator types
 
 type MaterialType = "paint" | "tiles" | "concrete" | "lumber";
 
@@ -57,9 +51,7 @@ interface Estimate {
   notes?: string;
 }
 
-// ---------------------------------------------------------------------------
-// Page
-// ---------------------------------------------------------------------------
+//Page
 
 let nextId = 1;
 
@@ -158,35 +150,16 @@ export default function MaterialsPage() {
   const toggleStore = useCallback((store: string) => {
     setActiveStores((prev) => {
       const next = new Set(prev);
-      if (next.has(store)) {
-        next.delete(store);
-      } else {
-        next.add(store);
-      }
+      next.has(store) ? next.delete(store) : next.add(store);
       return next;
     });
   }, []);
 
   const filtered = sortResults(results.filter((r) => activeStores.has(r.store)));
 
-  // ---- Calculator handlers ----
-
-  function addMaterial() {
-    setMaterialRows((prev) => [
-      ...prev,
-      { id: nextId++, type: "paint", surface: "" },
-    ]);
-  }
-
-  function removeMaterial(id: number) {
-    setMaterialRows((prev) => prev.filter((r) => r.id !== id));
-  }
-
-  function updateRow(id: number, patch: Partial<MaterialRow>) {
-    setMaterialRows((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, ...patch } : r))
-    );
-  }
+  const addMaterial = () => setMaterialRows((prev) => [...prev, { id: nextId++, type: "paint", surface: "" }]);
+  const removeMaterial = (id: number) => setMaterialRows((prev) => prev.filter((r) => r.id !== id));
+  const updateRow = (id: number, patch: Partial<MaterialRow>) => setMaterialRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
 
   async function handleCalculate() {
     setCalcError(null);
@@ -204,15 +177,12 @@ export default function MaterialsPage() {
 
     setCalculating(true);
     try {
-      const materials = materialRows.map((row) => {
-        if (row.type === "paint" || row.type === "tiles") {
-          return { type: row.type, surface: row.surface ?? "" };
-        }
-        if (row.type === "concrete") {
-          return { type: row.type, dikte: row.dikte ?? "" };
-        }
-        return { type: row.type, total_length: row.totalLength ?? "" };
-      });
+      const materials = materialRows.map((row) => ({
+        type: row.type,
+        ...(row.type === "paint" || row.type === "tiles" ? { surface: row.surface ?? "" }
+          : row.type === "concrete" ? { dikte: row.dikte ?? "" }
+          : { total_length: row.totalLength ?? "" }),
+      }));
 
       const res = await estimateMaterials({
         length_m: l,
@@ -233,10 +203,8 @@ export default function MaterialsPage() {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Render
-  // ---------------------------------------------------------------------------
-
+    // Render
+  
   return (
     <div className="space-y-8">
       {/* ------------------------------------------------------------------ */}
@@ -266,48 +234,18 @@ export default function MaterialsPage() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-3 gap-4">
-              <div className="flex flex-col gap-1">
-                <label htmlFor="calc-length" className="text-sm font-medium text-foreground">
-                  Lengte (m)
-                </label>
-                <input
-                  id="calc-length"
-                  type="number"
-                  min="0"
-                  step="0.1"
-                  value={length}
-                  onChange={(e) => setLength(e.target.value)}
-                  className="rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label htmlFor="calc-width" className="text-sm font-medium text-foreground">
-                  Breedte (m)
-                </label>
-                <input
-                  id="calc-width"
-                  type="number"
-                  min="0"
-                  step="0.1"
-                  value={width}
-                  onChange={(e) => setWidth(e.target.value)}
-                  className="rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label htmlFor="calc-height" className="text-sm font-medium text-foreground">
-                  Hoogte (m)
-                </label>
-                <input
-                  id="calc-height"
-                  type="number"
-                  min="0"
-                  step="0.1"
-                  value={height}
-                  onChange={(e) => setHeight(e.target.value)}
-                  className="rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                />
-              </div>
+              {([
+                { id: "calc-length", label: "Lengte (m)", value: length, onChange: setLength },
+                { id: "calc-width", label: "Breedte (m)", value: width, onChange: setWidth },
+                { id: "calc-height", label: "Hoogte (m)", value: height, onChange: setHeight },
+              ] as const).map((dim) => (
+                <div key={dim.id} className="flex flex-col gap-1">
+                  <label htmlFor={dim.id} className="text-sm font-medium text-foreground">{dim.label}</label>
+                  <input id={dim.id} type="number" min="0" step="0.1" value={dim.value}
+                    onChange={(e) => dim.onChange(e.target.value)}
+                    className="rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>
@@ -330,80 +268,42 @@ export default function MaterialsPage() {
                       Type
                     </label>
                     <select
-                      id={`mat-type-${row.id}`}
-                      value={row.type}
-                      onChange={(e) =>
-                        updateRow(row.id, { type: e.target.value as MaterialType })
-                      }
+                      id={`mat-type-${row.id}`} value={row.type}
+                      onChange={(e) => updateRow(row.id, { type: e.target.value as MaterialType })}
                       className="rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                     >
-                      <option value="paint">paint</option>
-                      <option value="tiles">tiles</option>
-                      <option value="concrete">concrete</option>
-                      <option value="lumber">lumber</option>
+                      {(["paint", "tiles", "concrete", "lumber"] as const).map((t) => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
                     </select>
                   </div>
 
-                  {/* Type-specific fields */}
-                  {(row.type === "paint" || row.type === "tiles") && (
-                    <div className="flex flex-col gap-1">
-                      <label
-                        htmlFor={`mat-surface-${row.id}`}
-                        className="text-sm font-medium text-foreground"
-                      >
-                        Oppervlak (m²)
-                      </label>
-                      <input
-                        id={`mat-surface-${row.id}`}
-                        type="number"
-                        min="0"
-                        step="0.1"
-                        value={row.surface ?? ""}
-                        onChange={(e) => updateRow(row.id, { surface: e.target.value })}
-                        className="rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                      />
-                    </div>
-                  )}
-
-                  {row.type === "concrete" && (
-                    <div className="flex flex-col gap-1">
-                      <label
-                        htmlFor={`mat-dikte-${row.id}`}
-                        className="text-sm font-medium text-foreground"
-                      >
-                        Dikte (cm)
-                      </label>
-                      <input
-                        id={`mat-dikte-${row.id}`}
-                        type="number"
-                        min="0"
-                        step="0.1"
-                        value={row.dikte ?? ""}
-                        onChange={(e) => updateRow(row.id, { dikte: e.target.value })}
-                        className="rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                      />
-                    </div>
-                  )}
-
-                  {row.type === "lumber" && (
-                    <div className="flex flex-col gap-1">
-                      <label
-                        htmlFor={`mat-length-${row.id}`}
-                        className="text-sm font-medium text-foreground"
-                      >
-                        Totale lengte (m)
-                      </label>
-                      <input
-                        id={`mat-length-${row.id}`}
-                        type="number"
-                        min="0"
-                        step="0.1"
-                        value={row.totalLength ?? ""}
-                        onChange={(e) => updateRow(row.id, { totalLength: e.target.value })}
-                        className="rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                      />
-                    </div>
-                  )}
+                  {/* Type-specific field */}
+                  {(() => {
+                    const fieldMap: Record<string, { id: string; label: string; field: keyof MaterialRow; value: string }> = {
+                      paint:    { id: "surface", label: "Oppervlak (m²)",    field: "surface",     value: row.surface ?? "" },
+                      tiles:    { id: "surface", label: "Oppervlak (m²)",    field: "surface",     value: row.surface ?? "" },
+                      concrete: { id: "dikte",   label: "Dikte (cm)",        field: "dikte",       value: row.dikte ?? "" },
+                      lumber:   { id: "length",  label: "Totale lengte (m)", field: "totalLength", value: row.totalLength ?? "" },
+                    };
+                    const cfg = fieldMap[row.type];
+                    return cfg ? (
+                      <div className="flex flex-col gap-1">
+                        <label htmlFor={`mat-${cfg.id}-${row.id}`} className="text-sm font-medium text-foreground">
+                          {cfg.label}
+                        </label>
+                        <input
+                          id={`mat-${cfg.id}-${row.id}`}
+                          type="number"
+                          min="0"
+                          step="0.1"
+                          value={cfg.value}
+                          onChange={(e) => updateRow(row.id, { [cfg.field]: e.target.value })}
+                          className="rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                        />
+                      </div>
+                    ) : null;
+                  })()}
 
                   {/* Remove button */}
                   <button
@@ -438,14 +338,9 @@ export default function MaterialsPage() {
           </button>
         </div>
 
-        {/* Validation error */}
-        {calcValidationError && (
-          <p className="text-sm text-destructive">{calcValidationError}</p>
-        )}
-
-        {/* API error */}
-        {calcError && (
-          <p className="text-sm text-destructive">{calcError}</p>
+        {/* Errors */}
+        {(calcValidationError || calcError) && (
+          <p className="text-sm text-destructive">{calcValidationError ?? calcError}</p>
         )}
 
         {/* Results */}
@@ -458,10 +353,9 @@ export default function MaterialsPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-left text-xs text-muted-foreground">
-                    <th className="px-4 py-2">Materiaal</th>
-                    <th className="px-4 py-2">Hoeveelheid</th>
-                    <th className="px-4 py-2">Eenheid</th>
-                    <th className="px-4 py-2">Notities</th>
+                    {["Materiaal", "Hoeveelheid", "Eenheid", "Notities"].map((h) => (
+                      <th key={h} className="px-4 py-2">{h}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
@@ -555,11 +449,9 @@ export default function MaterialsPage() {
               >
                 <thead>
                   <tr className="border-b text-left text-xs text-muted-foreground">
-                    <th className="px-4 py-2">Product</th>
-                    <th className="px-4 py-2">Winkel</th>
-                    <th className="px-4 py-2">Prijs</th>
-                    <th className="px-4 py-2">Beschikbaarheid</th>
-                    <th className="px-4 py-2" />
+                    {["Product", "Winkel", "Prijs", "Beschikbaarheid", ""].map((h, i) => (
+                      <th key={i} className="px-4 py-2">{h}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
@@ -599,21 +491,16 @@ export default function MaterialsPage() {
                         {priceFmt ? priceFmt(item.price_cents) : item.price_cents}
                       </td>
                       <td className="px-4 py-2">
-                        {item.in_stock ? (
-                          <span
-                            data-testid="badge-in-stock"
-                            className="inline-block rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/40 dark:text-green-300"
-                          >
-                            Op voorraad
-                          </span>
-                        ) : (
-                          <span
-                            data-testid="badge-out-of-stock"
-                            className="inline-block rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800 dark:bg-red-900/40 dark:text-red-300"
-                          >
-                            Niet op voorraad
-                          </span>
-                        )}
+                        <span
+                          data-testid={item.in_stock ? "badge-in-stock" : "badge-out-of-stock"}
+                          className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
+                            item.in_stock
+                              ? "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300"
+                              : "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300"
+                          }`}
+                        >
+                          {item.in_stock ? "Op voorraad" : "Niet op voorraad"}
+                        </span>
                       </td>
                       <td className="px-4 py-2">
                         <a
@@ -634,23 +521,21 @@ export default function MaterialsPage() {
           </Card>
         )}
 
-        {/* Empty state */}
-        {!loading && searched && filtered.length === 0 && (
+        {/* Empty / initial state */}
+        {!loading && ((searched && filtered.length === 0) || (!searched && !query)) && (
           <div
-            data-testid="materials-empty-state"
+            data-testid={searched ? "materials-empty-state" : undefined}
             className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16 text-center text-muted-foreground"
           >
             <Search className="mb-3 h-10 w-10 opacity-30" />
-            <p className="text-sm font-medium">Geen resultaten gevonden</p>
-            <p className="mt-1 text-xs">Probeer een andere zoekterm of pas de winkelfilters aan</p>
-          </div>
-        )}
-
-        {/* Initial state */}
-        {!loading && !searched && !query && (
-          <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16 text-center text-muted-foreground">
-            <Search className="mb-3 h-10 w-10 opacity-30" />
-            <p className="text-sm">Zoek naar materialen om prijzen te vergelijken</p>
+            {searched ? (
+              <>
+                <p className="text-sm font-medium">Geen resultaten gevonden</p>
+                <p className="mt-1 text-xs">Probeer een andere zoekterm of pas de winkelfilters aan</p>
+              </>
+            ) : (
+              <p className="text-sm">Zoek naar materialen om prijzen te vergelijken</p>
+            )}
           </div>
         )}
       </section>

@@ -32,6 +32,7 @@ from app.services.notifications.customer_emails import (
 from app.services.notifications.dispatcher_dep import get_default_dispatcher
 from app.services.notifications.engine import NotificationDispatcher
 from app.services.notifications.preferences import get_or_create_preferences
+from app.routers.deps import apply_updates, get_or_404
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import func, select
@@ -109,17 +110,10 @@ async def mark_read(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> NotificationEnvelope:
-    n = (
-        await db.execute(
-            select(Notification).where(
-                Notification.id == notification_id,
-                Notification.user_id == current_user.id,
-                Notification.deleted_at.is_(None),
-            )
-        )
-    ).scalar_one_or_none()
-    if n is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification not found")
+    n = await get_or_404(
+        db, Notification,
+        Notification.id == notification_id, Notification.user_id == current_user.id, Notification.deleted_at.is_(None),
+    )
     if n.read_at is None:
         n.read_at = datetime.now(UTC)
         await db.commit()

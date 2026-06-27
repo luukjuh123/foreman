@@ -19,6 +19,7 @@ from app.schemas.template import (
     TemplatePhaseSchema,
     TemplateTaskSchema,
 )
+from app.routers.deps import apply_updates, get_or_404
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -60,16 +61,10 @@ async def _get_template_or_404(
     owner_id: uuid.UUID,
     db: AsyncSession,
 ) -> ProjectTemplate:
-    result = await db.execute(
-        select(ProjectTemplate).where(
-            ProjectTemplate.id == template_id,
-            ProjectTemplate.owner_id == owner_id,
-        )
+    return await get_or_404(
+        db, ProjectTemplate,
+        ProjectTemplate.id == template_id, ProjectTemplate.owner_id == owner_id,
     )
-    tmpl = result.scalar_one_or_none()
-    if tmpl is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
-    return tmpl
 
 
 # ---------------------------------------------------------------------------

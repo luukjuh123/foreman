@@ -6,7 +6,7 @@
  */
 
 import { apiFetch } from "./api";
-import { getAccessToken } from "./auth";
+import { token } from "./auth";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -76,10 +76,6 @@ export function classifyWeatherDay(day: {
 // ---------------------------------------------------------------------------
 // API calls
 // ---------------------------------------------------------------------------
-
-function token(): string | undefined {
-  return getAccessToken() ?? undefined;
-}
 
 export async function fetchForecast(projectId: string): Promise<WeatherDayDisplay[]> {
   const raw: WeatherDayForecast[] = await apiFetch(

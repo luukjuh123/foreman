@@ -92,34 +92,17 @@ def compute_critical_path(tasks: list[CpmTask]) -> list[CpmTask]:
     return tasks
 
 
-def resolve_dependencies(tasks: list[CpmTask]) -> list[CpmTask]:
-    """Return tasks in a valid execution order.
+def _critical_topo_sort(tasks: list[CpmTask]) -> list[str]:
+    """Topological sort prioritizing critical tasks, returns ordered task IDs.
 
-    Produces a topological ordering of the dependency graph. Among tasks that
-    are simultaneously ready (in-degree zero at the same step), critical-path
-    tasks come first — schedulers should prefer them to avoid pushing out the
-    project end date.
-
-    Raises ValueError on a dependency cycle.
+    Raises ValueError on dependency cycle.
     """
-    if not tasks:
-        return []
-
-    # Snapshot to avoid mutating the caller's task objects (compute_critical_path
-    # populates early_finish in-place, which we use for tie-breaking).
     snapshot = [
-        CpmTask(
-            id=t.id,
-            name=t.name,
-            duration_hours=t.duration_hours,
-            dependencies=list(t.dependencies),
-        )
+        CpmTask(id=t.id, name=t.name, duration_hours=t.duration_hours, dependencies=list(t.dependencies))
         for t in tasks
     ]
     compute_critical_path(snapshot)
     task_map = {t.id: t for t in snapshot}
-    original_map = {t.id: t for t in tasks}
-
     in_degree: dict[str, int] = {t.id: 0 for t in snapshot}
     successors: dict[str, list[str]] = {t.id: [] for t in snapshot}
     for t in snapshot:
@@ -127,82 +110,71 @@ def resolve_dependencies(tasks: list[CpmTask]) -> list[CpmTask]:
             in_degree[t.id] += 1
             successors[dep_id].append(t.id)
 
-    # Ready set, ordered by (not critical first, then -early_finish) so the
-    # most-critical / longest tasks come out first.
-    def sort_key(task_id: str) -> tuple[int, float, str]:
-        task = task_map[task_id]
-        return (0 if task.is_critical else 1, -task.early_finish, task.id)
-
-    ready = sorted([t.id for t in snapshot if in_degree[t.id] == 0], key=sort_key)
-    ordered: list[CpmTask] = []
+    key = lambda tid: (0 if task_map[tid].is_critical else 1, -task_map[tid].early_finish, tid)
+    ready = sorted([t.id for t in snapshot if in_degree[t.id] == 0], key=key)
+    order: list[str] = []
     while ready:
         cur = ready.pop(0)
-        ordered.append(original_map[cur])
-        new_ready: list[str] = []
-        for succ in successors[cur]:
-            in_degree[succ] -= 1
-            if in_degree[succ] == 0:
-                new_ready.append(succ)
-        if new_ready:
-            ready.extend(new_ready)
-            ready.sort(key=sort_key)
+        order.append(cur)
+        promoted: list[str] = []
+        for s in successors[cur]:
+            in_degree[s] -= 1
+            if in_degree[s] == 0:
+                promoted.append(s)
+        if promoted:
+            ready.extend(promoted)
+            ready.sort(key=key)
 
-    if len(ordered) != len(snapshot):
-        msg = "Dependency cycle detected in task graph"
-        raise ValueError(msg)
-    return ordered
+    if len(order) != len(snapshot):
+        raise ValueError("Dependency cycle detected in task graph")
+    return order
+
+
+def resolve_dependencies(tasks: list[CpmTask]) -> list[CpmTask]:
+    """Return tasks in a valid execution order, critical-path tasks first.
+
+    Raises ValueError on a dependency cycle.
+    """
+    if not tasks:
+        return []
+    original_map = {t.id: t for t in tasks}
+    return [original_map[tid] for tid in _critical_topo_sort(tasks)]
 
 
 def critical_path_sequence(tasks: list[CpmTask]) -> list[CpmTask]:
     """Return one valid critical-path chain from start to end.
 
-    Walks from a critical task with no dependencies to a critical task whose
-    early_finish equals the project duration, always following a critical
-    predecessor/successor edge. If multiple chains are tied, returns one of
-    them (deterministically by task id).
+    Walks from a critical task with no critical predecessors, following critical
+    successor edges. Deterministic (ties broken by task id).
     """
     if not tasks:
         return []
 
     snapshot = [
-        CpmTask(
-            id=t.id,
-            name=t.name,
-            duration_hours=t.duration_hours,
-            dependencies=list(t.dependencies),
-        )
+        CpmTask(id=t.id, name=t.name, duration_hours=t.duration_hours, dependencies=list(t.dependencies))
         for t in tasks
     ]
     compute_critical_path(snapshot)
-    task_map = {t.id: t for t in snapshot}
     original_map = {t.id: t for t in tasks}
-
-    # Find a critical starter: critical, no critical predecessor.
+    task_map = {t.id: t for t in snapshot}
     critical_ids = {t.id for t in snapshot if t.is_critical}
     successors: dict[str, list[str]] = {t.id: [] for t in snapshot}
     for t in snapshot:
         for dep in t.dependencies:
             successors[dep].append(t.id)
 
-    def critical_starts() -> list[str]:
-        starts = []
-        for tid in critical_ids:
-            preds = [d for d in task_map[tid].dependencies if d in critical_ids]
-            if not preds:
-                starts.append(tid)
-        return sorted(starts)
-
-    chain: list[str] = []
-    starts = critical_starts()
+    # Find critical starters (no critical predecessors)
+    starts = sorted(tid for tid in critical_ids if not any(d in critical_ids for d in task_map[tid].dependencies))
     if not starts:
         return []
-    cur = starts[0]
+
+    chain, cur = [], starts[0]
     while True:
         chain.append(cur)
-        next_critical = sorted(s for s in successors[cur] if s in critical_ids)
-        if not next_critical:
+        nxt = sorted(s for s in successors[cur] if s in critical_ids)
+        if not nxt:
             break
-        cur = next_critical[0]
+        cur = nxt[0]
 
     return [original_map[tid] for tid in chain]
 
@@ -218,23 +190,17 @@ async def detect_cycle(task_id: uuid.UUID, depends_on_task_id: uuid.UUID, db: As
     result = await db.execute(select(TaskDependency))
     all_deps = result.scalars().all()
 
-    # adjacency: task_id -> list of depends_on_task_id (i.e. "task depends on these")
-    # To detect cycle: we walk the graph from depends_on_task_id through its own dependencies.
-    # If we reach task_id, adding the edge would form a cycle.
     adj: dict[uuid.UUID, list[uuid.UUID]] = {}
     for dep in all_deps:
         adj.setdefault(dep.task_id, []).append(dep.depends_on_task_id)
 
-    # DFS from depends_on_task_id
     visited: set[uuid.UUID] = set()
     stack = [depends_on_task_id]
     while stack:
         current = stack.pop()
         if current == task_id:
             return True
-        if current in visited:
-            continue
-        visited.add(current)
-        for neighbor in adj.get(current, []):
-            stack.append(neighbor)
+        if current not in visited:
+            visited.add(current)
+            stack.extend(adj.get(current, []))
     return False

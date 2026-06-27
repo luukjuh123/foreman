@@ -128,22 +128,18 @@ class WeatherService:
             response.raise_for_status()
             data = response.json()
 
-        daily = data["daily"]
-        days: list[WeatherDay] = []
-        for i, date_str in enumerate(daily["time"]):
-            code = daily["weather_code"][i]
-            days.append(
-                WeatherDay(
-                    date=date_str,
-                    temp_min=daily["temperature_2m_min"][i],
-                    temp_max=daily["temperature_2m_max"][i],
-                    precipitation_mm=daily["precipitation_sum"][i] or 0.0,
-                    wind_speed_kmh=daily["wind_speed_10m_max"][i] or 0.0,
-                    weather_code=code,
-                    description=_WMO_DESCRIPTIONS.get(code, f"Code {code}"),
-                )
+        d = data["daily"]
+        return [
+            WeatherDay(
+                date=d["time"][i], temp_min=d["temperature_2m_min"][i],
+                temp_max=d["temperature_2m_max"][i],
+                precipitation_mm=d["precipitation_sum"][i] or 0.0,
+                wind_speed_kmh=d["wind_speed_10m_max"][i] or 0.0,
+                weather_code=(code := d["weather_code"][i]),
+                description=_WMO_DESCRIPTIONS.get(code, f"Code {code}"),
             )
-        return days
+            for i in range(len(d["time"]))
+        ]
 
     async def get_forecast(self, lat: float, lon: float) -> list[WeatherDay]:
         """Return 7-day forecast, using cache when available."""
@@ -159,35 +155,20 @@ class WeatherService:
         """Identify construction risk days in a forecast."""
         risks: list[WeatherRisk] = []
         for day in forecast:
-            if day.precipitation_mm >= _RAIN_THRESHOLD_MM:
-                severity = "danger" if day.precipitation_mm >= 20.0 else "warning"
-                risks.append(
-                    WeatherRisk(
-                        date=day.date,
-                        risk_type="rain",
-                        severity=severity,
-                        details=f"{day.precipitation_mm:.1f} mm neerslag verwacht",
-                    )
-                )
-            if day.wind_speed_kmh >= _WIND_THRESHOLD_KMH:
-                severity = "danger" if day.wind_speed_kmh >= 70.0 else "warning"
-                risks.append(
-                    WeatherRisk(
-                        date=day.date,
-                        risk_type="wind",
-                        severity=severity,
-                        details=f"Windstoten tot {day.wind_speed_kmh:.0f} km/h",
-                    )
-                )
-            if day.temp_min <= _FROST_THRESHOLD_C:
-                risks.append(
-                    WeatherRisk(
-                        date=day.date,
-                        risk_type="frost",
-                        severity="warning",
-                        details=f"Minimumtemperatuur {day.temp_min:.1f} °C — vorst mogelijk",
-                    )
-                )
+            checks: list[tuple[bool, str, str, str]] = [
+                (day.precipitation_mm >= _RAIN_THRESHOLD_MM, "rain",
+                 "danger" if day.precipitation_mm >= 20.0 else "warning",
+                 f"{day.precipitation_mm:.1f} mm neerslag verwacht"),
+                (day.wind_speed_kmh >= _WIND_THRESHOLD_KMH, "wind",
+                 "danger" if day.wind_speed_kmh >= 70.0 else "warning",
+                 f"Windstoten tot {day.wind_speed_kmh:.0f} km/h"),
+                (day.temp_min <= _FROST_THRESHOLD_C, "frost", "warning",
+                 f"Minimumtemperatuur {day.temp_min:.1f} °C — vorst mogelijk"),
+            ]
+            risks.extend(
+                WeatherRisk(date=day.date, risk_type=rtype, severity=sev, details=det)
+                for triggered, rtype, sev, det in checks if triggered
+            )
         return risks
 
 

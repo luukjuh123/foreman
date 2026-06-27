@@ -1,5 +1,5 @@
 import { apiFetch } from "./api";
-import { getAccessToken } from "./auth";
+import { token } from "./auth";
 import type {
   ProcessCreate,
   ProcessListResponse,
@@ -21,10 +21,6 @@ export function formatDuration(seconds: number | null): string {
 // ---------------------------------------------------------------------------
 // API helpers
 // ---------------------------------------------------------------------------
-
-function token(): string | undefined {
-  return getAccessToken() ?? undefined;
-}
 
 export async function listProcesses(): Promise<ProcessListResponse> {
   return apiFetch<ProcessListResponse>("/processes/", { token: token() });

@@ -9,6 +9,7 @@ from app.models.user import User
 from app.models.webhook import Webhook
 from app.routers.auth import get_current_user
 from app.schemas.webhook import WebhookCreate, WebhookResponse, WebhookUpdate
+from app.routers.deps import apply_updates, get_or_404
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -66,14 +67,13 @@ async def update_webhook(
 ) -> WebhookResponse:
     """Update a webhook owned by the authenticated user."""
     webhook = await _get_owned_webhook(webhook_id, current_user.id, db)
-    if body.url is not None:
-        webhook.url = str(body.url)
-    if body.events is not None:
-        webhook.events = ",".join(body.events)
-    if body.secret is not None:
-        webhook.secret = body.secret
-    if body.is_active is not None:
-        webhook.is_active = body.is_active
+    updates = body.model_dump(exclude_unset=True)
+    if "url" in updates:
+        updates["url"] = str(updates["url"])
+    if "events" in updates:
+        updates["events"] = ",".join(updates.pop("events"))
+    for k, v in updates.items():
+        setattr(webhook, k, v)
     await db.commit()
     await db.refresh(webhook)
     return _to_response(webhook)
@@ -96,11 +96,7 @@ async def _get_owned_webhook(
     owner_id: uuid.UUID,
     db: AsyncSession,
 ) -> Webhook:
-    result = await db.execute(select(Webhook).where(Webhook.id == webhook_id, Webhook.owner_id == owner_id))
-    webhook = result.scalar_one_or_none()
-    if webhook is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Webhook not found")
-    return webhook
+    return await get_or_404(db, Webhook, Webhook.id == webhook_id, Webhook.owner_id == owner_id)
 
 
 def _to_response(webhook: Webhook) -> WebhookResponse:

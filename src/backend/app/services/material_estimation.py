@@ -153,14 +153,7 @@ def estimate_lumber(
     _require_positive("total_length_m", total_length_m)
     _require_positive("piece_length_m", piece_length_m, allow_zero=False)
 
-    if total_length_m == 0:
-        return MaterialEstimate(
-            material="lumber",
-            quantity=0.0,
-            unit="m",
-            notes="0 pieces",
-        )
-    pieces = math.ceil(total_length_m / piece_length_m)
+    pieces = math.ceil(total_length_m / piece_length_m) if total_length_m else 0
     purchased = pieces * piece_length_m
     return MaterialEstimate(
         material="lumber",

@@ -5,9 +5,7 @@ import { Upload, FileText, CheckCircle, XCircle, ArrowLeft, AlertCircle } from "
 import { Card, CardContent } from "@/components/ui/card";
 import type { CsvRow, MatchedRow, ProductMatch, BulkImportItem } from "@/lib/bulk-material-import";
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
+//Types
 
 type Step = "upload" | "matching" | "preview" | "importing" | "done";
 
@@ -16,9 +14,7 @@ interface RowState {
   rejected: boolean;
 }
 
-// ---------------------------------------------------------------------------
-// Price formatter (Dutch locale)
-// ---------------------------------------------------------------------------
+//Price formatter (Dutch locale)
 
 function formatPrice(cents: number): string {
   return new Intl.NumberFormat("nl-NL", {
@@ -28,9 +24,7 @@ function formatPrice(cents: number): string {
   }).format(cents / 100);
 }
 
-// ---------------------------------------------------------------------------
-// Store badge colour (matches materials page)
-// ---------------------------------------------------------------------------
+//Store badge colour (matches materials page)
 
 const STORE_COLORS: Record<string, string> = {
   hornbach: "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300",
@@ -46,9 +40,7 @@ function storeBadgeClass(store: string): string {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Sub-components
-// ---------------------------------------------------------------------------
+//Sub-components
 
 function UploadZone({ onFile }: { onFile: (file: File) => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -105,92 +97,43 @@ function UploadZone({ onFile }: { onFile: (file: File) => void }) {
   );
 }
 
-function MatchRow({
-  rowState,
-  onReject,
-}: {
-  rowState: RowState;
-  onReject: () => void;
-}) {
-  const { matchedRow, rejected } = rowState;
-  const { input, match } = matchedRow;
+function MatchRow({ rowState, onReject }: { rowState: RowState; onReject: () => void }) {
+  const { matchedRow: { row_index, input, match }, rejected } = rowState;
+  const rowProps = { "data-testid": "match-preview-row", "data-row-index": row_index };
 
-  if (rejected) {
-    return (
-      <tr
-        data-testid="match-preview-row"
-        data-row-index={matchedRow.row_index}
-        className="border-b last:border-0 opacity-40"
-      >
-        <td colSpan={5} className="px-4 py-2 text-sm text-muted-foreground line-through">
-          <span data-testid="match-row-rejected">{input.name}</span> — afgewezen
-        </td>
-      </tr>
-    );
-  }
+  if (rejected) return (
+    <tr {...rowProps} className="border-b last:border-0 opacity-40">
+      <td colSpan={5} className="px-4 py-2 text-sm text-muted-foreground line-through">
+        <span data-testid="match-row-rejected">{input.name}</span> — afgewezen
+      </td>
+    </tr>
+  );
 
   return (
-    <tr
-      data-testid="match-preview-row"
-      data-row-index={matchedRow.row_index}
-      className="border-b last:border-0 hover:bg-muted/20"
-    >
-      {/* Input */}
+    <tr {...rowProps} className="border-b last:border-0 hover:bg-muted/20">
       <td className="px-4 py-2 text-sm">
         <span className="font-medium text-foreground">{input.name}</span>
-        {input.description && (
-          <span className="ml-1 text-xs text-muted-foreground">— {input.description}</span>
-        )}
-        <div className="text-xs text-muted-foreground">
-          {input.quantity} {input.unit}
-        </div>
+        {input.description && <span className="ml-1 text-xs text-muted-foreground">— {input.description}</span>}
+        <div className="text-xs text-muted-foreground">{input.quantity} {input.unit}</div>
       </td>
-
-      {/* Match */}
-      {match ? (
-        <>
-          <td className="px-4 py-2 text-sm">
-            <a
-              href={match.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-medium text-foreground hover:underline"
-            >
-              {match.name}
-            </a>
-          </td>
-          <td className="px-4 py-2 text-sm">
-            <span
-              className={[
-                "inline-block rounded-full px-2 py-0.5 text-xs font-semibold",
-                storeBadgeClass(match.store),
-              ].join(" ")}
-            >
-              {match.store.charAt(0).toUpperCase() + match.store.slice(1)}
-            </span>
-          </td>
-          <td className="px-4 py-2 text-sm font-semibold text-foreground">
-            {formatPrice(match.price_cents)}
-          </td>
-          <td className="px-4 py-2">
-            <button
-              type="button"
-              data-testid="reject-match-btn"
-              onClick={onReject}
-              className="rounded border border-destructive px-2 py-1 text-xs text-destructive hover:bg-destructive/10"
-            >
-              Afwijzen
-            </button>
-          </td>
-        </>
-      ) : (
+      {match ? (<>
+        <td className="px-4 py-2 text-sm">
+          <a href={match.url} target="_blank" rel="noopener noreferrer" className="font-medium text-foreground hover:underline">{match.name}</a>
+        </td>
+        <td className="px-4 py-2 text-sm">
+          <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${storeBadgeClass(match.store)}`}>
+            {match.store.charAt(0).toUpperCase() + match.store.slice(1)}
+          </span>
+        </td>
+        <td className="px-4 py-2 text-sm font-semibold text-foreground">{formatPrice(match.price_cents)}</td>
+        <td className="px-4 py-2">
+          <button type="button" data-testid="reject-match-btn" onClick={onReject}
+            className="rounded border border-destructive px-2 py-1 text-xs text-destructive hover:bg-destructive/10">Afwijzen</button>
+        </td>
+      </>) : (
         <td colSpan={4} className="px-4 py-2">
-          <span
-            data-testid="no-match-indicator"
-            className="inline-flex items-center gap-1 rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300"
-          >
-            <AlertCircle className="h-3 w-3" />
-            Geen match gevonden
+          <span data-testid="no-match-indicator" className="inline-flex items-center gap-1 rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300">
+            <AlertCircle className="h-3 w-3" />Geen match gevonden
           </span>
         </td>
       )}
@@ -198,9 +141,7 @@ function MatchRow({
   );
 }
 
-// ---------------------------------------------------------------------------
-// Dialog
-// ---------------------------------------------------------------------------
+//Dialog
 
 export default function BulkMaterialImportDialog() {
   const [open, setOpen] = useState(false);
@@ -214,22 +155,11 @@ export default function BulkMaterialImportDialog() {
   );
 
   function resetDialog() {
-    setStep("upload");
-    setParseError(null);
-    setMatchApiError(null);
-    setImportApiError(null);
-    setRows([]);
-    setImportResult(null);
+    setStep("upload"); setParseError(null); setMatchApiError(null);
+    setImportApiError(null); setRows([]); setImportResult(null);
   }
 
-  function handleOpen() {
-    resetDialog();
-    setOpen(true);
-  }
-
-  function handleClose() {
-    setOpen(false);
-  }
+  function handleOpen() { resetDialog(); setOpen(true); }
 
   async function readFileText(file: File): Promise<string> {
     if (typeof file.text === "function") {
@@ -307,10 +237,8 @@ export default function BulkMaterialImportDialog() {
   const acceptedCount = rows.filter((r) => !r.rejected && r.matchedRow.match !== null).length;
   const noMatchCount = rows.filter((r) => r.matchedRow.match === null).length;
 
-  // ---------------------------------------------------------------------------
-  // Render
-  // ---------------------------------------------------------------------------
-
+    // Render
+  
   return (
     <>
       {/* Trigger */}
@@ -328,7 +256,7 @@ export default function BulkMaterialImportDialog() {
       {open && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}
+          onClick={(e) => { if (e.target === e.currentTarget) setOpen(false); }}
         >
           <div
             data-testid="bulk-import-dialog"
@@ -347,7 +275,7 @@ export default function BulkMaterialImportDialog() {
               </div>
               <button
                 type="button"
-                onClick={handleClose}
+                onClick={() => setOpen(false)}
                 className="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-muted"
                 aria-label="Sluiten"
               >
@@ -362,33 +290,20 @@ export default function BulkMaterialImportDialog() {
               {(step === "upload") && (
                 <>
                   <UploadZone onFile={handleFile} />
-                  {parseError && (
-                    <p
-                      data-testid="csv-parse-error"
-                      className="flex items-center gap-2 text-sm text-destructive"
-                    >
-                      <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                      {parseError}
+                  {([
+                    { error: parseError, testId: "csv-parse-error" },
+                    { error: matchApiError, testId: "match-api-error" },
+                  ] as const).map(({ error, testId }) => error && (
+                    <p key={testId} data-testid={testId} className="flex items-center gap-2 text-sm text-destructive">
+                      <AlertCircle className="h-4 w-4 flex-shrink-0" />{error}
                     </p>
-                  )}
-                  {matchApiError && (
-                    <p
-                      data-testid="match-api-error"
-                      className="flex items-center gap-2 text-sm text-destructive"
-                    >
-                      <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                      {matchApiError}
-                    </p>
-                  )}
+                  ))}
                 </>
               )}
 
               {/* STEP: matching (loading) */}
               {step === "matching" && (
-                <div
-                  data-testid="match-loading"
-                  className="flex flex-col items-center justify-center py-16 gap-3"
-                >
+                <div data-testid="match-loading" className="flex flex-col items-center justify-center py-16 gap-3">
                   <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
                   <p className="text-sm text-muted-foreground">Producten matchen…</p>
                 </div>
@@ -419,11 +334,9 @@ export default function BulkMaterialImportDialog() {
                       >
                         <thead>
                           <tr className="border-b text-left text-xs text-muted-foreground">
-                            <th className="px-4 py-2">Invoer</th>
-                            <th className="px-4 py-2">Gevonden product</th>
-                            <th className="px-4 py-2">Winkel</th>
-                            <th className="px-4 py-2">Prijs</th>
-                            <th className="px-4 py-2" />
+                            {["Invoer", "Gevonden product", "Winkel", "Prijs", ""].map((h, i) => (
+                              <th key={i} className="px-4 py-2">{h}</th>
+                            ))}
                           </tr>
                         </thead>
                         <tbody>
@@ -475,9 +388,7 @@ export default function BulkMaterialImportDialog() {
 
               {/* STEP: importing */}
               {step === "importing" && (
-                <div
-                  className="flex flex-col items-center justify-center py-16 gap-3"
-                >
+                <div className="flex flex-col items-center justify-center py-16 gap-3">
                   <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
                   <p className="text-sm text-muted-foreground">Importeren…</p>
                 </div>
@@ -502,7 +413,7 @@ export default function BulkMaterialImportDialog() {
                   </div>
                   <button
                     type="button"
-                    onClick={handleClose}
+                    onClick={() => setOpen(false)}
                     className="rounded-md bg-primary px-6 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
                   >
                     Sluiten
