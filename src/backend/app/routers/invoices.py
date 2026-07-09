@@ -9,6 +9,7 @@ from app.core.database import get_db
 from app.models.invoice import Customer, Invoice, InvoiceLine
 from app.models.user import User
 from app.routers.auth import get_current_user
+from app.routers.deps import count_query, get_or_404
 from app.schemas.invoice import (
     CustomerCreate,
     CustomerResponse,
@@ -22,7 +23,6 @@ from app.services.invoices.numbering import allocate_invoice_number
 from app.services.invoices.status import apply_transition
 from app.services.invoices.totals import compute_line_totals
 from app.services.invoices.ubl import build_invoice_ubl_xml
-from app.routers.deps import count_query, get_or_404
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -48,18 +48,30 @@ def _customer_schema_to_model(data: dict, owner_id: uuid.UUID) -> dict:
 
 def _customer_to_response(c: Customer) -> CustomerResponse:
     return CustomerResponse(
-        id=c.id, name=c.name, email=c.email, kvk_number=c.kvk_number,
-        vat_number=c.btw_number, address_line1=c.address, address_line2=None,
-        postal_code=c.postal_code, city=c.city, country_code="NL",
+        id=c.id,
+        name=c.name,
+        email=c.email,
+        kvk_number=c.kvk_number,
+        vat_number=c.btw_number,
+        address_line1=c.address,
+        address_line2=None,
+        postal_code=c.postal_code,
+        city=c.city,
+        country_code="NL",
     )
 
 
 def _customer_to_dict(c: Customer) -> dict:
-    return dict(
-        name=c.name, email=c.email, vat_number=c.btw_number,
-        kvk_number=c.kvk_number, address_line1=c.address,
-        postal_code=c.postal_code, city=c.city, country_code="NL",
-    )
+    return {
+        "name": c.name,
+        "email": c.email,
+        "vat_number": c.btw_number,
+        "kvk_number": c.kvk_number,
+        "address_line1": c.address,
+        "postal_code": c.postal_code,
+        "city": c.city,
+        "country_code": "NL",
+    }
 
 
 @router.post("/customers", response_model=CustomerResponse, status_code=status.HTTP_201_CREATED)
@@ -88,27 +100,42 @@ async def list_customers(
 
 async def _load_customer(db: AsyncSession, owner_id: uuid.UUID, customer_id: uuid.UUID) -> Customer:
     return await get_or_404(
-        db, Customer,
-        Customer.id == customer_id, Customer.owner_id == owner_id, Customer.deleted_at.is_(None),
+        db,
+        Customer,
+        Customer.id == customer_id,
+        Customer.owner_id == owner_id,
+        Customer.deleted_at.is_(None),
     )
 
 
 async def _load_invoice(db: AsyncSession, owner_id: uuid.UUID, invoice_id: uuid.UUID) -> Invoice:
     return await get_or_404(
-        db, Invoice,
-        Invoice.id == invoice_id, Invoice.owner_id == owner_id, Invoice.deleted_at.is_(None),
+        db,
+        Invoice,
+        Invoice.id == invoice_id,
+        Invoice.owner_id == owner_id,
+        Invoice.deleted_at.is_(None),
         options=selectinload(Invoice.lines),
     )
 
 
 def _build_lines(invoice: Invoice, lines) -> None:
     for idx, ln in enumerate(lines):
-        net, vat = compute_line_totals(quantity=ln.quantity, unit_price_cents=ln.unit_price_cents, vat_rate_bp=ln.vat_rate_bp)
-        invoice.lines.append(InvoiceLine(
-            position=idx, description=ln.description, quantity=ln.quantity, unit=ln.unit,
-            unit_price_cents=ln.unit_price_cents, vat_rate_bp=ln.vat_rate_bp,
-            line_net_cents=net, line_vat_cents=vat,
-        ))
+        net, vat = compute_line_totals(
+            quantity=ln.quantity, unit_price_cents=ln.unit_price_cents, vat_rate_bp=ln.vat_rate_bp
+        )
+        invoice.lines.append(
+            InvoiceLine(
+                position=idx,
+                description=ln.description,
+                quantity=ln.quantity,
+                unit=ln.unit,
+                unit_price_cents=ln.unit_price_cents,
+                vat_rate_bp=ln.vat_rate_bp,
+                line_net_cents=net,
+                line_vat_cents=vat,
+            )
+        )
     invoice.subtotal_cents = sum(ln.line_net_cents for ln in invoice.lines)
     invoice.vat_total_cents = sum(ln.line_vat_cents for ln in invoice.lines)
     invoice.total_cents = invoice.subtotal_cents + invoice.vat_total_cents
@@ -131,10 +158,15 @@ async def create_invoice(
     await _load_customer(db, current_user.id, body.customer_id)
     invoice_number = await allocate_invoice_number(db, owner_id=current_user.id, year=body.issue_date.year)
     invoice = Invoice(
-        owner_id=current_user.id, customer_id=body.customer_id, project_id=body.project_id,
-        invoice_number=invoice_number, issue_date=body.issue_date,
+        owner_id=current_user.id,
+        customer_id=body.customer_id,
+        project_id=body.project_id,
+        invoice_number=invoice_number,
+        issue_date=body.issue_date,
         due_date=body.issue_date + timedelta(days=body.payment_terms_days),
-        payment_terms_days=body.payment_terms_days, notes=body.notes, status="draft",
+        payment_terms_days=body.payment_terms_days,
+        notes=body.notes,
+        status="draft",
     )
     return await _create_and_save(db, invoice, body.lines, current_user.id)
 
@@ -152,12 +184,16 @@ async def list_invoices(
         base = base.where(Invoice.status == status_filter)
     total = await count_query(db, base)
     result = await db.execute(
-        base.options(selectinload(Invoice.lines)).order_by(Invoice.created_at.desc())
-        .offset((page - 1) * per_page).limit(per_page)
+        base.options(selectinload(Invoice.lines))
+        .order_by(Invoice.created_at.desc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
     )
     return InvoiceListResponse(
         data=[InvoiceResponse.model_validate(i) for i in result.scalars().all()],
-        total=total, page=page, per_page=per_page,
+        total=total,
+        page=page,
+        per_page=per_page,
     )
 
 
@@ -172,15 +208,30 @@ async def get_invoice(
 
 def _invoice_to_dict(invoice: Invoice) -> dict:
     return {
-        "invoice_number": invoice.invoice_number, "issue_date": invoice.issue_date,
-        "due_date": invoice.due_date, "currency": invoice.currency, "notes": invoice.notes,
-        "payment_terms_days": invoice.payment_terms_days, "subtotal_cents": invoice.subtotal_cents,
-        "vat_total_cents": invoice.vat_total_cents, "total_cents": invoice.total_cents,
+        "invoice_number": invoice.invoice_number,
+        "issue_date": invoice.issue_date,
+        "due_date": invoice.due_date,
+        "currency": invoice.currency,
+        "notes": invoice.notes,
+        "payment_terms_days": invoice.payment_terms_days,
+        "subtotal_cents": invoice.subtotal_cents,
+        "vat_total_cents": invoice.vat_total_cents,
+        "total_cents": invoice.total_cents,
         "lines": [
-            {k: getattr(ln, k) for k in (
-                "position", "description", "quantity", "unit",
-                "unit_price_cents", "vat_rate_bp", "line_net_cents", "line_vat_cents",
-            )} for ln in invoice.lines
+            {
+                k: getattr(ln, k)
+                for k in (
+                    "position",
+                    "description",
+                    "quantity",
+                    "unit",
+                    "unit_price_cents",
+                    "vat_rate_bp",
+                    "line_net_cents",
+                    "line_vat_cents",
+                )
+            }
+            for ln in invoice.lines
         ],
     }
 
@@ -195,10 +246,13 @@ async def _render_doc(db, current_user, invoice_id, render_fn, media_type, ext):
     invoice = await _load_invoice(db, current_user.id, invoice_id)
     customer = await _load_customer(db, current_user.id, invoice.customer_id)
     content = render_fn(
-        _invoice_to_dict(invoice), customer=_customer_to_dict(customer), supplier=_supplier_from_settings(),
+        _invoice_to_dict(invoice),
+        customer=_customer_to_dict(customer),
+        supplier=_supplier_from_settings(),
     )
     return Response(
-        content=content, media_type=media_type,
+        content=content,
+        media_type=media_type,
         headers={"Content-Disposition": f'attachment; filename="invoice-{invoice.invoice_number}.{ext}"'},
     )
 
@@ -219,6 +273,7 @@ async def get_invoice_pdf(
     db: AsyncSession = Depends(get_db),
 ) -> Response:
     from app.services.invoices import pdf as pdf_mod
+
     return await _render_doc(db, current_user, invoice_id, pdf_mod.render_invoice_pdf, "application/pdf", "pdf")
 
 
@@ -233,12 +288,20 @@ async def sweep_overdue_endpoint(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     today = body.as_of if body and body.as_of else _date.today()
-    invoices = (await db.execute(
-        select(Invoice).where(
-            Invoice.owner_id == current_user.id, Invoice.status == "sent",
-            Invoice.due_date < today, Invoice.deleted_at.is_(None),
+    invoices = (
+        (
+            await db.execute(
+                select(Invoice).where(
+                    Invoice.owner_id == current_user.id,
+                    Invoice.status == "sent",
+                    Invoice.due_date < today,
+                    Invoice.deleted_at.is_(None),
+                )
+            )
         )
-    )).scalars().all()
+        .scalars()
+        .all()
+    )
     for inv in invoices:
         inv.status = "overdue"
     await db.commit()
@@ -281,9 +344,12 @@ async def create_invoice_from_project(
     customer = await _load_customer(db, current_user.id, body.customer_id)
     try:
         project, draft_lines = await build_project_lines(
-            db, project_id=project_id, owner_id=current_user.id,
+            db,
+            project_id=project_id,
+            owner_id=current_user.id,
             vat_rate_bp=body.default_vat_rate_bp,
-            include_materials=body.include_materials, include_labor=body.include_labor,
+            include_materials=body.include_materials,
+            include_labor=body.include_labor,
         )
     except LookupError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
@@ -295,9 +361,14 @@ async def create_invoice_from_project(
     issue_date = body.issue_date or _date.today()
     invoice_number = await allocate_invoice_number(db, owner_id=current_user.id, year=issue_date.year)
     invoice = Invoice(
-        owner_id=current_user.id, customer_id=customer.id, project_id=project.id,
-        invoice_number=invoice_number, issue_date=issue_date,
+        owner_id=current_user.id,
+        customer_id=customer.id,
+        project_id=project.id,
+        invoice_number=invoice_number,
+        issue_date=issue_date,
         due_date=issue_date + timedelta(days=body.payment_terms_days),
-        payment_terms_days=body.payment_terms_days, notes=body.notes, status="draft",
+        payment_terms_days=body.payment_terms_days,
+        notes=body.notes,
+        status="draft",
     )
     return await _create_and_save(db, invoice, draft_lines, current_user.id)

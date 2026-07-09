@@ -10,6 +10,7 @@ from app.models.project import Project, Task
 from app.models.punch_item import PunchItem
 from app.models.user import User
 from app.routers.auth import get_current_user
+from app.routers.deps import get_or_404
 from app.schemas.punch_item import (
     BulkStatusResult,
     BulkStatusUpdate,
@@ -19,7 +20,6 @@ from app.schemas.punch_item import (
     PunchItemSummary,
     PunchItemUpdate,
 )
-from app.routers.deps import get_or_404
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -37,7 +37,9 @@ async def _get_project_owned(project_id: uuid.UUID, user: User, db: AsyncSession
 
 
 async def _get_item_or_404(project_id: uuid.UUID, item_id: uuid.UUID, db: AsyncSession) -> PunchItem:
-    return await get_or_404(db, PunchItem, PunchItem.id == item_id, PunchItem.project_id == project_id, detail="Punch item not found")
+    return await get_or_404(
+        db, PunchItem, PunchItem.id == item_id, PunchItem.project_id == project_id, detail="Punch item not found"
+    )
 
 
 def _apply_resolved_at(item: PunchItem, new_status: str) -> None:

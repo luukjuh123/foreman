@@ -14,6 +14,7 @@ from app.core.database import get_db
 from app.models.equipment import Equipment, EquipmentAssignment, EquipmentMaintenance
 from app.models.user import User
 from app.routers.auth import get_current_user
+from app.routers.deps import apply_updates, get_or_404
 from app.schemas.equipment import (
     AssignmentCreate,
     AssignmentResponse,
@@ -25,8 +26,7 @@ from app.schemas.equipment import (
     MaintenanceCreate,
     MaintenanceResponse,
 )
-from app.routers.deps import apply_updates, count_query, get_or_404
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -35,8 +35,11 @@ router = APIRouter()
 
 async def _get_owned_equipment_or_404(eq_id: uuid.UUID, user: User, db: AsyncSession) -> Equipment:
     return await get_or_404(
-        db, Equipment,
-        Equipment.id == eq_id, Equipment.owner_id == user.id, Equipment.deleted_at.is_(None),
+        db,
+        Equipment,
+        Equipment.id == eq_id,
+        Equipment.owner_id == user.id,
+        Equipment.deleted_at.is_(None),
     )
 
 
@@ -54,10 +57,22 @@ async def list_equipment(
 ) -> EquipmentListResponse:
     where = (Equipment.owner_id == current_user.id, Equipment.deleted_at.is_(None))
     count = (await db.execute(select(func.count()).select_from(Equipment).where(*where))).scalar_one()
-    rows = (await db.execute(
-        select(Equipment).where(*where).order_by(Equipment.created_at.asc()).offset((page - 1) * per_page).limit(per_page)
-    )).scalars().all()
-    return EquipmentListResponse(data=[EquipmentResponse.model_validate(e) for e in rows], total=count, page=page, per_page=per_page)
+    rows = (
+        (
+            await db.execute(
+                select(Equipment)
+                .where(*where)
+                .order_by(Equipment.created_at.asc())
+                .offset((page - 1) * per_page)
+                .limit(per_page)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return EquipmentListResponse(
+        data=[EquipmentResponse.model_validate(e) for e in rows], total=count, page=page, per_page=per_page
+    )
 
 
 @router.post("/", response_model=EquipmentResponse, status_code=status.HTTP_201_CREATED)
@@ -81,13 +96,23 @@ async def list_upcoming_maintenance(
     db: AsyncSession = Depends(get_db),
 ) -> list[MaintenanceResponse]:
     """Return maintenance records with a next_due_date in the future, for equipment owned by current user."""
-    rows = (await db.execute(
-        select(EquipmentMaintenance)
-        .join(Equipment, EquipmentMaintenance.equipment_id == Equipment.id)
-        .where(Equipment.owner_id == current_user.id, Equipment.deleted_at.is_(None),
-               EquipmentMaintenance.next_due_date.is_not(None), EquipmentMaintenance.next_due_date > date.today())
-        .order_by(EquipmentMaintenance.next_due_date.asc())
-    )).scalars().all()
+    rows = (
+        (
+            await db.execute(
+                select(EquipmentMaintenance)
+                .join(Equipment, EquipmentMaintenance.equipment_id == Equipment.id)
+                .where(
+                    Equipment.owner_id == current_user.id,
+                    Equipment.deleted_at.is_(None),
+                    EquipmentMaintenance.next_due_date.is_not(None),
+                    EquipmentMaintenance.next_due_date > date.today(),
+                )
+                .order_by(EquipmentMaintenance.next_due_date.asc())
+            )
+        )
+        .scalars()
+        .all()
+    )
     return [MaintenanceResponse.model_validate(r) for r in rows]
 
 
@@ -157,9 +182,17 @@ async def list_assignments(
     db: AsyncSession = Depends(get_db),
 ) -> list[AssignmentResponse]:
     await _get_owned_equipment_or_404(eq_id, current_user, db)
-    rows = (await db.execute(
-        select(EquipmentAssignment).where(EquipmentAssignment.equipment_id == eq_id).order_by(EquipmentAssignment.assigned_date.asc())
-    )).scalars().all()
+    rows = (
+        (
+            await db.execute(
+                select(EquipmentAssignment)
+                .where(EquipmentAssignment.equipment_id == eq_id)
+                .order_by(EquipmentAssignment.assigned_date.asc())
+            )
+        )
+        .scalars()
+        .all()
+    )
     return [AssignmentResponse.model_validate(r) for r in rows]
 
 
@@ -173,8 +206,10 @@ async def release_equipment(
 ) -> AssignmentResponse:
     await _get_owned_equipment_or_404(eq_id, current_user, db)
     assignment = await get_or_404(
-        db, EquipmentAssignment,
-        EquipmentAssignment.id == assignment_id, EquipmentAssignment.equipment_id == eq_id,
+        db,
+        EquipmentAssignment,
+        EquipmentAssignment.id == assignment_id,
+        EquipmentAssignment.equipment_id == eq_id,
     )
     apply_updates(assignment, body)
     await db.commit()
@@ -213,7 +248,15 @@ async def list_maintenance(
     db: AsyncSession = Depends(get_db),
 ) -> list[MaintenanceResponse]:
     await _get_owned_equipment_or_404(eq_id, current_user, db)
-    rows = (await db.execute(
-        select(EquipmentMaintenance).where(EquipmentMaintenance.equipment_id == eq_id).order_by(EquipmentMaintenance.maintenance_date.asc())
-    )).scalars().all()
+    rows = (
+        (
+            await db.execute(
+                select(EquipmentMaintenance)
+                .where(EquipmentMaintenance.equipment_id == eq_id)
+                .order_by(EquipmentMaintenance.maintenance_date.asc())
+            )
+        )
+        .scalars()
+        .all()
+    )
     return [MaintenanceResponse.model_validate(r) for r in rows]

@@ -98,8 +98,7 @@ def _critical_topo_sort(tasks: list[CpmTask]) -> list[str]:
     Raises ValueError on dependency cycle.
     """
     snapshot = [
-        CpmTask(id=t.id, name=t.name, duration_hours=t.duration_hours, dependencies=list(t.dependencies))
-        for t in tasks
+        CpmTask(id=t.id, name=t.name, duration_hours=t.duration_hours, dependencies=list(t.dependencies)) for t in tasks
     ]
     compute_critical_path(snapshot)
     task_map = {t.id: t for t in snapshot}
@@ -110,7 +109,9 @@ def _critical_topo_sort(tasks: list[CpmTask]) -> list[str]:
             in_degree[t.id] += 1
             successors[dep_id].append(t.id)
 
-    key = lambda tid: (0 if task_map[tid].is_critical else 1, -task_map[tid].early_finish, tid)
+    def key(tid):
+        return (0 if task_map[tid].is_critical else 1, -task_map[tid].early_finish, tid)
+
     ready = sorted([t.id for t in snapshot if in_degree[t.id] == 0], key=key)
     order: list[str] = []
     while ready:
@@ -151,8 +152,7 @@ def critical_path_sequence(tasks: list[CpmTask]) -> list[CpmTask]:
         return []
 
     snapshot = [
-        CpmTask(id=t.id, name=t.name, duration_hours=t.duration_hours, dependencies=list(t.dependencies))
-        for t in tasks
+        CpmTask(id=t.id, name=t.name, duration_hours=t.duration_hours, dependencies=list(t.dependencies)) for t in tasks
     ]
     compute_critical_path(snapshot)
     original_map = {t.id: t for t in tasks}

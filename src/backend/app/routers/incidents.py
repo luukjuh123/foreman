@@ -1,12 +1,14 @@
 """Incidents router — CRUD for on-site incident / damage reports."""
 
 import uuid
+from collections import Counter
 from datetime import UTC, datetime
 
 from app.core.database import get_db
 from app.models.incident import Incident
 from app.models.user import User
 from app.routers.auth import get_current_user
+from app.routers.deps import get_or_404
 from app.schemas.incident import (
     IncidentCreate,
     IncidentListResponse,
@@ -14,10 +16,7 @@ from app.schemas.incident import (
     IncidentStatsResponse,
     IncidentUpdate,
 )
-from app.routers.deps import get_or_404
-from collections import Counter
-
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -50,12 +49,21 @@ async def list_incidents(
     db: AsyncSession = Depends(get_db),
 ) -> IncidentListResponse:
     conditions = [Incident.owner_id == current_user.id]
-    for col, val in ((Incident.severity, severity), (Incident.category, category), (Incident.status, status_filter), (Incident.project_id, project_id)):
+    for col, val in (
+        (Incident.severity, severity),
+        (Incident.category, category),
+        (Incident.status, status_filter),
+        (Incident.project_id, project_id),
+    ):
         if val:
             conditions.append(col == val)
 
     total = (await db.execute(select(func.count()).select_from(Incident).where(*conditions))).scalar_one()
-    incidents = (await db.execute(select(Incident).where(*conditions).offset((page - 1) * per_page).limit(per_page))).scalars().all()
+    incidents = (
+        (await db.execute(select(Incident).where(*conditions).offset((page - 1) * per_page).limit(per_page)))
+        .scalars()
+        .all()
+    )
 
     return IncidentListResponse(
         data=[IncidentResponse.model_validate(i) for i in incidents],

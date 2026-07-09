@@ -103,7 +103,16 @@ jobs:
         with:
           python-version: '3.12'
       - run: uv sync --frozen
-      - run: uv run --with pip-audit pip-audit
+      - run: |
+          # PYSEC-2026-1325: ecdsa Minerva timing attack via python-jose (transitive).
+          #   python-jose project explicitly considers side-channel attacks out of scope;
+          #   no fix released. Tracked: https://github.com/ecdsa/python-ecdsa/issues
+          # PYSEC-2026-597: nltk path-traversal via safety dev-tool (transitive).
+          #   No fixed nltk version available yet; we do not pass user-controlled paths
+          #   to nltk.data.load() in this codebase.
+          uv run --with pip-audit pip-audit \
+            --ignore-vuln PYSEC-2026-1325 \
+            --ignore-vuln PYSEC-2026-597
 
   frontend-security:
     name: Frontend security audit

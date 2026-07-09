@@ -60,9 +60,11 @@ class ProjectHealthCalculator:
         total = len(self.tasks)
         done = sum(1 for t in self.tasks if getattr(t, "status", None) == "done")
         overdue = sum(
-            1 for t in self.tasks
+            1
+            for t in self.tasks
             if getattr(t, "status", None) != "done"
-            and getattr(t, "end_date", None) is not None and t.end_date < self.today
+            and getattr(t, "end_date", None) is not None
+            and t.end_date < self.today
         )
         # Spend is the sum of per-task labor cost (the canonical measure); fall
         # back to a project-level actual_spend_cents only when tasks carry no
@@ -93,7 +95,11 @@ def compute_health_score(factors: HealthFactors) -> HealthScoreResult:
     overdue_score = 25 if total == 0 else round((1.0 - factors.overdue_count / total) * 25)
     # Budget (25 pts)
     burn_rate = (spent_cents / budget_cents) if budget_cents and budget_cents > 0 else 0.0
-    budget_score = (25 if burn_rate <= 1.0 else max(0, round(25 - (burn_rate - 1.0) * 25))) if budget_cents and budget_cents > 0 else 25
+    budget_score = (
+        (25 if burn_rate <= 1.0 else max(0, round(25 - (burn_rate - 1.0) * 25)))
+        if budget_cents and budget_cents > 0
+        else 25
+    )
 
     # Schedule (25 pts)
     if start_date is None or end_date is None or start_date >= end_date:
@@ -108,12 +114,17 @@ def compute_health_score(factors: HealthFactors) -> HealthScoreResult:
     return HealthScoreResult(
         score=total_score,
         rating="green" if total_score > 70 else ("amber" if total_score >= 40 else "red"),
-        schedule_score=schedule_score, budget_score=budget_score,
-        completion_score=completion_score, overdue_score=overdue_score,
+        schedule_score=schedule_score,
+        budget_score=budget_score,
+        completion_score=completion_score,
+        overdue_score=overdue_score,
         details={
-            "total_tasks": total, "done_tasks": done_count,
-            "overdue_count": factors.overdue_count, "budget_burn_rate": burn_rate,
-            "spent_cents": spent_cents, "budget_cents": budget_cents,
+            "total_tasks": total,
+            "done_tasks": done_count,
+            "overdue_count": factors.overdue_count,
+            "budget_burn_rate": burn_rate,
+            "spent_cents": spent_cents,
+            "budget_cents": budget_cents,
             "actual_progress": done_count / total if total > 0 else 0.0,
             "planned_progress": planned_progress,
         },

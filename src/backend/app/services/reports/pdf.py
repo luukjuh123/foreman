@@ -190,10 +190,13 @@ def _render_completion(data: dict[str, Any]) -> str:
             ("Actual cost", _format_euros(totals["labor_cost_cents"])),
         ),
         "<h2>Timeline</h2>",
-        _table(["", "Start", "End", "Duration (days)"], [
-            [label, tl[f"{k}_start"] or "—", tl[f"{k}_end"] or "—", str(tl[f"{k}_duration_days"] or "—")]
-            for label, k in [("Planned", "planned"), ("Actual", "actual")]
-        ]),
+        _table(
+            ["", "Start", "End", "Duration (days)"],
+            [
+                [label, tl[f"{k}_start"] or "—", tl[f"{k}_end"] or "—", str(tl[f"{k}_duration_days"] or "—")]
+                for label, k in [("Planned", "planned"), ("Actual", "actual")]
+            ],
+        ),
         "<h2>Costs vs Budget</h2>",
         _table(
             ["Budget", "Actual", "Variance"],
@@ -228,9 +231,11 @@ def render_report_html(data: dict[str, Any]) -> str:
     if rtype not in renderers:
         raise ValueError(f"Unknown report type: {rtype!r}")
     body = renderers[rtype](data)
-    return (f"<!DOCTYPE html><html lang='en'><head><meta charset='utf-8'>"
-            f"<title>{_h(data['project']['name'])} — report</title>"
-            f"<style>{_CSS}</style></head><body>{body}</body></html>")
+    return (
+        f"<!DOCTYPE html><html lang='en'><head><meta charset='utf-8'>"
+        f"<title>{_h(data['project']['name'])} — report</title>"
+        f"<style>{_CSS}</style></head><body>{body}</body></html>"
+    )
 
 
 def render_report_pdf(data: dict[str, Any], renderer: PDFRenderer | None = None) -> bytes:

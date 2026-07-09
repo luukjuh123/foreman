@@ -11,6 +11,7 @@ from app.models.project import Project
 from app.models.punch_item import PunchItem
 from app.models.user import User
 from app.routers.auth import get_current_user
+from app.routers.deps import get_or_404
 from app.schemas.process_photo import (
     PhotoListResponse,
     PhotoResponse,
@@ -20,7 +21,6 @@ from app.services.recognition.photo_client import (
     PhotoRecognitionClient,
     get_default_client,
 )
-from app.routers.deps import get_or_404
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession

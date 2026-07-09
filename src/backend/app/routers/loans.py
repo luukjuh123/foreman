@@ -7,6 +7,7 @@ from app.models.loan import LoanDeduction, StaffLoan
 from app.models.staff import Staff
 from app.models.user import User
 from app.routers.auth import get_current_user
+from app.routers.deps import get_or_404
 from app.schemas.loan import (
     LoanDeductionCreate,
     LoanDeductionResponse,
@@ -15,7 +16,6 @@ from app.schemas.loan import (
     StaffOutstandingBalance,
 )
 from app.services.payroll.loans import compute_outstanding
-from app.routers.deps import get_or_404
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,8 +26,11 @@ router = APIRouter()
 
 async def _get_owned_staff(staff_id: uuid.UUID, user: User, db: AsyncSession) -> Staff:
     return await get_or_404(
-        db, Staff,
-        Staff.id == staff_id, Staff.owner_id == user.id, Staff.deleted_at.is_(None),
+        db,
+        Staff,
+        Staff.id == staff_id,
+        Staff.owner_id == user.id,
+        Staff.deleted_at.is_(None),
     )
 
 
@@ -124,8 +127,7 @@ async def staff_balance(
     )
     loans = [_to_response(loan) for loan in result.scalars().all()]
     total_principal, total_deducted, outstanding = (
-        sum(getattr(l, f) for l in loans)
-        for f in ("principal_cents", "deducted_cents", "outstanding_cents")
+        sum(getattr(loan, f) for loan in loans) for f in ("principal_cents", "deducted_cents", "outstanding_cents")
     )
     return StaffOutstandingBalance(
         staff_id=staff_id,

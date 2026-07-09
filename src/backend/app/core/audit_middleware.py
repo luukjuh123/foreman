@@ -93,6 +93,7 @@ def _get_session_factory(app: Any) -> Any | None:
         return sf
     try:
         from app.core.database import _get_session_factory as _default
+
         return _default()
     except Exception:
         return None
@@ -100,11 +101,13 @@ def _get_session_factory(app: Any) -> Any | None:
 
 async def _fetch_entity_snapshot(sf: Any, entity_type: str, entity_id: uuid.UUID) -> dict[str, Any] | None:
     """Fetch a shallow snapshot of an entity row before mutation."""
-    from sqlalchemy import inspect as sa_inspect, select
+    from sqlalchemy import inspect as sa_inspect
+    from sqlalchemy import select
 
     model_map: dict[str, Any] = {}
     try:
         from app.models.project import Project
+
         model_map["project"] = Project
     except ImportError:
         pass
@@ -119,8 +122,11 @@ async def _fetch_entity_snapshot(sf: Any, entity_type: str, entity_id: uuid.UUID
                 return None
             mapper = sa_inspect(type(obj))
             return {
-                col.key: str(v) if isinstance(v := getattr(obj, col.key), uuid.UUID)
-                else v.isoformat() if hasattr(v, "isoformat") else v
+                col.key: str(v)
+                if isinstance(v := getattr(obj, col.key), uuid.UUID)
+                else v.isoformat()
+                if hasattr(v, "isoformat")
+                else v
                 for col in mapper.columns
             }
     except Exception:

@@ -9,6 +9,7 @@ from app.models.invoice import Invoice
 from app.models.project import Project
 from app.models.user import User
 from app.routers.auth import get_current_user
+from app.routers.deps import apply_updates, count_query, get_or_404
 from app.schemas.customer import (
     CustomerCreate,
     CustomerListResponse,
@@ -18,9 +19,8 @@ from app.schemas.customer import (
     InvoiceSummaryItem,
     ProjectSummaryItem,
 )
-from app.routers.deps import apply_updates, count_query, get_or_404
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, select
+from fastapi import APIRouter, Depends, Query, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/api/v1/customers")
@@ -32,8 +32,11 @@ def _fmt_date(d: date | None) -> str | None:
 
 async def _get_or_404(customer_id: uuid.UUID, owner_id: uuid.UUID, db: AsyncSession) -> Customer:
     return await get_or_404(
-        db, Customer,
-        Customer.id == customer_id, Customer.owner_id == owner_id, Customer.deleted_at.is_(None),
+        db,
+        Customer,
+        Customer.id == customer_id,
+        Customer.owner_id == owner_id,
+        Customer.deleted_at.is_(None),
     )
 
 
