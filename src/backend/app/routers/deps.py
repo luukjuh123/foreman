@@ -55,7 +55,10 @@ async def count_query(db: AsyncSession, query: Any) -> int:
 # Legacy helper kept for backward compatibility (loans.py imports it).
 async def get_owned_staff_or_404(staff_id: uuid.UUID, user: User, db: AsyncSession) -> Staff:
     return await get_or_404(
-        db, Staff,
-        Staff.id == staff_id, Staff.owner_id == user.id, Staff.deleted_at.is_(None),
+        db,
+        Staff,
+        Staff.id == staff_id,
+        Staff.owner_id == user.id,
+        Staff.deleted_at.is_(None),
         detail="Staff not found",
     )

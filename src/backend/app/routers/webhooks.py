@@ -8,9 +8,9 @@ from app.core.database import get_db
 from app.models.user import User
 from app.models.webhook import Webhook
 from app.routers.auth import get_current_user
+from app.routers.deps import get_or_404
 from app.schemas.webhook import WebhookCreate, WebhookResponse, WebhookUpdate
-from app.routers.deps import apply_updates, get_or_404
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 

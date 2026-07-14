@@ -9,6 +9,7 @@ from app.core.database import get_db
 from app.models.safety import RIEChecklist, SafetyCertification, SafetyIncident
 from app.models.user import User
 from app.routers.auth import get_current_user
+from app.routers.deps import apply_updates, get_or_404
 from app.schemas.safety import (
     CertificationCreate,
     CertificationListResponse,
@@ -26,7 +27,6 @@ from app.schemas.safety import (
     SafetyDashboardResponse,
 )
 from app.services.safety import compute_cert_status
-from app.routers.deps import apply_updates, get_or_404
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -42,7 +42,11 @@ async def _get_or_404(db, model, pk_col, pk_val, owner_id, detail):
 
 async def _paginated_list(db, model, response_cls, list_cls, conditions, page, per_page):
     total = (await db.execute(select(func.count()).select_from(model).where(*conditions))).scalar_one()
-    rows = (await db.execute(select(model).where(*conditions).offset((page - 1) * per_page).limit(per_page))).scalars().all()
+    rows = (
+        (await db.execute(select(model).where(*conditions).offset((page - 1) * per_page).limit(per_page)))
+        .scalars()
+        .all()
+    )
     return list_cls(data=[response_cls.model_validate(r) for r in rows], total=total, page=page, per_page=per_page)
 
 
@@ -66,11 +70,19 @@ async def list_expiring_certifications(
     db: AsyncSession = Depends(get_db),
 ) -> list[CertificationResponse]:
     today = date.today()
-    rows = (await db.execute(select(SafetyCertification).where(
-        SafetyCertification.owner_id == current_user.id,
-        SafetyCertification.expiry_date >= today,
-        SafetyCertification.expiry_date <= today + timedelta(days=days),
-    ))).scalars().all()
+    rows = (
+        (
+            await db.execute(
+                select(SafetyCertification).where(
+                    SafetyCertification.owner_id == current_user.id,
+                    SafetyCertification.expiry_date >= today,
+                    SafetyCertification.expiry_date <= today + timedelta(days=days),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
     return [CertificationResponse.model_validate(r) for r in rows]
 
 
@@ -90,7 +102,9 @@ async def list_certifications(
         *([SafetyCertification.cert_type == cert_type] if cert_type is not None else []),
         *([SafetyCertification.status == cert_status] if cert_status is not None else []),
     ]
-    return await _paginated_list(db, SafetyCertification, CertificationResponse, CertificationListResponse, conditions, page, per_page)
+    return await _paginated_list(
+        db, SafetyCertification, CertificationResponse, CertificationListResponse, conditions, page, per_page
+    )
 
 
 @router.post("/certifications/", response_model=CertificationResponse, status_code=status.HTTP_201_CREATED)
@@ -99,7 +113,13 @@ async def create_certification(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> CertificationResponse:
-    return await _save(db, SafetyCertification(owner_id=current_user.id, status=compute_cert_status(body.expiry_date), **body.model_dump()), CertificationResponse)
+    return await _save(
+        db,
+        SafetyCertification(
+            owner_id=current_user.id, status=compute_cert_status(body.expiry_date), **body.model_dump()
+        ),
+        CertificationResponse,
+    )
 
 
 @router.get("/certifications/{cert_id}", response_model=CertificationResponse)
@@ -108,7 +128,11 @@ async def get_certification(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> CertificationResponse:
-    return CertificationResponse.model_validate(await _get_or_404(db, SafetyCertification, SafetyCertification.id, cert_id, current_user.id, "Certification not found"))
+    return CertificationResponse.model_validate(
+        await _get_or_404(
+            db, SafetyCertification, SafetyCertification.id, cert_id, current_user.id, "Certification not found"
+        )
+    )
 
 
 @router.put("/certifications/{cert_id}", response_model=CertificationResponse)
@@ -118,7 +142,9 @@ async def update_certification(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> CertificationResponse:
-    cert = await _get_or_404(db, SafetyCertification, SafetyCertification.id, cert_id, current_user.id, "Certification not found")
+    cert = await _get_or_404(
+        db, SafetyCertification, SafetyCertification.id, cert_id, current_user.id, "Certification not found"
+    )
     apply_updates(cert, body)
     if body.expiry_date is not None:
         cert.status = compute_cert_status(cert.expiry_date)
@@ -131,7 +157,11 @@ async def delete_certification(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    await db.delete(await _get_or_404(db, SafetyCertification, SafetyCertification.id, cert_id, current_user.id, "Certification not found"))
+    await db.delete(
+        await _get_or_404(
+            db, SafetyCertification, SafetyCertification.id, cert_id, current_user.id, "Certification not found"
+        )
+    )
     await db.commit()
 
 
@@ -181,7 +211,9 @@ async def get_incident(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> IncidentResponse:
-    return IncidentResponse.model_validate(await _get_or_404(db, SafetyIncident, SafetyIncident.id, incident_id, current_user.id, "Incident not found"))
+    return IncidentResponse.model_validate(
+        await _get_or_404(db, SafetyIncident, SafetyIncident.id, incident_id, current_user.id, "Incident not found")
+    )
 
 
 @router.put("/incidents/{incident_id}", response_model=IncidentResponse)
@@ -191,7 +223,9 @@ async def update_incident(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> IncidentResponse:
-    incident = await _get_or_404(db, SafetyIncident, SafetyIncident.id, incident_id, current_user.id, "Incident not found")
+    incident = await _get_or_404(
+        db, SafetyIncident, SafetyIncident.id, incident_id, current_user.id, "Incident not found"
+    )
     apply_updates(incident, body)
     return await _commit_refresh(db, incident, IncidentResponse)
 
@@ -202,7 +236,9 @@ async def delete_incident(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    await db.delete(await _get_or_404(db, SafetyIncident, SafetyIncident.id, incident_id, current_user.id, "Incident not found"))
+    await db.delete(
+        await _get_or_404(db, SafetyIncident, SafetyIncident.id, incident_id, current_user.id, "Incident not found")
+    )
     await db.commit()
 
 
@@ -236,7 +272,9 @@ async def get_rie(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> RIEResponse:
-    return RIEResponse.model_validate(await _get_or_404(db, RIEChecklist, RIEChecklist.id, rie_id, current_user.id, "RI&E checklist not found"))
+    return RIEResponse.model_validate(
+        await _get_or_404(db, RIEChecklist, RIEChecklist.id, rie_id, current_user.id, "RI&E checklist not found")
+    )
 
 
 @router.put("/rie/{rie_id}", response_model=RIEResponse)
@@ -246,7 +284,9 @@ async def update_rie(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> RIEResponse:
-    checklist = await _get_or_404(db, RIEChecklist, RIEChecklist.id, rie_id, current_user.id, "RI&E checklist not found")
+    checklist = await _get_or_404(
+        db, RIEChecklist, RIEChecklist.id, rie_id, current_user.id, "RI&E checklist not found"
+    )
     apply_updates(checklist, body)
     return await _commit_refresh(db, checklist, RIEResponse)
 
@@ -257,7 +297,9 @@ async def delete_rie(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    await db.delete(await _get_or_404(db, RIEChecklist, RIEChecklist.id, rie_id, current_user.id, "RI&E checklist not found"))
+    await db.delete(
+        await _get_or_404(db, RIEChecklist, RIEChecklist.id, rie_id, current_user.id, "RI&E checklist not found")
+    )
     await db.commit()
 
 
@@ -269,11 +311,20 @@ async def get_dashboard(
     today = date.today()
     cutoff = today + timedelta(days=_EXPIRY_WARN_DAYS)
 
-    async def _count(model, *filters):
+    async def _count(model, *filters: object):
         return (await db.execute(select(func.count()).select_from(model).where(*filters))).scalar_one()
 
     return SafetyDashboardResponse(
-        expiring_certs_count=await _count(SafetyCertification, SafetyCertification.owner_id == current_user.id, SafetyCertification.expiry_date >= today, SafetyCertification.expiry_date <= cutoff),
-        open_incidents_count=await _count(SafetyIncident, SafetyIncident.owner_id == current_user.id, SafetyIncident.resolved_at.is_(None)),
-        incomplete_checklists_count=await _count(RIEChecklist, RIEChecklist.owner_id == current_user.id, RIEChecklist.completed_at.is_(None)),
+        expiring_certs_count=await _count(
+            SafetyCertification,
+            SafetyCertification.owner_id == current_user.id,
+            SafetyCertification.expiry_date >= today,
+            SafetyCertification.expiry_date <= cutoff,
+        ),
+        open_incidents_count=await _count(
+            SafetyIncident, SafetyIncident.owner_id == current_user.id, SafetyIncident.resolved_at.is_(None)
+        ),
+        incomplete_checklists_count=await _count(
+            RIEChecklist, RIEChecklist.owner_id == current_user.id, RIEChecklist.completed_at.is_(None)
+        ),
     )

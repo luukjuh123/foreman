@@ -13,6 +13,7 @@ from app.models.project import Project
 from app.models.quote import Quote, QuoteLine
 from app.models.user import User
 from app.routers.auth import get_current_user
+from app.routers.deps import count_query, get_or_404
 from app.schemas.quote import (
     QuoteConvertRequest,
     QuoteConvertResponse,
@@ -24,9 +25,8 @@ from app.services.invoices.numbering import allocate_invoice_number
 from app.services.invoices.totals import compute_line_totals
 from app.services.quotes.numbering import allocate_quote_number
 from app.services.quotes.status import apply_quote_transition
-from app.routers.deps import count_query, get_or_404
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -40,15 +40,21 @@ router = APIRouter()
 
 async def _load_customer(db: AsyncSession, owner_id: uuid.UUID, customer_id: uuid.UUID) -> Customer:
     return await get_or_404(
-        db, Customer,
-        Customer.id == customer_id, Customer.owner_id == owner_id, Customer.deleted_at.is_(None),
+        db,
+        Customer,
+        Customer.id == customer_id,
+        Customer.owner_id == owner_id,
+        Customer.deleted_at.is_(None),
     )
 
 
 async def _load_quote(db: AsyncSession, owner_id: uuid.UUID, quote_id: uuid.UUID) -> Quote:
     return await get_or_404(
-        db, Quote,
-        Quote.id == quote_id, Quote.owner_id == owner_id, Quote.deleted_at.is_(None),
+        db,
+        Quote,
+        Quote.id == quote_id,
+        Quote.owner_id == owner_id,
+        Quote.deleted_at.is_(None),
         options=selectinload(Quote.lines),
     )
 

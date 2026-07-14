@@ -8,6 +8,7 @@ from app.models.assignment import StaffAssignment
 from app.models.staff import Staff, StaffAvailability, StaffCertification
 from app.models.user import User
 from app.routers.auth import get_current_user
+from app.routers.deps import apply_updates, get_or_404
 from app.schemas.staff import (
     CertificationCreate,
     CertificationResponse,
@@ -21,7 +22,6 @@ from app.schemas.staff import (
     StaffUpdate,
     StaffUtilizationResponse,
 )
-from app.routers.deps import apply_updates, get_or_404
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,14 +29,22 @@ from sqlalchemy.orm import selectinload
 
 router = APIRouter()
 
-_OWNER_ACTIVE = lambda u: (Staff.owner_id == u.id, Staff.deleted_at.is_(None))
-_OWNER_ACTIVE_ON = lambda u: (*_OWNER_ACTIVE(u), Staff.active.is_(True))
+
+def _OWNER_ACTIVE(u):
+    return (Staff.owner_id == u.id, Staff.deleted_at.is_(None))
+
+
+def _OWNER_ACTIVE_ON(u):
+    return (*_OWNER_ACTIVE(u), Staff.active.is_(True))
 
 
 async def _get_owned_staff_or_404(staff_id: uuid.UUID, user: User, db: AsyncSession) -> Staff:
     return await get_or_404(
-        db, Staff,
-        Staff.id == staff_id, Staff.owner_id == user.id, Staff.deleted_at.is_(None),
+        db,
+        Staff,
+        Staff.id == staff_id,
+        Staff.owner_id == user.id,
+        Staff.deleted_at.is_(None),
         options=selectinload(Staff.availability),
     )
 
@@ -49,8 +57,10 @@ async def _owned_staff_ids(user: User, db: AsyncSession, active_only: bool = Fal
 
 async def _get_cert_or_404(db: AsyncSession, staff_id: uuid.UUID, cert_id: uuid.UUID) -> StaffCertification:
     return await get_or_404(
-        db, StaffCertification,
-        StaffCertification.id == cert_id, StaffCertification.staff_id == staff_id,
+        db,
+        StaffCertification,
+        StaffCertification.id == cert_id,
+        StaffCertification.staff_id == staff_id,
         detail="Certification not found",
     )
 
@@ -64,7 +74,6 @@ async def _refresh_staff(db: AsyncSession, staff_id: uuid.UUID) -> Staff:
     return result.scalar_one()
 
 
-
 @router.get("/utilization", response_model=StaffUtilizationResponse)
 async def staff_utilization(
     current_user: User = Depends(get_current_user),
@@ -75,15 +84,29 @@ async def staff_utilization(
     week_start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
     week_end = week_start + timedelta(days=7)
 
-    available_hours = float((await db.execute(
-        select(func.coalesce(func.sum(Staff.weekly_hours_target), 0.0)).where(*_OWNER_ACTIVE_ON(current_user))
-    )).scalar_one())
+    available_hours = float(
+        (
+            await db.execute(
+                select(func.coalesce(func.sum(Staff.weekly_hours_target), 0.0)).where(*_OWNER_ACTIVE_ON(current_user))
+            )
+        ).scalar_one()
+    )
 
-    assignments = (await db.execute(
-        select(StaffAssignment)
-        .join(Staff, StaffAssignment.staff_id == Staff.id)
-        .where(*_OWNER_ACTIVE(current_user), StaffAssignment.start_at < week_end, StaffAssignment.end_at > week_start)
-    )).scalars().all()
+    assignments = (
+        (
+            await db.execute(
+                select(StaffAssignment)
+                .join(Staff, StaffAssignment.staff_id == Staff.id)
+                .where(
+                    *_OWNER_ACTIVE(current_user),
+                    StaffAssignment.start_at < week_end,
+                    StaffAssignment.end_at > week_start,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
 
     assigned_hours = sum(
         max(0, (min(_ensure_utc(a.end_at), week_end) - max(_ensure_utc(a.start_at), week_start)).total_seconds() / 3600)
@@ -98,7 +121,6 @@ async def staff_utilization(
     )
 
 
-
 @router.get("/", response_model=StaffListResponse)
 async def list_staff(
     page: int = Query(1, ge=1),
@@ -109,11 +131,23 @@ async def list_staff(
     offset = (page - 1) * per_page
     base = Staff.owner_id == current_user.id, Staff.deleted_at.is_(None)
     count = (await db.execute(select(func.count()).select_from(Staff).where(*base))).scalar_one()
-    rows = (await db.execute(
-        select(Staff).where(*base).options(selectinload(Staff.availability))
-        .order_by(Staff.created_at.asc()).offset(offset).limit(per_page)
-    )).scalars().all()
-    return StaffListResponse(data=[StaffResponse.model_validate(s) for s in rows], total=count, page=page, per_page=per_page)
+    rows = (
+        (
+            await db.execute(
+                select(Staff)
+                .where(*base)
+                .options(selectinload(Staff.availability))
+                .order_by(Staff.created_at.asc())
+                .offset(offset)
+                .limit(per_page)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return StaffListResponse(
+        data=[StaffResponse.model_validate(s) for s in rows], total=count, page=page, per_page=per_page
+    )
 
 
 @router.post("/", response_model=StaffResponse, status_code=status.HTTP_201_CREATED)
@@ -157,14 +191,18 @@ async def get_compliance_overview_early(
     """Return team-wide certification compliance statistics."""
     today = date.today()
     cutoff_30 = today + timedelta(days=30)
-    total_staff = (await db.execute(
-        select(func.count()).select_from(Staff).where(*_OWNER_ACTIVE(current_user))
-    )).scalar_one()
+    total_staff = (
+        await db.execute(select(func.count()).select_from(Staff).where(*_OWNER_ACTIVE(current_user)))
+    ).scalar_one()
     owned_ids = await _owned_staff_ids(current_user, db)
     if not owned_ids:
-        return ComplianceOverviewResponse(total_staff=total_staff, total_certifications=0, expired_count=0, expiring_soon_count=0, valid_count=0)
+        return ComplianceOverviewResponse(
+            total_staff=total_staff, total_certifications=0, expired_count=0, expiring_soon_count=0, valid_count=0
+        )
 
-    all_certs = (await db.execute(select(StaffCertification).where(StaffCertification.staff_id.in_(owned_ids)))).scalars().all()
+    all_certs = (
+        (await db.execute(select(StaffCertification).where(StaffCertification.staff_id.in_(owned_ids)))).scalars().all()
+    )
     return ComplianceOverviewResponse(
         total_staff=total_staff,
         total_certifications=len(all_certs),
@@ -207,7 +245,6 @@ async def delete_staff(
     await db.commit()
 
 
-
 @router.post("/{staff_id}/availability", response_model=StaffAvailabilityResponse, status_code=status.HTTP_201_CREATED)
 async def add_availability(
     staff_id: uuid.UUID,
@@ -231,7 +268,13 @@ async def remove_availability(
     db: AsyncSession = Depends(get_db),
 ) -> None:
     await _get_owned_staff_or_404(staff_id, current_user, db)
-    window = await get_or_404(db, StaffAvailability, StaffAvailability.id == availability_id, StaffAvailability.staff_id == staff_id, detail="Availability window not found")
+    window = await get_or_404(
+        db,
+        StaffAvailability,
+        StaffAvailability.id == availability_id,
+        StaffAvailability.staff_id == staff_id,
+        detail="Availability window not found",
+    )
     await db.delete(window)
     await db.commit()
 
@@ -244,7 +287,9 @@ async def list_certifications(
 ) -> list[CertificationResponse]:
     await _get_owned_staff_or_404(staff_id, current_user, db)
     result = await db.execute(
-        select(StaffCertification).where(StaffCertification.staff_id == staff_id).order_by(StaffCertification.expires_at.asc())
+        select(StaffCertification)
+        .where(StaffCertification.staff_id == staff_id)
+        .order_by(StaffCertification.expires_at.asc())
     )
     return [CertificationResponse.model_validate(c) for c in result.scalars().all()]
 

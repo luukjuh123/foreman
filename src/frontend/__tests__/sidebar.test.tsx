@@ -2,6 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import React from "react";
 
+vi.mock("@/lib/api", () => ({
+  apiFetch: vi.fn(() => Promise.resolve({ total: 0, data: [] })),
+}));
+
 vi.mock("next/navigation", () => ({
   useRouter: vi.fn(() => ({ push: vi.fn() })),
   usePathname: vi.fn(() => "/dashboard"),

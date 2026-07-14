@@ -10,6 +10,7 @@ from app.core.database import get_db
 from app.models.review import Review
 from app.models.user import User
 from app.routers.auth import get_current_user
+from app.routers.deps import get_or_404
 from app.schemas.reviews import (
     DraftReplyResponse,
     Envelope,
@@ -25,8 +26,7 @@ from app.services.reviews.google_client import (
     GoogleBusinessClient,
     get_google_business_client,
 )
-from app.routers.deps import get_or_404
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 

@@ -14,6 +14,7 @@ from app.models.subcontractor import (
 )
 from app.models.user import User
 from app.routers.auth import get_current_user
+from app.routers.deps import apply_updates, count_query, get_or_404
 from app.schemas.subcontractor import (
     AssignmentCreate,
     AssignmentListResponse,
@@ -29,7 +30,6 @@ from app.schemas.subcontractor import (
     SubcontractorResponse,
     SubcontractorUpdate,
 )
-from app.routers.deps import apply_updates, count_query, get_or_404
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -43,8 +43,11 @@ router = APIRouter()
 
 async def _get_owned_sub_or_404(sub_id: uuid.UUID, user: User, db: AsyncSession) -> Subcontractor:
     return await get_or_404(
-        db, Subcontractor,
-        Subcontractor.id == sub_id, Subcontractor.owner_id == user.id, Subcontractor.deleted_at.is_(None),
+        db,
+        Subcontractor,
+        Subcontractor.id == sub_id,
+        Subcontractor.owner_id == user.id,
+        Subcontractor.deleted_at.is_(None),
         options=selectinload(Subcontractor.certifications),
     )
 
@@ -65,8 +68,10 @@ async def _fetch_sub_with_certs(sub_id: uuid.UUID, db: AsyncSession) -> Subcontr
 async def _paginate(db: AsyncSession, base_query, order_col, page: int, per_page: int) -> tuple[list, int]:
     count = await count_query(db, base_query)
     rows = (
-        await db.execute(base_query.order_by(order_col.asc()).offset((page - 1) * per_page).limit(per_page))
-    ).scalars().all()
+        (await db.execute(base_query.order_by(order_col.asc()).offset((page - 1) * per_page).limit(per_page)))
+        .scalars()
+        .all()
+    )
     return rows, count
 
 
@@ -204,8 +209,10 @@ async def get_assignment(
     db: AsyncSession = Depends(get_db),
 ) -> AssignmentResponse:
     assignment = await get_or_404(
-        db, SubcontractorAssignment,
-        SubcontractorAssignment.id == assignment_id, SubcontractorAssignment.owner_id == current_user.id,
+        db,
+        SubcontractorAssignment,
+        SubcontractorAssignment.id == assignment_id,
+        SubcontractorAssignment.owner_id == current_user.id,
     )
     return AssignmentResponse.model_validate(assignment)
 
@@ -218,8 +225,10 @@ async def update_assignment(
     db: AsyncSession = Depends(get_db),
 ) -> AssignmentResponse:
     assignment = await get_or_404(
-        db, SubcontractorAssignment,
-        SubcontractorAssignment.id == assignment_id, SubcontractorAssignment.owner_id == current_user.id,
+        db,
+        SubcontractorAssignment,
+        SubcontractorAssignment.id == assignment_id,
+        SubcontractorAssignment.owner_id == current_user.id,
     )
     apply_updates(assignment, body)
     assignment.total_cost_cents = _compute_assignment_cost(assignment)
@@ -271,8 +280,10 @@ async def reconcile_subcontractor_invoice(
     db: AsyncSession = Depends(get_db),
 ) -> SubcontractorInvoiceResponse:
     inv = await get_or_404(
-        db, SubcontractorInvoice,
-        SubcontractorInvoice.id == invoice_id, SubcontractorInvoice.owner_id == current_user.id,
+        db,
+        SubcontractorInvoice,
+        SubcontractorInvoice.id == invoice_id,
+        SubcontractorInvoice.owner_id == current_user.id,
         detail="Invoice not found",
     )
     if inv.status == "reconciled":

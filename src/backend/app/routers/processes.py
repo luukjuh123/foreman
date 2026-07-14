@@ -9,6 +9,7 @@ from app.models.process import Process, ProjectProcess
 from app.models.project import Project
 from app.models.user import User
 from app.routers.auth import get_current_user
+from app.routers.deps import apply_updates, get_or_404
 from app.schemas.process import (
     ProcessCreate,
     ProcessListResponse,
@@ -23,7 +24,6 @@ from app.services.process_analytics.analytics import (
     stats_all_processes,
     stats_for_process,
 )
-from app.routers.deps import apply_updates, get_or_404
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -130,8 +130,10 @@ async def detach_process_from_project(
 ) -> None:
     await _get_project_owned(project_id, user, db)
     link = await get_or_404(
-        db, ProjectProcess,
-        ProjectProcess.id == project_process_id, ProjectProcess.project_id == project_id,
+        db,
+        ProjectProcess,
+        ProjectProcess.id == project_process_id,
+        ProjectProcess.project_id == project_id,
         detail="Link not found",
     )
     await db.delete(link)

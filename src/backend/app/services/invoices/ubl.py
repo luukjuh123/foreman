@@ -8,7 +8,6 @@ Peppol BIS Billing 3.0. Amounts are emitted as euros with 2 decimal places
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from datetime import date
 from decimal import Decimal
 from typing import Any
 from xml.etree import ElementTree as ET
@@ -120,9 +119,14 @@ def build_invoice_ubl_xml(
     issue, due = invoice["issue_date"], invoice["due_date"]
     currency = invoice.get("currency", "EUR")
 
-    for tag, text in [("CustomizationID", CUSTOMIZATION_ID), ("ProfileID", PROFILE_ID),
-                      ("ID", str(invoice["invoice_number"])), ("IssueDate", issue.isoformat()),
-                      ("DueDate", due.isoformat()), ("InvoiceTypeCode", "380")]:
+    for tag, text in [
+        ("CustomizationID", CUSTOMIZATION_ID),
+        ("ProfileID", PROFILE_ID),
+        ("ID", str(invoice["invoice_number"])),
+        ("IssueDate", issue.isoformat()),
+        ("DueDate", due.isoformat()),
+        ("InvoiceTypeCode", "380"),
+    ]:
         _SubElement(root, f"{cbc}{tag}", text)
     if invoice.get("notes"):
         _SubElement(root, f"{cbc}Note", str(invoice["notes"]))
@@ -149,16 +153,28 @@ def build_invoice_ubl_xml(
         _SubElement(ET.SubElement(cat, f"{cac}TaxScheme"), f"{cbc}ID", "VAT")
 
     lmt = ET.SubElement(root, f"{cac}LegalMonetaryTotal")
-    subtotal, vat_total, total = int(invoice["subtotal_cents"]), int(invoice["vat_total_cents"]), int(invoice["total_cents"])
-    for tag, amt in [("LineExtensionAmount", subtotal), ("TaxExclusiveAmount", subtotal),
-                     ("TaxInclusiveAmount", subtotal + vat_total), ("PayableAmount", total)]:
+    subtotal, vat_total, total = (
+        int(invoice["subtotal_cents"]),
+        int(invoice["vat_total_cents"]),
+        int(invoice["total_cents"]),
+    )
+    for tag, amt in [
+        ("LineExtensionAmount", subtotal),
+        ("TaxExclusiveAmount", subtotal),
+        ("TaxInclusiveAmount", subtotal + vat_total),
+        ("PayableAmount", total),
+    ]:
         _SubElement(lmt, f"{cbc}{tag}", _euro(amt), currencyID=currency)
 
     for idx, line in enumerate(invoice["lines"], start=1):
         le = ET.SubElement(root, f"{cac}InvoiceLine")
         _SubElement(le, f"{cbc}ID", str(idx))
-        _SubElement(le, f"{cbc}InvoicedQuantity", _qty(float(line["quantity"])),
-                    unitCode=_unit_code(str(line.get("unit", "piece"))))
+        _SubElement(
+            le,
+            f"{cbc}InvoicedQuantity",
+            _qty(float(line["quantity"])),
+            unitCode=_unit_code(str(line.get("unit", "piece"))),
+        )
         _SubElement(le, f"{cbc}LineExtensionAmount", _euro(int(line["line_net_cents"])), currencyID=currency)
         item = ET.SubElement(le, f"{cac}Item")
         _SubElement(item, f"{cbc}Name", str(line["description"]))
@@ -166,8 +182,12 @@ def build_invoice_ubl_xml(
         _SubElement(cat, f"{cbc}ID", _vat_category(int(line["vat_rate_bp"])))
         _SubElement(cat, f"{cbc}Percent", _percent(int(line["vat_rate_bp"])))
         _SubElement(ET.SubElement(cat, f"{cac}TaxScheme"), f"{cbc}ID", "VAT")
-        _SubElement(ET.SubElement(le, f"{cac}Price"), f"{cbc}PriceAmount",
-                    _euro(int(line["unit_price_cents"])), currencyID=currency)
+        _SubElement(
+            ET.SubElement(le, f"{cac}Price"),
+            f"{cbc}PriceAmount",
+            _euro(int(line["unit_price_cents"])),
+            currencyID=currency,
+        )
 
     return b'<?xml version="1.0" encoding="UTF-8"?>\n' + ET.tostring(root, encoding="utf-8")
 
@@ -206,7 +226,13 @@ def validate_ubl(xml_bytes: bytes) -> list[str]:
         errors.append("Root element must be Invoice")
 
     ns = {"cbc": UBL_CBC_NS, "cac": UBL_CAC_NS}
-    _CAC_ELEMENTS = {"AccountingSupplierParty", "AccountingCustomerParty", "TaxTotal", "LegalMonetaryTotal", "InvoiceLine"}
+    _CAC_ELEMENTS = {
+        "AccountingSupplierParty",
+        "AccountingCustomerParty",
+        "TaxTotal",
+        "LegalMonetaryTotal",
+        "InvoiceLine",
+    }
     errors.extend(
         f"Missing required element: {name}"
         for name in _REQUIRED_ELEMENTS

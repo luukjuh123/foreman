@@ -7,7 +7,6 @@ from app.core.database import get_db
 from app.models.project import Phase, Project, Task
 from app.models.user import User
 from app.routers.auth import get_current_user
-from app.routers.projects import _assert_owner
 from app.schemas.planning import (
     ApplyScheduleRequest,
     ApplyScheduleResponse,
@@ -66,7 +65,8 @@ async def autofill_schedule(
 ) -> AutofillResponse:
     """Generate a proposed Gantt schedule for all tasks in the project."""
     project = await _load_project(body.project_id, db)
-    _assert_owner(project, current_user)
+    if project.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your project")
 
     cpm_tasks = _build_cpm_tasks(project)
     if not cpm_tasks:
@@ -93,7 +93,8 @@ async def apply_schedule(
 ) -> ApplyScheduleResponse:
     """Apply a proposed schedule to the selected tasks (writes start_date/end_date)."""
     project = await _load_project(body.project_id, db)
-    _assert_owner(project, current_user)
+    if project.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your project")
 
     cpm_tasks = _build_cpm_tasks(project)
     if not cpm_tasks or not body.task_ids:

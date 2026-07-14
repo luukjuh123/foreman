@@ -57,8 +57,12 @@ async def _reload(obj: Project | Phase, db: AsyncSession) -> ProjectResponse | P
     await db.commit()
     await db.refresh(obj)
     if isinstance(obj, Project):
-        return ProjectResponse.model_validate((await db.execute(select(Project).where(Project.id == obj.id).options(_PROJECT_LOAD))).scalar_one())
-    return PhaseResponse.model_validate((await db.execute(select(Phase).where(Phase.id == obj.id).options(_PHASE_LOAD))).scalar_one())
+        return ProjectResponse.model_validate(
+            (await db.execute(select(Project).where(Project.id == obj.id).options(_PROJECT_LOAD))).scalar_one()
+        )
+    return PhaseResponse.model_validate(
+        (await db.execute(select(Phase).where(Phase.id == obj.id).options(_PHASE_LOAD))).scalar_one()
+    )
 
 
 async def _get_phase_or_404(project_id: uuid.UUID, phase_id: uuid.UUID, db: AsyncSession) -> Phase:
@@ -70,9 +74,15 @@ async def _get_task_or_404(phase_id: uuid.UUID, task_id: uuid.UUID, db: AsyncSes
 
 
 async def _get_task_in_project_or_404(project_id: uuid.UUID, task_id: uuid.UUID, db: AsyncSession) -> Task:
-    if (task := (await db.execute(
-        select(Task).join(Phase, Task.phase_id == Phase.id).where(Task.id == task_id, Phase.project_id == project_id)
-    )).scalar_one_or_none()) is None:
+    if (
+        task := (
+            await db.execute(
+                select(Task)
+                .join(Phase, Task.phase_id == Phase.id)
+                .where(Task.id == task_id, Phase.project_id == project_id)
+            )
+        ).scalar_one_or_none()
+    ) is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
     return task
 
@@ -90,8 +100,15 @@ async def list_projects(
 ) -> ProjectListResponse:
     where = (Project.owner_id == current_user.id, Project.deleted_at.is_(None))
     total = (await db.execute(select(func.count()).select_from(Project).where(*where))).scalar_one()
-    result = await db.execute(select(Project).where(*where).options(_PROJECT_LOAD).offset((page - 1) * per_page).limit(per_page))
-    return ProjectListResponse(data=[ProjectResponse.model_validate(p) for p in result.scalars().all()], total=total, page=page, per_page=per_page)
+    result = await db.execute(
+        select(Project).where(*where).options(_PROJECT_LOAD).offset((page - 1) * per_page).limit(per_page)
+    )
+    return ProjectListResponse(
+        data=[ProjectResponse.model_validate(p) for p in result.scalars().all()],
+        total=total,
+        page=page,
+        per_page=per_page,
+    )
 
 
 @router.post("/", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
@@ -228,7 +245,11 @@ async def delete_task(
     await db.commit()
 
 
-@router.post("/{project_id}/tasks/{task_id}/dependencies", response_model=TaskDependencyResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{project_id}/tasks/{task_id}/dependencies",
+    response_model=TaskDependencyResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def add_dependency(
     project_id: uuid.UUID,
     task_id: uuid.UUID,
@@ -240,7 +261,10 @@ async def add_dependency(
     await _get_task_in_project_or_404(project_id, task_id, db)
     await _get_task_in_project_or_404(project_id, body.depends_on_task_id, db)
     if await detect_cycle(task_id, body.depends_on_task_id, db):
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Adding this dependency would create a cycle in the task graph")
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Adding this dependency would create a cycle in the task graph",
+        )
     dep = TaskDependency(task_id=task_id, depends_on_task_id=body.depends_on_task_id)
     db.add(dep)
     await db.commit()
@@ -257,14 +281,30 @@ async def remove_dependency(
     db: AsyncSession = Depends(get_db),
 ) -> None:
     await _owned_project(project_id, current_user, db)
-    dep = await get_or_404(db, TaskDependency, TaskDependency.id == dependency_id, TaskDependency.task_id == task_id, detail="Dependency not found")
+    dep = await get_or_404(
+        db,
+        TaskDependency,
+        TaskDependency.id == dependency_id,
+        TaskDependency.task_id == task_id,
+        detail="Dependency not found",
+    )
     await db.delete(dep)
     await db.commit()
 
 
 _PROJECT_EXPORT_FIELDS = ("id", "name", "description", "status", "start_date", "end_date", "budget_cents", "created_at")
 _PHASE_EXPORT_FIELDS = ("id", "name", "description", "order_index", "status", "start_date", "end_date")
-_TASK_EXPORT_FIELDS = ("id", "name", "description", "status", "priority", "estimated_hours", "labor_cost_cents", "start_date", "end_date")
+_TASK_EXPORT_FIELDS = (
+    "id",
+    "name",
+    "description",
+    "status",
+    "priority",
+    "estimated_hours",
+    "labor_cost_cents",
+    "start_date",
+    "end_date",
+)
 
 
 def _default(obj: object) -> str:
@@ -286,7 +326,10 @@ async def export_project(
     files = {
         "project.json": {
             **_pick(project, *_PROJECT_EXPORT_FIELDS),
-            "phases": [{**_pick(ph, *_PHASE_EXPORT_FIELDS), "tasks": [_pick(t, *_TASK_EXPORT_FIELDS) for t in ph.tasks]} for ph in project.phases],
+            "phases": [
+                {**_pick(ph, *_PHASE_EXPORT_FIELDS), "tasks": [_pick(t, *_TASK_EXPORT_FIELDS) for t in ph.tasks]}
+                for ph in project.phases
+            ],
         },
         "invoices.json": [_pick(i, "id", "status", "total_cents", "created_at") for i in invoices],
         "reports.json": [_pick(r, "id", "type", "title", "created_at") for r in reports],
@@ -298,7 +341,11 @@ async def export_project(
             zf.writestr(name, json.dumps(data, default=_default, indent=2))
     buf.seek(0)
     safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in project.name)
-    return StreamingResponse(buf, media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="{safe_name}_{project_id}.zip"'})
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{safe_name}_{project_id}.zip"'},
+    )
 
 
 @router.get("/{project_id}/health-score", response_model=HealthScoreResult)

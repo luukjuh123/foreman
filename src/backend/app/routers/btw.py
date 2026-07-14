@@ -18,10 +18,10 @@ from app.core.database import get_db
 from app.models.btw import BtwAangifte
 from app.models.user import User
 from app.routers.auth import get_current_user
+from app.routers.deps import get_or_404
 from app.schemas.btw import BtwAangifteResponse, BtwAangifteUpdate, BtwGenerateRequest
 from app.services.btw.calculation import calculate_btw_boxes
-from app.routers.deps import get_or_404
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -34,8 +34,10 @@ async def _get_aangifte_or_404(
     db: AsyncSession,
 ) -> BtwAangifte:
     return await get_or_404(
-        db, BtwAangifte,
-        BtwAangifte.id == aangifte_id, BtwAangifte.owner_id == owner_id,
+        db,
+        BtwAangifte,
+        BtwAangifte.id == aangifte_id,
+        BtwAangifte.owner_id == owner_id,
         detail="BTW aangifte not found",
     )
 

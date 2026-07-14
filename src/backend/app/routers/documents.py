@@ -13,11 +13,11 @@ from app.models.document import Document
 from app.models.project import Project
 from app.models.user import User
 from app.routers.auth import get_current_user
-from app.schemas.document import DocumentListResponse, DocumentResponse
 from app.routers.deps import count_query, get_or_404
+from app.schemas.document import DocumentListResponse, DocumentResponse
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()

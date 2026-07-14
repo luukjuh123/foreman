@@ -8,6 +8,7 @@ from app.models.project import Phase, Project, Task
 from app.models.template import ProjectTemplate
 from app.models.user import User
 from app.routers.auth import get_current_user
+from app.routers.deps import get_or_404
 from app.schemas.project import ProjectResponse
 from app.schemas.template import (
     CreateFromTemplateRequest,
@@ -19,7 +20,6 @@ from app.schemas.template import (
     TemplatePhaseSchema,
     TemplateTaskSchema,
 )
-from app.routers.deps import apply_updates, get_or_404
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -62,8 +62,10 @@ async def _get_template_or_404(
     db: AsyncSession,
 ) -> ProjectTemplate:
     return await get_or_404(
-        db, ProjectTemplate,
-        ProjectTemplate.id == template_id, ProjectTemplate.owner_id == owner_id,
+        db,
+        ProjectTemplate,
+        ProjectTemplate.id == template_id,
+        ProjectTemplate.owner_id == owner_id,
     )
 
 

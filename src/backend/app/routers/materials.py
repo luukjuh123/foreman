@@ -58,8 +58,14 @@ STORE_NAMES = ["hornbach", "gamma", "praxis", "bouwmaat"]
 
 def _to_schema(p: ProductResult) -> ProductResultSchema:
     return ProductResultSchema(
-        store=p.store, product_id=p.product_id, name=p.name, url=p.url,
-        price_cents=p.price_cents, in_stock=p.in_stock, unit=p.unit, extra=dict(p.extra),
+        store=p.store,
+        product_id=p.product_id,
+        name=p.name,
+        url=p.url,
+        price_cents=p.price_cents,
+        in_stock=p.in_stock,
+        unit=p.unit,
+        extra=dict(p.extra),
     )
 
 
@@ -88,7 +94,22 @@ async def search_materials(query: str = "") -> dict:
     finally:
         for c in clients:
             await c.aclose()
-    return {"data": [{"store": r.store, "product_id": r.product_id, "name": r.name, "url": r.url, "price_cents": r.price_cents, "in_stock": r.in_stock, "unit": r.unit} for r in results], "error": None, "query": query}
+    return {
+        "data": [
+            {
+                "store": r.store,
+                "product_id": r.product_id,
+                "name": r.name,
+                "url": r.url,
+                "price_cents": r.price_cents,
+                "in_stock": r.in_stock,
+                "unit": r.unit,
+            }
+            for r in results
+        ],
+        "error": None,
+        "query": query,
+    }
 
 
 def _surface_area_m2(length_m: float, width_m: float, height_m: float, surface: str) -> float:

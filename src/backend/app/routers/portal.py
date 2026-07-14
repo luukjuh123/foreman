@@ -127,8 +127,10 @@ async def _resolve_token(token: str, db: AsyncSession) -> ShareToken:
 
 async def _get_project(project_id: uuid.UUID, db: AsyncSession) -> Project:
     return await get_or_404(
-        db, Project,
-        Project.id == project_id, Project.deleted_at.is_(None),
+        db,
+        Project,
+        Project.id == project_id,
+        Project.deleted_at.is_(None),
         options=selectinload(Project.phases).selectinload(Phase.tasks),
     )
 

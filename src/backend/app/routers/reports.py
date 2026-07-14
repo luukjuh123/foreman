@@ -9,6 +9,7 @@ from app.models.project import Project
 from app.models.report import Report
 from app.models.user import User
 from app.routers.auth import get_current_user
+from app.routers.deps import get_or_404
 from app.schemas.report import (
     ReportGenerateRequest,
     ReportListResponse,
@@ -19,7 +20,6 @@ from app.schemas.report import (
 from app.services.reports.completion import generate_completion_report
 from app.services.reports.pdf import render_report_pdf
 from app.services.reports.weekly import generate_weekly_report
-from app.routers.deps import get_or_404
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import Response
 from sqlalchemy import func, select
@@ -120,12 +120,23 @@ async def list_reports(
         base = base.where(Report.project_id == uuid.UUID(project_id))
 
     total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar() or 0
-    reports = (await db.execute(base.order_by(Report.created_at.desc()).offset((page - 1) * per_page).limit(per_page))).scalars().all()
+    reports = (
+        (await db.execute(base.order_by(Report.created_at.desc()).offset((page - 1) * per_page).limit(per_page)))
+        .scalars()
+        .all()
+    )
 
     _SUMMARY_FIELDS = ("id", "project_id", "type", "title", "period_start", "period_end", "is_shared", "created_at")
     return ReportListResponse(
-        data=[ReportSummaryResponse(**{f: (str(getattr(r, f)) if f in ("id", "project_id") else getattr(r, f)) for f in _SUMMARY_FIELDS}) for r in reports],
-        total=total, page=page, per_page=per_page,
+        data=[
+            ReportSummaryResponse(
+                **{f: (str(getattr(r, f)) if f in ("id", "project_id") else getattr(r, f)) for f in _SUMMARY_FIELDS}
+            )
+            for r in reports
+        ],
+        total=total,
+        page=page,
+        per_page=per_page,
     )
 
 
