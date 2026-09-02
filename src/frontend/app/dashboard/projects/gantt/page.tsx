@@ -58,6 +58,11 @@ function collectDates(projects: ProjectResponse[]): Date[] {
 export default function MultiProjectGanttPage() {
   const [projects, setProjects] = useState<ProjectResponse[]>([]);
   const [loading, setLoading] = useState(true);
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+
+  function toggleProject(id: string) {
+    setCollapsed((prev) => ({ ...prev, [id]: !prev[id] }));
+  }
 
   useEffect(() => {
     listProjects(1, 100)
@@ -160,12 +165,19 @@ export default function MultiProjectGanttPage() {
             const color = getProjectColor(projectIndex);
             return (
               <React.Fragment key={project.id}>
-                {/* Project header label */}
+                {/* Project header label — click to collapse/expand */}
                 <div
                   data-testid="project-gantt-header"
-                  className="h-8 px-3 flex items-center bg-[#0f1117] border-b border-gray-700"
+                  data-project-id={project.id}
+                  className="h-8 px-3 flex items-center bg-[#0f1117] border-b border-gray-700 cursor-pointer hover:bg-[#161b26] transition-colors"
                   style={{ borderLeft: `3px solid ${color}` }}
+                  onClick={() => toggleProject(project.id)}
+                  role="button"
+                  aria-expanded={!collapsed[project.id]}
                 >
+                  <span className="text-xs mr-1" style={{ color }}>
+                    {collapsed[project.id] ? "▶" : "▼"}
+                  </span>
                   <span
                     className="text-xs font-bold truncate"
                     style={{ color }}
@@ -174,8 +186,8 @@ export default function MultiProjectGanttPage() {
                   </span>
                 </div>
 
-                {/* Phases and tasks */}
-                {project.phases.map((phase) => (
+                {/* Phases and tasks — hidden when project is collapsed */}
+                {!collapsed[project.id] && project.phases.map((phase) => (
                   <React.Fragment key={phase.id}>
                     {/* Phase header label */}
                     <div className="h-8 px-3 flex items-center bg-[#1e2535] border-b border-gray-700">
