@@ -1,0 +1,10 @@
+[tool.pytest.ini_options]
+# Pytest config at the galaxy root — picked up when running tests from here
+# or from src/backend (which provides the PYTHONPATH and venv).
+testpaths = ["tests/backend"]
+pythonpath = ["src/backend"]
+addopts = "-v --tb=short -m 'not live'"
+asyncio_mode = "strict"
+markers = [
+    "live: hits real external services; skipped by default",
+]
