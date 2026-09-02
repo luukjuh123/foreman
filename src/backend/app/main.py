@@ -113,6 +113,7 @@ def create_app() -> FastAPI:
     app.include_router(geofence.router, prefix="/api/v1/geofence", tags=["geofence"])
     app.include_router(permits.router, prefix="/api/v1/permits", tags=["permits"])
     app.include_router(timeline.router, prefix="/api/v1", tags=["timeline"])
+    app.include_router(analytics.router, prefix="/api/v1/analytics", tags=["analytics"])
 
     @app.get("/healthz", tags=["health"])
     async def health_check() -> dict:
