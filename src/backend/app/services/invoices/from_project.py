@@ -47,12 +47,8 @@ async def build_project_lines(
     if project is None:
         raise LookupError("project not found")
 
-    task_ids: list[uuid.UUID] = []
-    tasks: list[Task] = []
-    for phase in project.phases:
-        for task in phase.tasks:
-            tasks.append(task)
-            task_ids.append(task.id)
+    tasks = [t for phase in project.phases for t in phase.tasks]
+    task_ids = [t.id for t in tasks]
 
     materials: list[Material] = []
     if include_materials and task_ids:

@@ -43,30 +43,21 @@ def _parse_date(s: str) -> date:
         raise HTTPException(status_code=422, detail=f"Invalid date format: {s}")
 
 
-async def _record_export(
-    db: AsyncSession,
-    owner_id: uuid.UUID,
-    fmt: str,
-    date_from: str,
-    date_to: str,
-    row_count: int,
-) -> ExportHistory:
-    record = ExportHistory(
-        owner_id=owner_id,
-        format=fmt,
-        date_from=date_from,
-        date_to=date_to,
-        row_count=row_count,
-    )
+async def _record_export(db: AsyncSession, owner_id: uuid.UUID, fmt: str, date_from: str, date_to: str, row_count: int) -> ExportHistory:
+    record = ExportHistory(owner_id=owner_id, format=fmt, date_from=date_from, date_to=date_to, row_count=row_count)
     db.add(record)
     await db.commit()
     await db.refresh(record)
     return record
 
 
-# ---------------------------------------------------------------------------
-# POST /api/v1/exports/{format}
-# ---------------------------------------------------------------------------
+async def _fetch_entries(db: AsyncSession, owner_id: uuid.UUID, date_from: date, date_to: date) -> list[JournalEntry]:
+    return list((await db.execute(
+        select(JournalEntry)
+        .where(JournalEntry.owner_id == owner_id, JournalEntry.entry_date >= date_from,
+               JournalEntry.entry_date <= date_to, JournalEntry.is_posted.is_(True))
+        .options(selectinload(JournalEntry.lines)).order_by(JournalEntry.entry_date)
+    )).scalars().all())
 
 
 @router.post("/mt940")
@@ -76,47 +67,15 @@ async def export_mt940(
     db: AsyncSession = Depends(get_db),
 ) -> PlainTextResponse:
     """Export journal entries as MT940 bank statement file."""
-    date_from = _parse_date(payload.date_from)
-    date_to = _parse_date(payload.date_to)
-
-    # Fetch journal entries with lines + account codes in the date range
-    result = await db.execute(
-        select(JournalEntry)
-        .where(
-            JournalEntry.owner_id == user.id,
-            JournalEntry.entry_date >= date_from,
-            JournalEntry.entry_date <= date_to,
-            JournalEntry.is_posted.is_(True),
-        )
-        .options(selectinload(JournalEntry.lines))
-        .order_by(JournalEntry.entry_date)
-    )
-    entries = list(result.scalars().all())
+    date_from, date_to = _parse_date(payload.date_from), _parse_date(payload.date_to)
+    entries = await _fetch_entries(db, user.id, date_from, date_to)
 
     # Build flat transaction list from cash-type accounts (debit = outflow, credit = inflow)
-    transactions = []
-    for entry in entries:
-        for line in entry.lines:
-            if line.credit_cents > 0:
-                transactions.append(
-                    {
-                        "date": entry.entry_date,
-                        "amount_cents": line.credit_cents,
-                        "is_credit": True,
-                        "description": entry.description,
-                        "reference": entry.reference or "",
-                    }
-                )
-            elif line.debit_cents > 0:
-                transactions.append(
-                    {
-                        "date": entry.entry_date,
-                        "amount_cents": line.debit_cents,
-                        "is_credit": False,
-                        "description": entry.description,
-                        "reference": entry.reference or "",
-                    }
-                )
+    transactions = [
+        {"date": e.entry_date, "amount_cents": ln.credit_cents if ln.credit_cents > 0 else ln.debit_cents,
+         "is_credit": ln.credit_cents > 0, "description": e.description, "reference": e.reference or ""}
+        for e in entries for ln in e.lines if ln.credit_cents > 0 or ln.debit_cents > 0
+    ]
 
     # Running balance
     start_balance_cents = 0
@@ -150,46 +109,21 @@ async def export_csv_journal(
     db: AsyncSession = Depends(get_db),
 ) -> Response:
     """Export journal entries as Exact Online-compatible CSV."""
-    date_from = _parse_date(payload.date_from)
-    date_to = _parse_date(payload.date_to)
-
-    # Fetch entries with lines
-    entries_result = await db.execute(
-        select(JournalEntry)
-        .where(
-            JournalEntry.owner_id == user.id,
-            JournalEntry.entry_date >= date_from,
-            JournalEntry.entry_date <= date_to,
-            JournalEntry.is_posted.is_(True),
-        )
-        .options(selectinload(JournalEntry.lines))
-        .order_by(JournalEntry.entry_date)
-    )
-    entries = list(entries_result.scalars().all())
+    date_from, date_to = _parse_date(payload.date_from), _parse_date(payload.date_to)
+    entries = await _fetch_entries(db, user.id, date_from, date_to)
 
     # Fetch account codes in one query
-    all_account_ids = {line.account_id for entry in entries for line in entry.lines}
+    all_account_ids = {ln.account_id for e in entries for ln in e.lines}
     account_map: dict[uuid.UUID, Account] = {}
     if all_account_ids:
-        acc_result = await db.execute(select(Account).where(Account.id.in_(all_account_ids)))
-        for acc in acc_result.scalars().all():
-            account_map[acc.id] = acc
+        account_map = {a.id: a for a in (await db.execute(select(Account).where(Account.id.in_(all_account_ids)))).scalars().all()}
 
-    rows = []
-    for entry in entries:
-        for line in entry.lines:
-            acc = account_map.get(line.account_id)
-            rows.append(
-                {
-                    "entry_date": entry.entry_date,
-                    "account_code": acc.code if acc else str(line.account_id),
-                    "account_name": acc.name if acc else "",
-                    "description": entry.description,
-                    "reference": entry.reference,
-                    "debit_cents": line.debit_cents,
-                    "credit_cents": line.credit_cents,
-                }
-            )
+    rows = [
+        {"entry_date": e.entry_date, "account_code": acc.code if (acc := account_map.get(ln.account_id)) else str(ln.account_id),
+         "account_name": acc.name if acc else "", "description": e.description, "reference": e.reference,
+         "debit_cents": ln.debit_cents, "credit_cents": ln.credit_cents}
+        for e in entries for ln in e.lines
+    ]
 
     formatter = CSVJournalFormatter()
     csv_content = formatter.format(rows)
@@ -225,20 +159,12 @@ async def export_csv_invoices(
         )
         .order_by(Invoice.issue_date)
     )
-    rows = []
-    for invoice, customer_name in inv_result.all():
-        rows.append(
-            {
-                "invoice_number": invoice.invoice_number,
-                "customer_name": customer_name,
-                "issue_date": invoice.issue_date,
-                "due_date": invoice.due_date,
-                "subtotal_cents": invoice.subtotal_cents,
-                "vat_total_cents": invoice.vat_total_cents,
-                "total_cents": invoice.total_cents,
-                "status": invoice.status,
-            }
-        )
+    rows = [
+        {"invoice_number": inv.invoice_number, "customer_name": cname, "issue_date": inv.issue_date,
+         "due_date": inv.due_date, "subtotal_cents": inv.subtotal_cents, "vat_total_cents": inv.vat_total_cents,
+         "total_cents": inv.total_cents, "status": inv.status}
+        for inv, cname in inv_result.all()
+    ]
 
     formatter = CSVInvoiceFormatter()
     csv_content = formatter.format(rows)
@@ -253,18 +179,10 @@ async def export_csv_invoices(
     )
 
 
-# ---------------------------------------------------------------------------
-# GET /api/v1/exports/history
-# ---------------------------------------------------------------------------
-
-
 @router.get("/history", response_model=list[ExportHistoryResponse])
 async def export_history(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[ExportHistory]:
     """Return export history for the current user, newest first."""
-    result = await db.execute(
-        select(ExportHistory).where(ExportHistory.owner_id == user.id).order_by(ExportHistory.exported_at.desc())
-    )
-    return list(result.scalars().all())
+    return list((await db.execute(select(ExportHistory).where(ExportHistory.owner_id == user.id).order_by(ExportHistory.exported_at.desc()))).scalars().all())

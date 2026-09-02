@@ -42,11 +42,8 @@ def _euro(cents: int) -> str:
 
 
 def _qty(value: float) -> str:
-    # Strip trailing zeros but keep at least one decimal place.
     s = f"{value:.4f}".rstrip("0").rstrip(".")
-    if "." not in s:
-        s += ".0"
-    return s
+    return s if "." in s else s + ".0"
 
 
 def _percent(bp: int) -> str:
@@ -70,28 +67,23 @@ def _SubElement(parent: ET.Element, tag: str, text: str | None = None, **attrib:
 
 def _add_party(parent: ET.Element, party: Mapping[str, Any], *, ns_prefix_cac: str) -> None:
     cac, cbc = f"{{{UBL_CAC_NS}}}", f"{{{UBL_CBC_NS}}}"
-    party_elem = ET.SubElement(parent, f"{cac}Party")
-    _SubElement(ET.SubElement(party_elem, f"{cac}PartyName"), f"{cbc}Name", party.get("name", ""))
-
-    addr = ET.SubElement(party_elem, f"{cac}PostalAddress")
-    addr_fields = [("address_line1", "StreetName"), ("city", "CityName"), ("postal_code", "PostalZone")]
-    for key, tag in addr_fields:
+    p = ET.SubElement(parent, f"{cac}Party")
+    _SubElement(ET.SubElement(p, f"{cac}PartyName"), f"{cbc}Name", party.get("name", ""))
+    addr = ET.SubElement(p, f"{cac}PostalAddress")
+    for key, tag in [("address_line1", "StreetName"), ("city", "CityName"), ("postal_code", "PostalZone")]:
         if party.get(key):
             _SubElement(addr, f"{cbc}{tag}", party[key])
     _SubElement(ET.SubElement(addr, f"{cac}Country"), f"{cbc}IdentificationCode", party.get("country_code", "NL"))
-
     if party.get("vat_number"):
-        tax_scheme = ET.SubElement(party_elem, f"{cac}PartyTaxScheme")
-        _SubElement(tax_scheme, f"{cbc}CompanyID", party["vat_number"])
-        _SubElement(ET.SubElement(tax_scheme, f"{cac}TaxScheme"), f"{cbc}ID", "VAT")
-
-    legal = ET.SubElement(party_elem, f"{cac}PartyLegalEntity")
+        ts = ET.SubElement(p, f"{cac}PartyTaxScheme")
+        _SubElement(ts, f"{cbc}CompanyID", party["vat_number"])
+        _SubElement(ET.SubElement(ts, f"{cac}TaxScheme"), f"{cbc}ID", "VAT")
+    legal = ET.SubElement(p, f"{cac}PartyLegalEntity")
     _SubElement(legal, f"{cbc}RegistrationName", party.get("name", ""))
     if party.get("kvk_number"):
         _SubElement(legal, f"{cbc}CompanyID", party["kvk_number"], schemeID="0106")
-
     if party.get("email"):
-        _SubElement(ET.SubElement(party_elem, f"{cac}Contact"), f"{cbc}ElectronicMail", party["email"])
+        _SubElement(ET.SubElement(p, f"{cac}Contact"), f"{cbc}ElectronicMail", party["email"])
 
 
 def _group_lines_by_vat(lines: Sequence[Mapping[str, Any]]) -> dict[int, dict[str, int]]:
@@ -114,12 +106,9 @@ def build_invoice_ubl_xml(
 
     for prefix, ns in [("", UBL_INVOICE_NS), ("cac", UBL_CAC_NS), ("cbc", UBL_CBC_NS)]:
         ET.register_namespace(prefix, ns)
-
     cac, cbc = f"{{{UBL_CAC_NS}}}", f"{{{UBL_CBC_NS}}}"
     root = ET.Element(f"{{{UBL_INVOICE_NS}}}Invoice")
-    issue, due = invoice["issue_date"], invoice["due_date"]
-    currency = invoice.get("currency", "EUR")
-
+    issue, due, currency = invoice["issue_date"], invoice["due_date"], invoice.get("currency", "EUR")
     for tag, text in [("CustomizationID", CUSTOMIZATION_ID), ("ProfileID", PROFILE_ID),
                       ("ID", str(invoice["invoice_number"])), ("IssueDate", issue.isoformat()),
                       ("DueDate", due.isoformat()), ("InvoiceTypeCode", "380")]:
@@ -127,33 +116,28 @@ def build_invoice_ubl_xml(
     if invoice.get("notes"):
         _SubElement(root, f"{cbc}Note", str(invoice["notes"]))
     _SubElement(root, f"{cbc}DocumentCurrencyCode", currency)
-
     for tag, party in [("AccountingSupplierParty", supplier), ("AccountingCustomerParty", customer)]:
         _add_party(ET.SubElement(root, f"{cac}{tag}"), party, ns_prefix_cac="cac")
-
     if supplier.get("iban"):
         pm = ET.SubElement(root, f"{cac}PaymentMeans")
         _SubElement(pm, f"{cbc}PaymentMeansCode", "30")
         _SubElement(pm, f"{cbc}PaymentDueDate", due.isoformat())
         _SubElement(ET.SubElement(pm, f"{cac}PayeeFinancialAccount"), f"{cbc}ID", supplier["iban"])
-
-    tax_total = ET.SubElement(root, f"{cac}TaxTotal")
-    _SubElement(tax_total, f"{cbc}TaxAmount", _euro(int(invoice["vat_total_cents"])), currencyID=currency)
-    for rate_bp, totals in sorted(_group_lines_by_vat(invoice["lines"]).items()):
-        sub = ET.SubElement(tax_total, f"{cac}TaxSubtotal")
-        _SubElement(sub, f"{cbc}TaxableAmount", _euro(totals["net"]), currencyID=currency)
-        _SubElement(sub, f"{cbc}TaxAmount", _euro(totals["vat"]), currencyID=currency)
+    tt = ET.SubElement(root, f"{cac}TaxTotal")
+    _SubElement(tt, f"{cbc}TaxAmount", _euro(int(invoice["vat_total_cents"])), currencyID=currency)
+    for rate_bp, tots in sorted(_group_lines_by_vat(invoice["lines"]).items()):
+        sub = ET.SubElement(tt, f"{cac}TaxSubtotal")
+        _SubElement(sub, f"{cbc}TaxableAmount", _euro(tots["net"]), currencyID=currency)
+        _SubElement(sub, f"{cbc}TaxAmount", _euro(tots["vat"]), currencyID=currency)
         cat = ET.SubElement(sub, f"{cac}TaxCategory")
         _SubElement(cat, f"{cbc}ID", _vat_category(rate_bp))
         _SubElement(cat, f"{cbc}Percent", _percent(rate_bp))
         _SubElement(ET.SubElement(cat, f"{cac}TaxScheme"), f"{cbc}ID", "VAT")
-
     lmt = ET.SubElement(root, f"{cac}LegalMonetaryTotal")
-    subtotal, vat_total, total = int(invoice["subtotal_cents"]), int(invoice["vat_total_cents"]), int(invoice["total_cents"])
-    for tag, amt in [("LineExtensionAmount", subtotal), ("TaxExclusiveAmount", subtotal),
-                     ("TaxInclusiveAmount", subtotal + vat_total), ("PayableAmount", total)]:
+    st, vt, tot = int(invoice["subtotal_cents"]), int(invoice["vat_total_cents"]), int(invoice["total_cents"])
+    for tag, amt in [("LineExtensionAmount", st), ("TaxExclusiveAmount", st),
+                     ("TaxInclusiveAmount", st + vt), ("PayableAmount", tot)]:
         _SubElement(lmt, f"{cbc}{tag}", _euro(amt), currencyID=currency)
-
     for idx, line in enumerate(invoice["lines"], start=1):
         le = ET.SubElement(root, f"{cac}InvoiceLine")
         _SubElement(le, f"{cbc}ID", str(idx))
@@ -168,7 +152,6 @@ def build_invoice_ubl_xml(
         _SubElement(ET.SubElement(cat, f"{cac}TaxScheme"), f"{cbc}ID", "VAT")
         _SubElement(ET.SubElement(le, f"{cac}Price"), f"{cbc}PriceAmount",
                     _euro(int(line["unit_price_cents"])), currencyID=currency)
-
     return b'<?xml version="1.0" encoding="UTF-8"?>\n' + ET.tostring(root, encoding="utf-8")
 
 
@@ -189,27 +172,15 @@ _REQUIRED_ELEMENTS = (
 
 
 def validate_ubl(xml_bytes: bytes) -> list[str]:
-    """Stub schematron-style validator returning a list of error messages.
-
-    Checks the document has the required top-level Peppol BIS Billing 3.0
-    elements. A real implementation would run the official schematron via
-    a library like ``xmlschema``; we keep things dependency-free here.
-    """
-
     try:
         root = ET.fromstring(xml_bytes)
     except ET.ParseError as exc:
         return [f"XML is not well-formed: {exc}"]
-
     errors: list[str] = []
     if not root.tag.endswith("}Invoice") and root.tag != "Invoice":
         errors.append("Root element must be Invoice")
-
     ns = {"cbc": UBL_CBC_NS, "cac": UBL_CAC_NS}
-    _CAC_ELEMENTS = {"AccountingSupplierParty", "AccountingCustomerParty", "TaxTotal", "LegalMonetaryTotal", "InvoiceLine"}
-    errors.extend(
-        f"Missing required element: {name}"
-        for name in _REQUIRED_ELEMENTS
-        if root.find(f"{'cac' if name in _CAC_ELEMENTS else 'cbc'}:{name}", ns) is None
-    )
+    cac_elems = {"AccountingSupplierParty", "AccountingCustomerParty", "TaxTotal", "LegalMonetaryTotal", "InvoiceLine"}
+    errors.extend(f"Missing required element: {n}" for n in _REQUIRED_ELEMENTS
+                  if root.find(f"{'cac' if n in cac_elems else 'cbc'}:{n}", ns) is None)
     return errors

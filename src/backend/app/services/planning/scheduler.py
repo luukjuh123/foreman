@@ -143,63 +143,37 @@ class ScheduleOptimizer:
             si = input_by_id[cpm.id]
             duration_s = round(cpm.duration_hours * _HOUR_S)
 
-            # Dependency lower bound
             dep_finishes = [finish_by_id[d] for d in cpm.dependencies if d in finish_by_id]
             earliest = max(dep_finishes) if dep_finishes else 0
-            reasons: list[str] = []
-            if dep_finishes:
-                reasons.append(
-                    f"starts after dependencies finish at {earliest // _HOUR_S}h",
-                )
-            else:
-                reasons.append("no dependencies — eligible to start at project start")
+            reasons: list[str] = [
+                f"starts after dependencies finish at {earliest // _HOUR_S}h" if dep_finishes
+                else "no dependencies — eligible to start at project start"
+            ]
 
-            # Resource lower bound
             for res in si.required_resources:
                 free_at = first_resource_free_after(res, earliest, duration_s)
                 if free_at > earliest:
-                    reasons.append(
-                        f"waited for resource '{res}' (capacity "
-                        f"{self._resources.cap(res)}) to free at {free_at // _HOUR_S}h",
-                    )
+                    reasons.append(f"waited for resource '{res}' (capacity {self._resources.cap(res)}) to free at {free_at // _HOUR_S}h")
                 earliest = max(earliest, free_at)
 
-            # Weather lower bound (outdoor only)
             if si.outdoor:
-                # Check days iteratively without recomputing inside helper
-                cur = earliest
-                pushed = False
+                cur, pushed = earliest, False
                 for _ in range(366):
-                    day_idx = cur // _DAY_S
-                    if not await is_bad(day_idx):
+                    if not await is_bad(cur // _DAY_S):
                         break
-                    cur = (day_idx + 1) * _DAY_S
-                    pushed = True
+                    cur, pushed = ((cur // _DAY_S) + 1) * _DAY_S, True
                 else:
-                    msg = "No clear weather window found within 366 days"
-                    raise RuntimeError(msg)
+                    raise RuntimeError("No clear weather window found within 366 days")
                 if pushed:
-                    reasons.append(
-                        f"shifted to day {cur // _DAY_S} due to bad weather on prior day(s)",
-                    )
+                    reasons.append(f"shifted to day {cur // _DAY_S} due to bad weather on prior day(s)")
                 earliest = cur
 
-            start_s = earliest
-            end_s = start_s + duration_s
-
-            # Reserve resource intervals
+            start_s, end_s = earliest, earliest + duration_s
             for res in si.required_resources:
                 usage.setdefault(res, []).append((start_s, end_s))
-
             finish_by_id[cpm.id] = end_s
-            scheduled.append(
-                ScheduledTask(
-                    task_id=cpm.id,
-                    start_time_s=start_s,
-                    end_time_s=end_s,
-                    reasoning="; ".join(reasons),
-                )
-            )
+            scheduled.append(ScheduledTask(task_id=cpm.id, start_time_s=start_s, end_time_s=end_s,
+                                           reasoning="; ".join(reasons)))
 
         # Preserve input task order in output
         order_index = {si.task.id: i for i, si in enumerate(inputs)}

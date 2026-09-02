@@ -40,14 +40,8 @@ DEFAULT_COVERAGE_RATES: dict[str, dict[str, Any]] = {
 
 
 def get_coverage_rate(material: str) -> dict[str, Any]:
-    """Return the seed coverage rate entry for a material.
-
-    Raises:
-        KeyError: if the material is not seeded.
-    """
     if material not in DEFAULT_COVERAGE_RATES:
-        msg = f"No seed coverage rate for material {material!r}"
-        raise KeyError(msg)
+        raise KeyError(f"No seed coverage rate for material {material!r}")
     return dict(DEFAULT_COVERAGE_RATES[material])
 
 
@@ -68,96 +62,35 @@ def _require_positive(name: str, value: float, *, allow_zero: bool = True) -> No
         raise ValueError(msg)
 
 
-def estimate_paint(
-    area_m2: float,
-    coats: int = 2,
-    coverage_m2_per_liter: float | None = None,
-) -> MaterialEstimate:
-    """Estimate paint needed to cover ``area_m2`` with ``coats`` coats.
-
-    Quantity is returned as whole liters via ``math.ceil`` because paint is
-    sold in discrete containers — rounding up avoids running out mid-coat.
-
-    Example:
-        10 m² wall, 1 coat, 12 m²/L coverage → ceil(10/12) = ceil(0.834) = 1 L
-    """
+def estimate_paint(area_m2: float, coats: int = 2, coverage_m2_per_liter: float | None = None) -> MaterialEstimate:
     _require_positive("area_m2", area_m2)
     if coats < 1:
-        msg = f"coats must be >= 1, got {coats!r}"
-        raise ValueError(msg)
-    if coverage_m2_per_liter is None:
-        coverage_m2_per_liter = float(DEFAULT_COVERAGE_RATES["paint"]["coverage_m2_per_liter"])
+        raise ValueError(f"coats must be >= 1, got {coats!r}")
+    coverage_m2_per_liter = coverage_m2_per_liter or float(DEFAULT_COVERAGE_RATES["paint"]["coverage_m2_per_liter"])
     _require_positive("coverage_m2_per_liter", coverage_m2_per_liter, allow_zero=False)
-
     raw_liters = (area_m2 * coats) / coverage_m2_per_liter
-    liters = float(math.ceil(raw_liters))
-    return MaterialEstimate(
-        material="paint",
-        quantity=liters,
-        unit="L",
-        notes=(f"{coats} coat(s) @ {coverage_m2_per_liter} m²/L (raw={raw_liters:.3f} L, rounded up)"),
-    )
+    return MaterialEstimate(material="paint", quantity=float(math.ceil(raw_liters)), unit="L",
+                            notes=f"{coats} coat(s) @ {coverage_m2_per_liter} m²/L (raw={raw_liters:.3f} L, rounded up)")
 
 
-def estimate_tiles(
-    area_m2: float,
-    waste_pct: float | None = None,
-) -> MaterialEstimate:
-    """Estimate tile area needed with a configurable waste factor.
-
-    Quantity is returned as m² (decimal) rather than count because tile size
-    is unknown at this layer; the caller converts m² → boxes downstream.
-    """
+def estimate_tiles(area_m2: float, waste_pct: float | None = None) -> MaterialEstimate:
     _require_positive("area_m2", area_m2)
-    if waste_pct is None:
-        waste_pct = float(DEFAULT_COVERAGE_RATES["tiles"]["waste_pct"])
+    waste_pct = waste_pct if waste_pct is not None else float(DEFAULT_COVERAGE_RATES["tiles"]["waste_pct"])
     _require_positive("waste_pct", waste_pct)
-
-    total = area_m2 * (1 + waste_pct / 100)
-    return MaterialEstimate(
-        material="tiles",
-        quantity=round(total, 2),
-        unit="m2",
-        notes=f"+{waste_pct}% waste",
-    )
+    return MaterialEstimate(material="tiles", quantity=round(area_m2 * (1 + waste_pct / 100), 2),
+                            unit="m2", notes=f"+{waste_pct}% waste")
 
 
-def estimate_concrete(
-    length_m: float,
-    width_m: float,
-    thickness_m: float,
-) -> MaterialEstimate:
-    """Estimate concrete volume for a rectangular slab/foundation."""
-    _require_positive("length_m", length_m, allow_zero=False)
-    _require_positive("width_m", width_m, allow_zero=False)
-    _require_positive("thickness_m", thickness_m, allow_zero=False)
-
-    volume = length_m * width_m * thickness_m
-    return MaterialEstimate(
-        material="concrete",
-        quantity=round(volume, 3),
-        unit="m3",
-        notes=f"slab {length_m}×{width_m}×{thickness_m} m",
-    )
+def estimate_concrete(length_m: float, width_m: float, thickness_m: float) -> MaterialEstimate:
+    for name, val in [("length_m", length_m), ("width_m", width_m), ("thickness_m", thickness_m)]:
+        _require_positive(name, val, allow_zero=False)
+    return MaterialEstimate(material="concrete", quantity=round(length_m * width_m * thickness_m, 3),
+                            unit="m3", notes=f"slab {length_m}×{width_m}×{thickness_m} m")
 
 
-def estimate_lumber(
-    total_length_m: float,
-    piece_length_m: float,
-) -> MaterialEstimate:
-    """Estimate lumber needed to span ``total_length_m`` using stock pieces.
-
-    Quantity is the total purchased linear meters (pieces × piece length);
-    pieces are rounded up via ``math.ceil`` because lumber is sold whole.
-    """
+def estimate_lumber(total_length_m: float, piece_length_m: float) -> MaterialEstimate:
     _require_positive("total_length_m", total_length_m)
     _require_positive("piece_length_m", piece_length_m, allow_zero=False)
-
     pieces = math.ceil(total_length_m / piece_length_m) if total_length_m else 0
-    purchased = pieces * piece_length_m
-    return MaterialEstimate(
-        material="lumber",
-        quantity=round(purchased, 3),
-        unit="m",
-        notes=f"{pieces} pieces @ {piece_length_m} m",
-    )
+    return MaterialEstimate(material="lumber", quantity=round(pieces * piece_length_m, 3),
+                            unit="m", notes=f"{pieces} pieces @ {piece_length_m} m")

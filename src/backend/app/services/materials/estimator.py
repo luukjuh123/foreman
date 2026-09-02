@@ -28,8 +28,7 @@ def estimate_paint(area_m2: float, coats: int = 2, coverage_m2_per_liter: float 
         MaterialEstimate with quantity in liters.
     """
     if area_m2 < 0 or coats < 1 or coverage_m2_per_liter <= 0:
-        msg = "Invalid input: area_m2 must be >= 0, coats >= 1, coverage > 0"
-        raise ValueError(msg)
+        raise ValueError("Invalid input: area_m2 must be >= 0, coats >= 1, coverage > 0")
     liters = (area_m2 * coats) / coverage_m2_per_liter
     return MaterialEstimate(material="paint", quantity=liters, unit="L", notes=f"{coats} coats")
 
@@ -45,8 +44,7 @@ def estimate_tiles(area_m2: float, waste_pct: float = 10.0) -> MaterialEstimate:
         MaterialEstimate with quantity in m².
     """
     if area_m2 < 0 or waste_pct < 0:
-        msg = "Invalid input: area_m2 and waste_pct must be >= 0"
-        raise ValueError(msg)
+        raise ValueError("Invalid input: area_m2 and waste_pct must be >= 0")
     total = area_m2 * (1 + waste_pct / 100)
     return MaterialEstimate(
         material="tiles",
@@ -66,8 +64,7 @@ def estimate_concrete(volume_m3: float) -> MaterialEstimate:
         MaterialEstimate with quantity in m³.
     """
     if volume_m3 < 0:
-        msg = "Invalid input: volume_m3 must be >= 0"
-        raise ValueError(msg)
+        raise ValueError("Invalid input: volume_m3 must be >= 0")
     return MaterialEstimate(material="concrete", quantity=volume_m3, unit="m3")
 
 
@@ -82,8 +79,7 @@ def estimate_lumber(length_m: float, count: int = 1) -> MaterialEstimate:
         MaterialEstimate with quantity in linear meters.
     """
     if length_m < 0 or count < 0:
-        msg = "Invalid input: length_m and count must be >= 0"
-        raise ValueError(msg)
+        raise ValueError("Invalid input: length_m and count must be >= 0")
     return MaterialEstimate(
         material="lumber",
         quantity=length_m * count,

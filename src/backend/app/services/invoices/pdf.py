@@ -62,14 +62,13 @@ table.lines td.num, table.lines th.num { text-align: right; }
 """
 
 
-def _party_html(party: Mapping[str, Any]) -> str:
-    parts = [
-        f"<strong>{escape(party.get('name', ''))}</strong>",
-        escape(party.get("address_line1", "")),
-        f"{escape(party.get('postal_code', ''))} {escape(party.get('city', ''))}",
-        escape(party.get("country_code", "NL")),
-    ]
-    return "<br>".join(p for p in parts if p)
+def _party_html(p: Mapping[str, Any]) -> str:
+    return "<br>".join(x for x in [
+        f"<strong>{escape(p.get('name', ''))}</strong>",
+        escape(p.get("address_line1", "")),
+        f"{escape(p.get('postal_code', ''))} {escape(p.get('city', ''))}",
+        escape(p.get("country_code", "NL")),
+    ] if x)
 
 
 def render_invoice_html(

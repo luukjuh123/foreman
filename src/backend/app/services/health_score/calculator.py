@@ -57,64 +57,35 @@ class ProjectHealthCalculator:
     end_date: date | None = None
 
     def compute_factors(self) -> HealthFactors:
-        total = len(self.tasks)
         done = sum(1 for t in self.tasks if getattr(t, "status", None) == "done")
-        overdue = sum(
-            1 for t in self.tasks
-            if getattr(t, "status", None) != "done"
-            and getattr(t, "end_date", None) is not None and t.end_date < self.today
-        )
-        # Spend is the sum of per-task labor cost (the canonical measure); fall
-        # back to a project-level actual_spend_cents only when tasks carry no
-        # labor cost data.
-        spent_from_tasks = sum(getattr(t, "labor_cost_cents", 0) or 0 for t in self.tasks)
-        spent_cents = spent_from_tasks if spent_from_tasks else self.actual_spend_cents
-        return HealthFactors(
-            total_tasks=total,
-            done_tasks=done,
-            overdue_count=overdue,
-            budget_cents=self.budget_cents,
-            spent_cents=spent_cents,
-            start_date=self.start_date,
-            end_date=self.end_date,
-            today=self.today,
-        )
+        overdue = sum(1 for t in self.tasks if getattr(t, "status", None) != "done" and getattr(t, "end_date", None) is not None and t.end_date < self.today)
+        spent = sum(getattr(t, "labor_cost_cents", 0) or 0 for t in self.tasks) or self.actual_spend_cents
+        return HealthFactors(total_tasks=len(self.tasks), done_tasks=done, overdue_count=overdue, budget_cents=self.budget_cents,
+                             spent_cents=spent, start_date=self.start_date, end_date=self.end_date, today=self.today)
 
 
 def compute_health_score(factors: HealthFactors) -> HealthScoreResult:
     """Compute a HealthScoreResult from pre-computed HealthFactors."""
-    total, done_count = factors.total_tasks, factors.done_tasks
-    budget_cents, spent_cents = factors.budget_cents, factors.spent_cents
-    start_date, end_date, today = factors.start_date, factors.end_date, factors.today
+    f = factors
+    t, d = f.total_tasks, f.done_tasks
 
-    # Completion (25 pts)
-    completion_score = 12 if total == 0 else round(done_count / total * 25)
-    # Overdue (25 pts)
-    overdue_score = 25 if total == 0 else round((1.0 - factors.overdue_count / total) * 25)
-    # Budget (25 pts)
-    burn_rate = (spent_cents / budget_cents) if budget_cents and budget_cents > 0 else 0.0
-    budget_score = (25 if burn_rate <= 1.0 else max(0, round(25 - (burn_rate - 1.0) * 25))) if budget_cents and budget_cents > 0 else 25
+    completion = 12 if t == 0 else round(d / t * 25)
+    overdue = 25 if t == 0 else round((1 - f.overdue_count / t) * 25)
+    burn = (f.spent_cents / f.budget_cents) if f.budget_cents else 0.0
+    budget = (25 if burn <= 1 else max(0, round(25 - (burn - 1) * 25))) if f.budget_cents else 25
 
-    # Schedule (25 pts)
-    if start_date is None or end_date is None or start_date >= end_date:
-        schedule_score, planned_progress = 25, 0.0
+    if f.start_date and f.end_date and f.start_date < f.end_date:
+        pp = min(max(0, (f.today - f.start_date).days) / (f.end_date - f.start_date).days, 1.0)
+        variance = (d / t if t else pp) - pp
+        schedule = 25 if variance >= 0 else max(0, round(25 + variance * 25))
     else:
-        total_days = (end_date - start_date).days
-        planned_progress = min(max(0, (today - start_date).days) / total_days, 1.0)
-        variance = ((done_count / total) if total > 0 else planned_progress) - planned_progress
-        schedule_score = 25 if variance >= 0 else max(0, round(25 + variance * 25))
+        schedule, pp = 25, 0.0
 
-    total_score = completion_score + overdue_score + budget_score + schedule_score
+    total = completion + overdue + budget + schedule
     return HealthScoreResult(
-        score=total_score,
-        rating="green" if total_score > 70 else ("amber" if total_score >= 40 else "red"),
-        schedule_score=schedule_score, budget_score=budget_score,
-        completion_score=completion_score, overdue_score=overdue_score,
-        details={
-            "total_tasks": total, "done_tasks": done_count,
-            "overdue_count": factors.overdue_count, "budget_burn_rate": burn_rate,
-            "spent_cents": spent_cents, "budget_cents": budget_cents,
-            "actual_progress": done_count / total if total > 0 else 0.0,
-            "planned_progress": planned_progress,
-        },
+        score=total, rating="green" if total > 70 else ("amber" if total >= 40 else "red"),
+        schedule_score=schedule, budget_score=budget, completion_score=completion, overdue_score=overdue,
+        details={"total_tasks": t, "done_tasks": d, "overdue_count": f.overdue_count, "budget_burn_rate": burn,
+                 "spent_cents": f.spent_cents, "budget_cents": f.budget_cents,
+                 "actual_progress": d / t if t else 0.0, "planned_progress": pp},
     )

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 from typing import Any
 
 from app.models.staff import Staff
@@ -10,6 +11,11 @@ from app.models.user import User
 from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+
+def ensure_utc(dt: datetime) -> datetime:
+    """Return *dt* with UTC tzinfo attached if it was naive (e.g. SQLite round-trip)."""
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)
 
 
 async def get_or_404(
@@ -59,3 +65,30 @@ async def get_owned_staff_or_404(staff_id: uuid.UUID, user: User, db: AsyncSessi
         Staff.id == staff_id, Staff.owner_id == user.id, Staff.deleted_at.is_(None),
         detail="Staff not found",
     )
+
+
+async def get_owned_project_or_404(
+    project_id: uuid.UUID, user: User, db: AsyncSession,
+) -> Any:
+    """Fetch a non-deleted project owned by *user*, or raise 403/404."""
+    from app.models.project import Project  # deferred to avoid circular import
+
+    project = await get_or_404(db, Project, Project.id == project_id, Project.deleted_at.is_(None))
+    if project.owner_id != user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your project")
+    return project
+
+
+async def commit_refresh_validate(db: AsyncSession, obj: Any, response_cls: type) -> Any:
+    """Commit, refresh, and return a Pydantic model_validate of *obj*."""
+    await db.commit()
+    await db.refresh(obj)
+    return response_cls.model_validate(obj)
+
+
+async def add_commit_refresh_validate(db: AsyncSession, obj: Any, response_cls: type) -> Any:
+    """Add, commit, refresh, and return a Pydantic model_validate of *obj*."""
+    db.add(obj)
+    await db.commit()
+    await db.refresh(obj)
+    return response_cls.model_validate(obj)

@@ -21,6 +21,12 @@ _TRANSITIONS: dict[str, frozenset[str]] = {
     "cancelled": frozenset(),
 }
 
+# Map target status → timestamp field to set (only on first transition).
+_TIMESTAMP_FIELD: dict[str, str] = {
+    "sent": "sent_at",
+    "paid": "paid_at",
+}
+
 
 def is_legal_transition(current: str, target: str) -> bool:
     """Return True if moving from `current` to `target` is allowed."""
@@ -35,10 +41,9 @@ def apply_transition(invoice: Invoice, target: str, *, now: datetime | None = No
         raise ValueError(f"Illegal transition: {invoice.status!r} -> {target!r}")
     moment = now or datetime.now(UTC)
     invoice.status = target
-    if target == "sent" and invoice.sent_at is None:
-        invoice.sent_at = moment
-    elif target == "paid" and invoice.paid_at is None:
-        invoice.paid_at = moment
+    field = _TIMESTAMP_FIELD.get(target)
+    if field and getattr(invoice, field) is None:
+        setattr(invoice, field, moment)
 
 
 async def sweep_overdue(db: AsyncSession, *, as_of: date) -> int:

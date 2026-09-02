@@ -18,7 +18,7 @@ from app.models.project import Phase, Project
 from app.models.share_token import ShareToken
 from app.models.user import User
 from app.routers.auth import get_current_user
-from app.routers.deps import get_or_404
+from app.routers.deps import get_or_404, get_owned_project_or_404
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -111,16 +111,12 @@ class PortalInvoicesResponse(BaseModel):
 
 async def _resolve_token(token: str, db: AsyncSession) -> ShareToken:
     """Fetch a share token and verify it is not expired."""
-    result = await db.execute(select(ShareToken).where(ShareToken.token == token))
-    share = result.scalar_one_or_none()
+    share = (await db.execute(select(ShareToken).where(ShareToken.token == token))).scalar_one_or_none()
     if share is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Token not found")
     # Support both tz-aware (PostgreSQL) and tz-naive (SQLite in tests).
-    expires = share.expires_at
-    now = datetime.now(UTC)
-    if expires.tzinfo is None:
-        now = datetime.utcnow()
-    if expires < now:
+    now = datetime.utcnow() if share.expires_at.tzinfo is None else datetime.now(UTC)
+    if share.expires_at < now:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Token expired")
     return share
 
@@ -137,24 +133,19 @@ def _date_str(d) -> str | None:
     return d.isoformat() if d is not None else None
 
 
+def _pick(obj, *keys):
+    return {k: getattr(obj, k) for k in keys}
+
+
+def _pick_dates(obj, *keys):
+    return {k: _date_str(getattr(obj, k)) for k in keys}
+
+
 def _phase_to_summary(phase: Phase) -> PhaseSummary:
     return PhaseSummary(
-        id=phase.id,
-        name=phase.name,
-        status=phase.status,
-        order_index=phase.order_index,
-        start_date=_date_str(phase.start_date),
-        end_date=_date_str(phase.end_date),
-        tasks=[
-            TaskSummary(
-                id=t.id,
-                name=t.name,
-                status=t.status,
-                start_date=_date_str(t.start_date),
-                end_date=_date_str(t.end_date),
-            )
-            for t in sorted(phase.tasks, key=lambda x: x.priority, reverse=True)
-        ],
+        **_pick(phase, "id", "name", "status", "order_index"), **_pick_dates(phase, "start_date", "end_date"),
+        tasks=[TaskSummary(**_pick(t, "id", "name", "status"), **_pick_dates(t, "start_date", "end_date"))
+               for t in sorted(phase.tasks, key=lambda x: x.priority, reverse=True)],
     )
 
 
@@ -175,17 +166,11 @@ async def generate_share_token(
     db: AsyncSession = Depends(get_db),
 ) -> ShareTokenResponse:
     """Generate a shareable token for a project.  Auth required; only owner can generate."""
-    project = await get_or_404(db, Project, Project.id == project_id, Project.deleted_at.is_(None))
-    if project.owner_id != user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your project")
+    project = await get_owned_project_or_404(project_id, user, db)
 
-    token_str = secrets.token_urlsafe(32)
-    expires = datetime.now(UTC) + timedelta(days=_TOKEN_TTL_DAYS)
-    share = ShareToken(project_id=project_id, token=token_str, expires_at=expires)
-    db.add(share)
+    db.add(share := ShareToken(project_id=project_id, token=secrets.token_urlsafe(32), expires_at=datetime.now(UTC) + timedelta(days=_TOKEN_TTL_DAYS)))
     await db.commit()
     await db.refresh(share)
-
     return ShareTokenResponse(token=share.token, expires_at=share.expires_at, project_id=share.project_id)
 
 
@@ -208,14 +193,7 @@ async def portal_overview(
     project = await _get_project(share.project_id, db)
 
     return PortalOverviewResponse(
-        project=ProjectSummary(
-            id=project.id,
-            name=project.name,
-            description=project.description,
-            status=project.status,
-            start_date=_date_str(project.start_date),
-            end_date=_date_str(project.end_date),
-        ),
+        project=ProjectSummary(**_pick(project, "id", "name", "description", "status"), **_pick_dates(project, "start_date", "end_date")),
         phases=[_phase_to_summary(ph) for ph in sorted(project.phases, key=lambda p: p.order_index)],
     )
 
@@ -249,23 +227,11 @@ async def portal_photos(
 ) -> PortalPhotosResponse:
     """Return progress photos for the project."""
     share = await _resolve_token(token, db)
-
-    result = await db.execute(
+    photos = (await db.execute(
         select(ProcessPhoto).where(ProcessPhoto.project_id == share.project_id).order_by(ProcessPhoto.created_at)
-    )
-    photos = result.scalars().all()
-
+    )).scalars().all()
     return PortalPhotosResponse(
-        photos=[
-            PhotoSummary(
-                id=p.id,
-                image_url=p.image_url,
-                completion_pct=p.completion_pct,
-                reasoning=p.reasoning,
-                created_at=p.created_at,
-            )
-            for p in photos
-        ]
+        photos=[PhotoSummary(**_pick(p, "id", "image_url", "completion_pct", "reasoning", "created_at")) for p in photos]
     )
 
 
@@ -280,25 +246,11 @@ async def portal_invoices(
 ) -> PortalInvoicesResponse:
     """Return invoice status for the project — amounts, paid/unpaid."""
     share = await _resolve_token(token, db)
-
-    result = await db.execute(
-        select(Invoice)
-        .where(Invoice.project_id == share.project_id, Invoice.deleted_at.is_(None))
-        .order_by(Invoice.issue_date)
-    )
-    invoices = result.scalars().all()
-
+    invoices = (await db.execute(
+        select(Invoice).where(Invoice.project_id == share.project_id, Invoice.deleted_at.is_(None)).order_by(Invoice.issue_date)
+    )).scalars().all()
     return PortalInvoicesResponse(
-        invoices=[
-            InvoiceSummary(
-                id=inv.id,
-                invoice_number=inv.invoice_number,
-                issue_date=inv.issue_date.isoformat(),
-                due_date=inv.due_date.isoformat(),
-                status=inv.status,
-                total_cents=inv.total_cents,
-                paid_at=inv.paid_at,
-            )
-            for inv in invoices
-        ]
+        invoices=[InvoiceSummary(**_pick(inv, "id", "invoice_number", "status", "total_cents", "paid_at"),
+                                 issue_date=inv.issue_date.isoformat(), due_date=inv.due_date.isoformat())
+                  for inv in invoices]
     )

@@ -44,90 +44,41 @@ def calculate_health_score(project: object) -> HealthScoreResult:  # type: ignor
     total = len(all_tasks)
     done_count = sum(1 for t in all_tasks if t.status == "done")  # type: ignore[attr-defined]
 
-    # --- Completion component (25 pts) ---
-    if total == 0:
-        completion_score = 12  # neutral when no tasks
-    else:
-        completion_score = round(done_count / total * 25)
+    # --- Completion (25 pts) ---
+    completion_score = 12 if total == 0 else round(done_count / total * 25)
 
-    # --- Overdue component (25 pts) ---
-    overdue_count = sum(
-        1
-        for t in all_tasks
-        if t.status not in ("done",)  # type: ignore[attr-defined]
-        and t.end_date is not None  # type: ignore[attr-defined]
-        and t.end_date < today  # type: ignore[attr-defined]
-    )
-    if total == 0:
-        overdue_score = 25  # no tasks → no overdue penalty
-    else:
-        overdue_fraction = overdue_count / total
-        overdue_score = round((1.0 - overdue_fraction) * 25)
+    # --- Overdue (25 pts) ---
+    overdue_count = sum(1 for t in all_tasks if t.status != "done" and t.end_date is not None and t.end_date < today)  # type: ignore[attr-defined]
+    overdue_score = 25 if total == 0 else round((1.0 - overdue_count / total) * 25)
 
-    # --- Budget component (25 pts) ---
+    # --- Budget (25 pts) ---
     budget_cents: int = project.budget_cents  # type: ignore[attr-defined]
     spent_cents = sum(t.labor_cost_cents for t in all_tasks)  # type: ignore[attr-defined]
-    if budget_cents and budget_cents > 0:
-        burn_rate = spent_cents / budget_cents
-        if burn_rate <= 1.0:
-            budget_score = 25
-        else:
-            # Each 10% overspend costs 2.5 pts; floor at 0
-            budget_score = max(0, round(25 - (burn_rate - 1.0) * 25))
-    else:
-        burn_rate = 0.0
-        budget_score = 25  # no budget set → no penalty
+    burn_rate = spent_cents / budget_cents if budget_cents and budget_cents > 0 else 0.0
+    budget_score = 25 if burn_rate <= 1.0 else max(0, round(25 - (burn_rate - 1.0) * 25))
 
-    # --- Schedule component (25 pts) ---
+    # --- Schedule (25 pts) ---
     start_date: date | None = project.start_date  # type: ignore[attr-defined]
     end_date: date | None = project.end_date  # type: ignore[attr-defined]
-    if start_date is None or end_date is None or start_date >= end_date:
-        # No dates → no schedule penalty
+    planned_progress = 0.0
+    if start_date and end_date and start_date < end_date:
+        planned_progress = min(max(0, (today - start_date).days) / (end_date - start_date).days, 1.0)
+        actual_progress = planned_progress if total == 0 else done_count / total
+        schedule_score = 25 if actual_progress >= planned_progress else max(0, round(25 + (actual_progress - planned_progress) * 25))
+    else:
         schedule_score = 25
-        planned_progress = 0.0
-    else:
-        total_days = (end_date - start_date).days
-        elapsed_days = max(0, (today - start_date).days)
-        planned_progress = min(elapsed_days / total_days, 1.0)
-        if total == 0:
-            actual_progress = planned_progress  # neutral
-        else:
-            actual_progress = done_count / total
-        variance = actual_progress - planned_progress
-        if variance >= 0:
-            # On track or ahead
-            schedule_score = 25
-        else:
-            # Behind: each 10% behind costs 2.5 pts; floor at 0
-            schedule_score = max(0, round(25 + variance * 25))
 
-    actual_progress_val = done_count / total if total > 0 else 0.0
-
-    # --- Total ---
     total_score = completion_score + overdue_score + budget_score + schedule_score
-
-    if total_score > 70:
-        rating = "green"
-    elif total_score >= 40:
-        rating = "amber"
-    else:
-        rating = "red"
+    rating = "green" if total_score > 70 else ("amber" if total_score >= 40 else "red")
 
     return HealthScoreResult(
-        score=total_score,
-        rating=rating,
-        schedule_score=schedule_score,
-        budget_score=budget_score,
-        completion_score=completion_score,
-        overdue_score=overdue_score,
+        score=total_score, rating=rating,
+        schedule_score=schedule_score, budget_score=budget_score,
+        completion_score=completion_score, overdue_score=overdue_score,
         details={
-            "total_tasks": total,
-            "done_tasks": done_count,
-            "overdue_count": overdue_count,
-            "budget_burn_rate": burn_rate,
-            "spent_cents": spent_cents,
-            "budget_cents": budget_cents,
-            "actual_progress": actual_progress_val,
-            "planned_progress": planned_progress if start_date and end_date and start_date < end_date else 0.0,
+            "total_tasks": total, "done_tasks": done_count, "overdue_count": overdue_count,
+            "budget_burn_rate": burn_rate, "spent_cents": spent_cents, "budget_cents": budget_cents,
+            "actual_progress": done_count / total if total > 0 else 0.0,
+            "planned_progress": planned_progress,
         },
     )

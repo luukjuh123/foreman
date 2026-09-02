@@ -11,6 +11,7 @@ from app.models.project import Project
 from app.models.time_entry import ProcessTimeEntry
 from app.models.user import User
 from app.routers.auth import get_current_user
+from app.routers.deps import ensure_utc
 from app.schemas.time_entry import (
     TimeEntryListResponse,
     TimeEntryResponse,
@@ -109,10 +110,7 @@ async def stop_time_entry(
         )
 
     now = datetime.now(UTC)
-    started = entry.started_at
-    # SQLite may strip tzinfo on read — treat naive as UTC.
-    if started.tzinfo is None:
-        started = started.replace(tzinfo=UTC)
+    started = ensure_utc(entry.started_at)
     delta = (now - started).total_seconds()
     entry.stopped_at = now
     entry.duration_seconds = max(0, int(delta))

@@ -26,6 +26,10 @@ from pydantic import BaseModel, Field, field_validator
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+
+def _err(status_code: int, code: str, message: str) -> JSONResponse:
+    return JSONResponse(status_code=status_code, content={"data": None, "error": {"code": code, "message": message}})
+
 _SUPPORTED_AUDIO_TYPES = {
     "audio/wav",
     "audio/wave",
@@ -67,13 +71,7 @@ async def speak(
         result = await provider.synthesize(text=body.text, voice=body.voice)
     except Exception:
         logger.exception("tts provider failed")
-        return JSONResponse(
-            status_code=502,
-            content={
-                "data": None,
-                "error": {"code": "TTS_FAILED", "message": "tts provider error"},
-            },
-        )
+        return _err(502, "TTS_FAILED", "tts provider error")
 
     return Response(content=result.audio, media_type=result.content_type)
 
@@ -89,36 +87,15 @@ async def transcribe(
     """Accept an audio file upload and return its transcript."""
     content_type = audio.content_type or ""
     if content_type not in _SUPPORTED_AUDIO_TYPES:
-        return JSONResponse(
-            status_code=415,
-            content={
-                "data": None,
-                "error": {
-                    "code": "UNSUPPORTED_MEDIA_TYPE",
-                    "message": f"unsupported content type: {content_type}",
-                },
-            },
-        )
+        return _err(415, "UNSUPPORTED_MEDIA_TYPE", f"unsupported content type: {content_type}")
 
     data = await audio.read()
 
-    if len(data) == 0:
-        return JSONResponse(
-            status_code=400,
-            content={
-                "data": None,
-                "error": {"code": "EMPTY_AUDIO", "message": "audio file is empty"},
-            },
-        )
+    if not data:
+        return _err(400, "EMPTY_AUDIO", "audio file is empty")
 
     if len(data) > _MAX_AUDIO_BYTES:
-        return JSONResponse(
-            status_code=413,
-            content={
-                "data": None,
-                "error": {"code": "FILE_TOO_LARGE", "message": "audio file exceeds 25 MB limit"},
-            },
-        )
+        return _err(413, "FILE_TOO_LARGE", "audio file exceeds 25 MB limit")
 
     tmp_path = Path(tempfile.gettempdir()) / f"foreman-voice-{audio.filename}"
     try:
@@ -126,13 +103,7 @@ async def transcribe(
         result = await provider.transcribe(tmp_path, content_type)
     except Exception:
         logger.exception("transcription provider failed")
-        return JSONResponse(
-            status_code=502,
-            content={
-                "data": None,
-                "error": {"code": "TRANSCRIPTION_FAILED", "message": "transcription provider error"},
-            },
-        )
+        return _err(502, "TRANSCRIPTION_FAILED", "transcription provider error")
     finally:
         if tmp_path.exists():
             tmp_path.unlink()
@@ -206,13 +177,7 @@ async def chat(
         reply = await provider.reply(messages=messages, system_prompt=body.system_prompt)
     except Exception:
         logger.exception("conversational AI provider failed")
-        return JSONResponse(
-            status_code=502,
-            content={
-                "data": None,
-                "error": {"code": "CONVERSATION_FAILED", "message": "conversational AI provider error"},
-            },
-        )
+        return _err(502, "CONVERSATION_FAILED", "conversational AI provider error")
 
     return JSONResponse(
         status_code=200,

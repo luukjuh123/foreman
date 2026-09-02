@@ -4,7 +4,18 @@ import json
 import uuid
 from datetime import date, datetime
 
+from typing import Generic, TypeVar
+
 from pydantic import BaseModel, Field, field_validator
+
+T = TypeVar("T")
+
+
+class PagedResponse(BaseModel, Generic[T]):
+    data: list[T]
+    total: int
+    page: int
+    per_page: int
 
 CERT_TYPES = ("VCA", "BRL")
 ASSIGNMENT_STATUSES = ("planned", "active", "completed", "cancelled")
@@ -89,35 +100,14 @@ class SubcontractorResponse(BaseModel):
     @classmethod
     def model_validate(cls, obj, *args: object, **kwargs: object):  # type: ignore[override]
         if hasattr(obj, "specialties_json"):
-            specialties = json.loads(obj.specialties_json or "[]")
-            certifications = list(obj.certifications) if hasattr(obj, "certifications") else []
-            data = {
-                "id": obj.id,
-                "owner_id": obj.owner_id,
-                "company_name": obj.company_name,
-                "kvk_number": obj.kvk_number,
-                "contact_name": obj.contact_name,
-                "email": obj.email,
-                "phone": obj.phone,
-                "specialties": specialties,
-                "hourly_rate_cents": obj.hourly_rate_cents,
-                "fixed_rate_cents": obj.fixed_rate_cents,
-                "rating": obj.rating,
-                "notes": obj.notes,
-                "active": obj.active,
-                "certifications": certifications,
-                "created_at": obj.created_at,
-                "updated_at": obj.updated_at,
-            }
-            return cls(**data)
+            fields = {f: getattr(obj, f) for f in cls.model_fields if f not in ("specialties", "certifications")}
+            fields["specialties"] = json.loads(obj.specialties_json or "[]")
+            fields["certifications"] = list(obj.certifications) if hasattr(obj, "certifications") else []
+            return cls(**fields)
         return super().model_validate(obj, *args, **kwargs)
 
 
-class SubcontractorListResponse(BaseModel):
-    data: list[SubcontractorResponse]
-    total: int
-    page: int
-    per_page: int
+SubcontractorListResponse = PagedResponse[SubcontractorResponse]
 
 
 # ─── SubcontractorAssignment ──────────────────────────────────────────────────
@@ -173,11 +163,7 @@ class AssignmentResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class AssignmentListResponse(BaseModel):
-    data: list[AssignmentResponse]
-    total: int
-    page: int
-    per_page: int
+AssignmentListResponse = PagedResponse[AssignmentResponse]
 
 
 # ─── SubcontractorInvoice ─────────────────────────────────────────────────────
@@ -214,8 +200,4 @@ class SubcontractorInvoiceResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class SubcontractorInvoiceListResponse(BaseModel):
-    data: list[SubcontractorInvoiceResponse]
-    total: int
-    page: int
-    per_page: int
+SubcontractorInvoiceListResponse = PagedResponse[SubcontractorInvoiceResponse]

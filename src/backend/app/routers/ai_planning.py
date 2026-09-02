@@ -38,19 +38,9 @@ async def _load_project(project_id: uuid.UUID, db: AsyncSession) -> Project:
 
 def _build_cpm_tasks(project: Project) -> list[CpmTask]:
     """Flatten all tasks in the project into CpmTask objects."""
-    cpm_tasks: list[CpmTask] = []
-    for phase in project.phases:
-        for task in phase.tasks:
-            dep_ids = [str(d.depends_on_task_id) for d in task.dependencies]
-            cpm_tasks.append(
-                CpmTask(
-                    id=str(task.id),
-                    name=task.name,
-                    duration_hours=task.estimated_hours,
-                    dependencies=dep_ids,
-                )
-            )
-    return cpm_tasks
+    return [CpmTask(id=str(t.id), name=t.name, duration_hours=t.estimated_hours,
+                    dependencies=[str(d.depends_on_task_id) for d in t.dependencies])
+            for ph in project.phases for t in ph.tasks]
 
 
 @router.get("/health")
@@ -113,10 +103,7 @@ async def apply_schedule(
     accepted_ids = {str(tid) for tid in body.task_ids}
     proposal_map = {p.task_id: p for p in proposals}
 
-    task_db_map: dict[str, Task] = {}
-    for phase in project.phases:
-        for task in phase.tasks:
-            task_db_map[str(task.id)] = task
+    task_db_map = {str(t.id): t for ph in project.phases for t in ph.tasks}
 
     updated = 0
     for task_id_str in accepted_ids:

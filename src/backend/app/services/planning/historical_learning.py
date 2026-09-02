@@ -64,7 +64,7 @@ class InMemoryHistoryStore:
 
 
 def _tokens(name: str) -> set[str]:
-    return {t for t in (w.strip().lower() for w in name.split()) if t}
+    return {w.strip().lower() for w in name.split() if w.strip()}
 
 
 def _jaccard(a: set[str], b: set[str]) -> float:
@@ -93,81 +93,36 @@ class HistoricalLearner:
 
     async def predict(self, task_name: str, *, default_duration_s: int) -> Prediction:
         if default_duration_s <= 0:
-            msg = "default_duration_s must be positive"
-            raise ValueError(msg)
-
+            raise ValueError("default_duration_s must be positive")
         exact = await self._store.observations_for(task_name)
         if exact:
             median_s = int(statistics.median(r.actual_duration_s for r in exact))
-            return Prediction(
-                duration_s=median_s,
-                confidence=_confidence(len(exact)),
-                sample_size=len(exact),
-                reasoning=(
-                    f"Predicted from {len(exact)} historical record(s) of '{task_name}' (median of past actuals)."
-                ),
-            )
-
+            return Prediction(duration_s=median_s, confidence=_confidence(len(exact)), sample_size=len(exact),
+                              reasoning=f"Predicted from {len(exact)} historical record(s) of '{task_name}' (median of past actuals).")
         all_rows = await self._store.all_observations()
         target_tokens = _tokens(task_name)
-        scored = [(r, _jaccard(target_tokens, _tokens(r.task_name))) for r in all_rows]
-        matched = [(r, s) for r, s in scored if s >= self.FUZZY_THRESHOLD]
+        matched = [(r, s) for r in all_rows if (s := _jaccard(target_tokens, _tokens(r.task_name))) >= self.FUZZY_THRESHOLD]
         if matched:
             best_score = max(s for _, s in matched)
             matched_rows = [r for r, _ in matched]
             median_s = int(statistics.median(r.actual_duration_s for r in matched_rows))
-            return Prediction(
-                duration_s=median_s,
-                confidence=_confidence(len(matched_rows)) * best_score,
-                sample_size=len(matched_rows),
-                reasoning=(
-                    f"Predicted from {len(matched)} similar (fuzzy match, "
-                    f"Jaccard ≥ {self.FUZZY_THRESHOLD}) historical task(s)."
-                ),
-            )
+            return Prediction(duration_s=median_s, confidence=_confidence(len(matched_rows)) * best_score,
+                              sample_size=len(matched_rows),
+                              reasoning=f"Predicted from {len(matched)} similar (fuzzy match, Jaccard ≥ {self.FUZZY_THRESHOLD}) historical task(s).")
+        return Prediction(duration_s=default_duration_s, confidence=0.0, sample_size=0,
+                          reasoning=f"No historical data for '{task_name}' — using default estimate.")
 
-        return Prediction(
-            duration_s=default_duration_s,
-            confidence=0.0,
-            sample_size=0,
-            reasoning=f"No historical data for '{task_name}' — using default estimate.",
-        )
-
-    async def predict_from_estimate(
-        self,
-        task_name: str,
-        *,
-        estimated_duration_s: int,
-    ) -> Prediction:
-        """Apply learned estimate-vs-actual bias to a caller-supplied estimate.
-
-        Bias = median(actual / estimated) across all rows that carry both.
-        """
+    async def predict_from_estimate(self, task_name: str, *, estimated_duration_s: int) -> Prediction:
         if estimated_duration_s <= 0:
-            msg = "estimated_duration_s must be positive"
-            raise ValueError(msg)
-
-        rows = [
-            r for r in await self._store.all_observations() if r.estimated_duration_s and r.estimated_duration_s > 0
-        ]
+            raise ValueError("estimated_duration_s must be positive")
+        rows = [r for r in await self._store.all_observations() if r.estimated_duration_s and r.estimated_duration_s > 0]
         if not rows:
-            # No estimate/actual pairs — just return the estimate.
-            return Prediction(
-                duration_s=estimated_duration_s,
-                confidence=0.0,
-                sample_size=0,
-                reasoning="No historical estimate/actual pairs — using caller estimate as-is.",
-            )
-
-        ratios = [r.actual_duration_s / r.estimated_duration_s for r in rows]
-        bias = statistics.median(ratios)
+            return Prediction(duration_s=estimated_duration_s, confidence=0.0, sample_size=0,
+                              reasoning="No historical estimate/actual pairs — using caller estimate as-is.")
+        bias = statistics.median(r.actual_duration_s / r.estimated_duration_s for r in rows)
         corrected = round(estimated_duration_s * bias)
-        return Prediction(
-            duration_s=corrected,
-            confidence=_confidence(len(rows)),
-            sample_size=len(rows),
-            reasoning=(f"Applied historical estimate→actual bias of {bias:.2f} (median over {len(rows)} pair(s))."),
-        )
+        return Prediction(duration_s=corrected, confidence=_confidence(len(rows)), sample_size=len(rows),
+                          reasoning=f"Applied historical estimate→actual bias of {bias:.2f} (median over {len(rows)} pair(s)).")
 
     async def predict_many(self, tasks: list[tuple[str, int]]) -> dict[str, Prediction]:
         """Bulk predict — returns {task_name: Prediction}."""

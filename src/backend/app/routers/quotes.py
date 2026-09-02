@@ -33,11 +33,6 @@ from sqlalchemy.orm import selectinload
 router = APIRouter()
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
 async def _load_customer(db: AsyncSession, owner_id: uuid.UUID, customer_id: uuid.UUID) -> Customer:
     return await get_or_404(
         db, Customer,
@@ -51,11 +46,6 @@ async def _load_quote(db: AsyncSession, owner_id: uuid.UUID, quote_id: uuid.UUID
         Quote.id == quote_id, Quote.owner_id == owner_id, Quote.deleted_at.is_(None),
         options=selectinload(Quote.lines),
     )
-
-
-# ---------------------------------------------------------------------------
-# CRUD
-# ---------------------------------------------------------------------------
 
 
 @router.post("/", response_model=QuoteResponse, status_code=status.HTTP_201_CREATED)
@@ -78,31 +68,17 @@ async def create_quote(
         status="draft",
     )
 
-    subtotal = 0
-    vat_total = 0
-    for idx, line_in in enumerate(body.lines):
-        net, vat = compute_line_totals(
-            quantity=line_in.quantity,
-            unit_price_cents=line_in.unit_price_cents,
-            vat_rate_bp=line_in.vat_rate_bp,
-        )
-        quote.lines.append(
-            QuoteLine(
-                position=idx,
-                description=line_in.description,
-                quantity=line_in.quantity,
-                unit=line_in.unit,
-                unit_price_cents=line_in.unit_price_cents,
-                vat_rate_bp=line_in.vat_rate_bp,
-                line_net_cents=net,
-                line_vat_cents=vat,
-            )
-        )
+    subtotal = vat_total = 0
+    for idx, li in enumerate(body.lines):
+        net, vat = compute_line_totals(quantity=li.quantity, unit_price_cents=li.unit_price_cents, vat_rate_bp=li.vat_rate_bp)
+        quote.lines.append(QuoteLine(
+            position=idx, description=li.description, quantity=li.quantity, unit=li.unit,
+            unit_price_cents=li.unit_price_cents, vat_rate_bp=li.vat_rate_bp, line_net_cents=net, line_vat_cents=vat,
+        ))
         subtotal += net
         vat_total += vat
 
-    quote.subtotal_cents = subtotal
-    quote.vat_total_cents = vat_total
+    quote.subtotal_cents, quote.vat_total_cents = subtotal, vat_total
     quote.total_cents = subtotal + vat_total
 
     db.add(quote)
@@ -149,46 +125,28 @@ async def get_quote(
     return QuoteResponse.model_validate(quote)
 
 
-# ---------------------------------------------------------------------------
-# Status transitions
-# ---------------------------------------------------------------------------
+async def _transition_quote(db: AsyncSession, owner_id: uuid.UUID, quote_id: uuid.UUID, target: str) -> QuoteResponse:
+    quote = await _load_quote(db, owner_id, quote_id)
+    try:
+        apply_quote_transition(quote, target)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    await db.commit()
+    return QuoteResponse.model_validate(await _load_quote(db, owner_id, quote_id))
 
 
 @router.post("/{quote_id}/send", response_model=QuoteResponse)
 async def send_quote(
-    quote_id: uuid.UUID,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    quote_id: uuid.UUID, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db),
 ) -> QuoteResponse:
-    quote = await _load_quote(db, current_user.id, quote_id)
-    try:
-        apply_quote_transition(quote, "sent")
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
-    await db.commit()
-    loaded = await _load_quote(db, current_user.id, quote_id)
-    return QuoteResponse.model_validate(loaded)
+    return await _transition_quote(db, current_user.id, quote_id, "sent")
 
 
 @router.post("/{quote_id}/accept", response_model=QuoteResponse)
 async def accept_quote(
-    quote_id: uuid.UUID,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    quote_id: uuid.UUID, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db),
 ) -> QuoteResponse:
-    quote = await _load_quote(db, current_user.id, quote_id)
-    try:
-        apply_quote_transition(quote, "accepted")
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
-    await db.commit()
-    loaded = await _load_quote(db, current_user.id, quote_id)
-    return QuoteResponse.model_validate(loaded)
-
-
-# ---------------------------------------------------------------------------
-# Convert accepted quote → Project + optional draft Invoice
-# ---------------------------------------------------------------------------
+    return await _transition_quote(db, current_user.id, quote_id, "accepted")
 
 
 @router.post("/{quote_id}/convert", response_model=QuoteConvertResponse)
@@ -238,19 +196,8 @@ async def convert_quote(
             vat_total_cents=quote.vat_total_cents,
             total_cents=quote.total_cents,
         )
-        for idx, ql in enumerate(quote.lines):
-            invoice.lines.append(
-                InvoiceLine(
-                    position=idx,
-                    description=ql.description,
-                    quantity=ql.quantity,
-                    unit=ql.unit,
-                    unit_price_cents=ql.unit_price_cents,
-                    vat_rate_bp=ql.vat_rate_bp,
-                    line_net_cents=ql.line_net_cents,
-                    line_vat_cents=ql.line_vat_cents,
-                )
-            )
+        _COPY_FIELDS = ("description", "quantity", "unit", "unit_price_cents", "vat_rate_bp", "line_net_cents", "line_vat_cents")
+        invoice.lines = [InvoiceLine(position=i, **{f: getattr(ql, f) for f in _COPY_FIELDS}) for i, ql in enumerate(quote.lines)]
         db.add(invoice)
         await db.flush()
         invoice_id = invoice.id

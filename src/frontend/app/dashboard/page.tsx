@@ -68,39 +68,17 @@ interface DashboardStats {
   staffUtilization: StaffUtilization;
 }
 
-function isOverdue(task: { status: string; end_date?: string | null }): boolean {
-  if (task.status === "done") return false;
-  if (!task.end_date) return false;
-  return new Date(task.end_date) < new Date();
-}
+const isOverdue = (task: { status: string; end_date?: string | null }): boolean =>
+  task.status !== "done" && !!task.end_date && new Date(task.end_date) < new Date();
 
-function computeStats(
-  projects: ProjectResponse[],
-  invoices: InvoiceSummary[],
-  staffUtilization: StaffUtilization
-): DashboardStats {
-  const activeProjects = projects.filter((p) => p.status === "active").length;
-  const overdueTasks = projects
-    .flatMap((p) => p.phases ?? [])
-    .flatMap((ph) => ph.tasks ?? [])
-    .filter(isOverdue).length;
+function computeStats(projects: ProjectResponse[], invoices: InvoiceSummary[], staffUtilization: StaffUtilization): DashboardStats {
   const thisMonth = new Date().toISOString().slice(0, 7);
-  const monthlyRevenueCents = invoices
-    .filter(
-      (inv) =>
-        inv.status === "paid" &&
-        inv.paid_at != null &&
-        inv.paid_at.slice(0, 7) === thisMonth
-    )
-    .reduce((sum, inv) => sum + (inv.total_cents ?? 0), 0);
-  const outstandingCents = invoices
-    .filter((inv) => inv.status === "sent" || inv.status === "overdue")
-    .reduce((sum, inv) => sum + (inv.total_cents ?? 0), 0);
+  const sumCents = (arr: InvoiceSummary[]) => arr.reduce((s, i) => s + (i.total_cents ?? 0), 0);
   return {
-    activeProjects,
-    overdueTasks,
-    monthlyRevenueCents,
-    outstandingCents,
+    activeProjects: projects.filter((p) => p.status === "active").length,
+    overdueTasks: projects.flatMap((p) => p.phases ?? []).flatMap((ph) => ph.tasks ?? []).filter(isOverdue).length,
+    monthlyRevenueCents: sumCents(invoices.filter((i) => i.status === "paid" && i.paid_at?.slice(0, 7) === thisMonth)),
+    outstandingCents: sumCents(invoices.filter((i) => i.status === "sent" || i.status === "overdue")),
     staffUtilization,
   };
 }
@@ -112,134 +90,66 @@ const STATUS_DOT: Record<string, string> = {
   archived: "bg-gray-300",
 };
 
-// ---------------------------------------------------------------------------
-// Utilization Gauge — radial progress for staff utilization
-// ---------------------------------------------------------------------------
-
 function UtilizationGauge({ percent, assignedHours, availableHours }: { percent: number; assignedHours: number; availableHours: number }) {
-  const clampedPct = Math.min(Math.max(percent, 0), 100);
-  const radius = 40;
-  const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = circumference - (clampedPct / 100) * circumference;
-  const gaugeColor =
-    clampedPct >= 90 ? "text-red-500" :
-    clampedPct >= 70 ? "text-primary" :
-    clampedPct >= 40 ? "text-emerald-500" :
-    "text-muted-foreground/40";
+  const p = Math.min(Math.max(percent, 0), 100);
+  const R = 40, C = 2 * Math.PI * R;
+  const gaugeColor = p >= 90 ? "text-red-500" : p >= 70 ? "text-primary" : p >= 40 ? "text-emerald-500" : "text-muted-foreground/40";
+  const statusColor = p >= 90 ? "text-red-500" : p >= 70 ? "text-primary" : "text-emerald-500";
+  const statusText = p >= 90 ? "Overbezet — overweeg extra capaciteit" : p >= 70 ? "Goed bezet" : p >= 40 ? "Ruimte beschikbaar" : "Team grotendeels vrij";
+  const circleProps = { cx: 48, cy: 48, r: R, fill: "none", stroke: "currentColor", strokeWidth: 6 };
 
   return (
     <Card className="border-0 shadow-sm card-lift">
       <CardContent className="p-5 flex items-center gap-5">
         <div className="relative shrink-0">
           <svg width="96" height="96" viewBox="0 0 96 96" className="-rotate-90">
-            <circle
-              cx="48" cy="48" r={radius}
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="6"
-              className="text-muted/60"
-            />
-            <circle
-              cx="48" cy="48" r={radius}
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="6"
-              strokeLinecap="round"
-              strokeDasharray={circumference}
-              strokeDashoffset={strokeDashoffset}
-              className={`${gaugeColor} transition-all duration-1000 ease-out`}
-            />
+            <circle {...circleProps} className="text-muted/60" />
+            <circle {...circleProps} strokeLinecap="round" strokeDasharray={C} strokeDashoffset={C - (p / 100) * C} className={`${gaugeColor} transition-all duration-1000 ease-out`} />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-lg font-extrabold tracking-tight">{clampedPct}%</span>
+            <span className="text-lg font-extrabold tracking-tight">{p}%</span>
             <span className="text-[9px] text-muted-foreground">bezet</span>
           </div>
         </div>
         <div className="min-w-0 space-y-1.5">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
-            Teambezetting
-          </p>
-          <p className="text-sm text-muted-foreground">
-            <span className="font-semibold text-foreground">{assignedHours}</span> van {availableHours} uur ingepland
-          </p>
-          <p className={`text-xs font-medium ${clampedPct >= 90 ? "text-red-500" : clampedPct >= 70 ? "text-primary" : "text-emerald-500"}`}>
-            {clampedPct >= 90 ? "Overbezet — overweeg extra capaciteit" : clampedPct >= 70 ? "Goed bezet" : clampedPct >= 40 ? "Ruimte beschikbaar" : "Team grotendeels vrij"}
-          </p>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">Teambezetting</p>
+          <p className="text-sm text-muted-foreground"><span className="font-semibold text-foreground">{assignedHours}</span> van {availableHours} uur ingepland</p>
+          <p className={`text-xs font-medium ${statusColor}`}>{statusText}</p>
         </div>
       </CardContent>
     </Card>
   );
 }
 
-// ---------------------------------------------------------------------------
-// KPI Card
-// ---------------------------------------------------------------------------
-
-interface KpiCardProps {
-  title: string;
-  value: string | number;
-  icon: React.ComponentType<{ className?: string }>;
-  accent: string;
-  subtitle?: string;
-  testId?: string;
-}
-
-function KpiCard({ title, value, icon: Icon, accent, subtitle, testId }: KpiCardProps) {
+function KpiCard({ title, value, icon: Icon, accent, subtitle, testId }: {
+  title: string; value: string | number; icon: React.ComponentType<{ className?: string }>;
+  accent: string; subtitle?: string; testId?: string;
+}) {
   const iconColor = accent.replace("bg-", "text-");
-  const iconBg = accent.replace("bg-", "bg-") + "/10";
   return (
     <Card className="relative overflow-hidden border-0 shadow-sm group hover:shadow-md transition-all duration-200">
-      {/* Top accent line */}
       <div className={`h-[2px] ${accent} opacity-60`} />
       <CardContent className="relative p-5">
         <div className="flex items-start justify-between mb-3">
-          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground/50">
-            {title}
-          </p>
-          <div
-            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${iconBg} group-hover:scale-110 transition-transform duration-300`}
-          >
+          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground/50">{title}</p>
+          <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${accent}/10 group-hover:scale-110 transition-transform duration-300`}>
             <Icon className={`h-4 w-4 ${iconColor}`} />
           </div>
         </div>
-        <p
-          className="text-[26px] font-extrabold tracking-tight leading-none stat-value"
-          data-testid={testId}
-        >
-          {value}
-        </p>
-        {subtitle && (
-          <p className="text-[11px] text-muted-foreground/60 mt-2">{subtitle}</p>
-        )}
+        <p className="text-[26px] font-extrabold tracking-tight leading-none stat-value" data-testid={testId}>{value}</p>
+        {subtitle && <p className="text-[11px] text-muted-foreground/60 mt-2">{subtitle}</p>}
       </CardContent>
     </Card>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Contract lifecycle pipeline
-// ---------------------------------------------------------------------------
-
 interface PipelineData {
-  quotesOpen: number;
-  quoteValueCents: number;
-  projectsActive: number;
-  projectValueCents: number;
-  invoicedCents: number;
-  paidCents: number;
+  quotesOpen: number; quoteValueCents: number; projectsActive: number;
+  projectValueCents: number; invoicedCents: number; paidCents: number;
 }
 
 function ContractPipeline({ data }: { data: PipelineData }) {
-  const quoteToProject = data.quoteValueCents > 0
-    ? Math.round((data.projectValueCents / data.quoteValueCents) * 100)
-    : 0;
-  const projectToInvoice = data.projectValueCents > 0
-    ? Math.round((data.invoicedCents / data.projectValueCents) * 100)
-    : 0;
-  const invoiceToPaid = data.invoicedCents > 0
-    ? Math.round((data.paidCents / data.invoicedCents) * 100)
-    : 0;
-
+  const pct = (num: number, den: number) => den > 0 ? Math.round((num / den) * 100) : 0;
   const stages = [
     {
       label: "Offertes",
@@ -249,7 +159,7 @@ function ContractPipeline({ data }: { data: PipelineData }) {
       icon: ClipboardList,
       color: "blue",
       href: "/dashboard/quotes",
-      conversion: quoteToProject,
+      conversion: pct(data.projectValueCents, data.quoteValueCents),
     },
     {
       label: "Projecten",
@@ -259,7 +169,7 @@ function ContractPipeline({ data }: { data: PipelineData }) {
       icon: FolderKanban,
       color: "primary",
       href: "/dashboard/projects",
-      conversion: projectToInvoice,
+      conversion: pct(data.invoicedCents, data.projectValueCents),
     },
     {
       label: "Gefactureerd",
@@ -269,7 +179,7 @@ function ContractPipeline({ data }: { data: PipelineData }) {
       icon: Send,
       color: "amber",
       href: "/dashboard/invoices",
-      conversion: invoiceToPaid,
+      conversion: pct(data.paidCents, data.invoicedCents),
     },
     {
       label: "Ontvangen",
@@ -283,11 +193,9 @@ function ContractPipeline({ data }: { data: PipelineData }) {
     },
   ];
 
-  const colorMap: Record<string, { iconBg: string; iconText: string; barColor: string; glowColor: string }> = {
-    blue:    { iconBg: "bg-blue-500/10",    iconText: "text-blue-500",    barColor: "bg-blue-500",    glowColor: "shadow-blue-500/20" },
-    primary: { iconBg: "bg-primary/10",      iconText: "text-primary",     barColor: "bg-primary",     glowColor: "shadow-primary/20" },
-    amber:   { iconBg: "bg-amber-500/10",   iconText: "text-amber-500",   barColor: "bg-amber-500",   glowColor: "shadow-amber-500/20" },
-    emerald: { iconBg: "bg-emerald-500/10", iconText: "text-emerald-500", barColor: "bg-emerald-500", glowColor: "shadow-emerald-500/20" },
+  const cm = (c: string) => {
+    const base = c === "primary" ? "primary" : `${c}-500`;
+    return { iconBg: `bg-${base}/10`, iconText: `text-${base}`, barColor: `bg-${base}`, glowColor: `shadow-${base}/20` };
   };
 
   const maxCents = Math.max(...stages.map((s) => s.rawCents), 1);
@@ -326,7 +234,7 @@ function ContractPipeline({ data }: { data: PipelineData }) {
 
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-0">
             {stages.map((stage, idx) => {
-              const cm = colorMap[stage.color];
+              const colors = cm(stage.color);
               const barWidth = Math.max((stage.rawCents / maxCents) * 100, 4);
               const isActive = stage.rawCents > 0;
               return (
@@ -340,17 +248,17 @@ function ContractPipeline({ data }: { data: PipelineData }) {
                         : "border-border/20 opacity-60"
                     )}>
                       {/* Top accent */}
-                      <div className={cn("h-[3px]", cm.barColor, isActive ? "opacity-80" : "opacity-30")} />
+                      <div className={cn("h-[3px]", colors.barColor, isActive ? "opacity-80" : "opacity-30")} />
 
                       <div className="p-4 md:px-5 md:py-5">
                         {/* Icon */}
                         <div className={cn(
                           "flex h-10 w-10 items-center justify-center rounded-xl transition-all duration-300 mb-3",
-                          cm.iconBg,
-                          isActive && `shadow-md ${cm.glowColor}`,
+                          colors.iconBg,
+                          isActive && `shadow-md ${colors.glowColor}`,
                           "group-hover:scale-110"
                         )}>
-                          <stage.icon className={cn("h-4.5 w-4.5", cm.iconText)} />
+                          <stage.icon className={cn("h-4.5 w-4.5", colors.iconText)} />
                         </div>
 
                         {/* Label */}
@@ -367,7 +275,7 @@ function ContractPipeline({ data }: { data: PipelineData }) {
                         {/* Bar */}
                         <div className="mt-3 h-1.5 w-full rounded-full bg-muted/30 overflow-hidden">
                           <div
-                            className={cn("h-full rounded-full transition-all duration-700 ease-out", cm.barColor)}
+                            className={cn("h-full rounded-full transition-all duration-700 ease-out", colors.barColor)}
                             style={{ width: `${barWidth}%` }}
                           />
                         </div>
@@ -396,141 +304,43 @@ function ContractPipeline({ data }: { data: PipelineData }) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Daily actions panel
-// ---------------------------------------------------------------------------
-
 interface DailyAction {
-  id: string;
-  type: string;
-  title: string;
-  subtitle: string;
-  href: string;
-  urgency: "high" | "medium" | "info";
+  id: string; type: string; title: string; subtitle: string; href: string; urgency: "high" | "medium" | "info";
 }
 
-function buildDailyActions(
-  projects: ProjectResponse[],
-  invoices: InvoiceSummary[],
-  pipeline: PipelineData | null,
-  upcomingTasks: Array<AgendaTask & { date: string }>
-): DailyAction[] {
+function buildDailyActions(projects: ProjectResponse[], invoices: InvoiceSummary[], pipeline: PipelineData | null, upcomingTasks: Array<AgendaTask & { date: string }>): DailyAction[] {
   const actions: DailyAction[] = [];
   const now = new Date();
   const today = now.toISOString().slice(0, 10);
+  const nl = (n: number, s: string, p: string) => `${n} ${n === 1 ? s : p}`;
 
-  // Overdue tasks
-  const overdue = projects
-    .flatMap((p) =>
-      (p.phases ?? []).flatMap((ph) =>
-        (ph.tasks ?? []).map((t) => ({
-          ...t,
-          projectName: p.name,
-          projectId: p.id,
-        }))
-      )
-    )
-    .filter(
-      (t) =>
-        t.status !== "done" && t.end_date && new Date(t.end_date) < now
-    );
+  const overdue = projects.flatMap((p) => (p.phases ?? []).flatMap((ph) => (ph.tasks ?? []).map((t) => ({ ...t, projectName: p.name, projectId: p.id })))).filter((t) => t.status !== "done" && t.end_date && new Date(t.end_date) < now);
+  if (overdue.length > 0)
+    actions.push({ id: "overdue-tasks", type: "task_overdue", title: `${nl(overdue.length, "verlopen taak", "verlopen taken")}`, subtitle: overdue.slice(0, 2).map((t) => t.name).join(", ") + (overdue.length > 2 ? ` +${overdue.length - 2}` : ""), href: "/dashboard/agenda", urgency: "high" });
 
-  if (overdue.length > 0) {
-    actions.push({
-      id: "overdue-tasks",
-      type: "task_overdue",
-      title: `${overdue.length} verlopen ${overdue.length === 1 ? "taak" : "taken"}`,
-      subtitle:
-        overdue
-          .slice(0, 2)
-          .map((t) => t.name)
-          .join(", ") + (overdue.length > 2 ? ` +${overdue.length - 2}` : ""),
-      href: "/dashboard/agenda",
-      urgency: "high",
-    });
-  }
+  const overdueInv = invoices.filter((i) => i.status === "overdue" || i.status === "sent");
+  const overdueAmt = overdueInv.reduce((s, i) => s + (i.total_cents ?? 0), 0);
+  if (overdueAmt > 0)
+    actions.push({ id: "outstanding-invoices", type: "invoice_due", title: `${formatBudget(overdueAmt)} openstaand`, subtitle: `${nl(overdueInv.length, "factuur wacht", "facturen wachten")} op betaling`, href: "/dashboard/invoices?status=sent", urgency: overdueInv.some((i) => i.status === "overdue") ? "high" : "medium" });
 
-  // Outstanding invoices
-  const overdueInvoices = invoices.filter(
-    (inv) => inv.status === "overdue" || inv.status === "sent"
-  );
-  const overdueAmount = overdueInvoices.reduce(
-    (s, i) => s + (i.total_cents ?? 0),
-    0
-  );
-  if (overdueAmount > 0) {
-    actions.push({
-      id: "outstanding-invoices",
-      type: "invoice_due",
-      title: `${formatBudget(overdueAmount)} openstaand`,
-      subtitle: `${overdueInvoices.length} ${overdueInvoices.length === 1 ? "factuur wacht" : "facturen wachten"} op betaling`,
-      href: "/dashboard/invoices?status=sent",
-      urgency: overdueInvoices.some((i) => i.status === "overdue")
-        ? "high"
-        : "medium",
-    });
-  }
+  if (pipeline && pipeline.quotesOpen > 0)
+    actions.push({ id: "open-quotes", type: "quote_followup", title: `${nl(pipeline.quotesOpen, "openstaande offerte", "openstaande offertes")}`, subtitle: `${formatBudget(pipeline.quoteValueCents)} in pipeline`, href: "/dashboard/quotes", urgency: "info" });
 
-  // Pipeline quotes
-  if (pipeline && pipeline.quotesOpen > 0) {
-    actions.push({
-      id: "open-quotes",
-      type: "quote_followup",
-      title: `${pipeline.quotesOpen} openstaande ${pipeline.quotesOpen === 1 ? "offerte" : "offertes"}`,
-      subtitle: `${formatBudget(pipeline.quoteValueCents)} in pipeline`,
-      href: "/dashboard/quotes",
-      urgency: "info",
-    });
-  }
-
-  // Today's tasks
   const todayTasks = upcomingTasks.filter((t) => t.date === today);
-  if (todayTasks.length > 0) {
-    actions.push({
-      id: "today-tasks",
-      type: "project_update",
-      title: `${todayTasks.length} ${todayTasks.length === 1 ? "taak" : "taken"} vandaag`,
-      subtitle: todayTasks
-        .slice(0, 2)
-        .map((t) => t.name)
-        .join(", "),
-      href: "/dashboard/agenda",
-      urgency: "info",
-    });
-  }
+  if (todayTasks.length > 0)
+    actions.push({ id: "today-tasks", type: "project_update", title: `${nl(todayTasks.length, "taak", "taken")} vandaag`, subtitle: todayTasks.slice(0, 2).map((t) => t.name).join(", "), href: "/dashboard/agenda", urgency: "info" });
 
   return actions;
 }
 
-const URGENCY_STYLES: Record<
-  string,
-  { border: string; bg: string; icon: string }
-> = {
-  high: {
-    border: "border-red-500/30",
-    bg: "bg-red-500/5",
-    icon: "text-red-500",
-  },
-  medium: {
-    border: "border-amber-500/30",
-    bg: "bg-amber-500/5",
-    icon: "text-amber-500",
-  },
-  info: {
-    border: "border-blue-500/20",
-    bg: "bg-blue-500/5",
-    icon: "text-blue-500",
-  },
+const URGENCY_STYLES: Record<string, { border: string; bg: string; icon: string }> = {
+  high:   { border: "border-red-500/30",   bg: "bg-red-500/5",   icon: "text-red-500" },
+  medium: { border: "border-amber-500/30", bg: "bg-amber-500/5", icon: "text-amber-500" },
+  info:   { border: "border-blue-500/20",  bg: "bg-blue-500/5",  icon: "text-blue-500" },
 };
 
-const ACTION_ICONS: Record<
-  string,
-  React.ComponentType<{ className?: string }>
-> = {
-  task_overdue: AlertCircle,
-  invoice_due: Receipt,
-  quote_followup: ClipboardList,
-  project_update: FolderKanban,
+const ACTION_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  task_overdue: AlertCircle, invoice_due: Receipt, quote_followup: ClipboardList, project_update: FolderKanban,
 };
 
 function DailyActionsPanel({ actions }: { actions: DailyAction[] }) {
@@ -596,12 +406,8 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const done = localStorage.getItem(ONBOARDING_KEY);
-      if (!done) {
-        router.push("/dashboard/onboarding");
-      }
-    }
+    if (typeof window !== "undefined" && !localStorage.getItem(ONBOARDING_KEY))
+      router.push("/dashboard/onboarding");
   }, [router]);
 
   useEffect(() => {
@@ -642,56 +448,35 @@ export default function DashboardPage() {
             setStats(computeStats(projectsRes.data, invoices, utilization));
             setAllInvoices(invoices);
 
-            const sorted = [...projectsRes.data].sort((a, b) => {
-              const ta = (a as RecentProject).updated_at ?? "";
-              const tb = (b as RecentProject).updated_at ?? "";
-              return tb.localeCompare(ta);
-            });
-            setRecentProjects(sorted.slice(0, 5));
+            setRecentProjects(
+              [...projectsRes.data]
+                .sort((a, b) => ((b as RecentProject).updated_at ?? "").localeCompare((a as RecentProject).updated_at ?? ""))
+                .slice(0, 5),
+            );
 
-            // Pipeline data
-            const quotes = (
-              quotesRes as {
-                data: Array<{ status: string; total_cents: number }>;
-              }
-            ).data ?? [];
-            const openQuotes = quotes.filter(
-              (q) => q.status === "draft" || q.status === "sent"
-            );
-            const activeProjects = projectsRes.data.filter(
-              (p) => p.status === "active"
-            );
+            const quotes =
+              ((quotesRes as { data: Array<{ status: string; total_cents: number }> }).data ?? []);
+            const openQuotes = quotes.filter((q) => q.status === "draft" || q.status === "sent");
+            const actProj = projectsRes.data.filter((p) => p.status === "active");
+            const sum = <T,>(arr: T[], fn: (x: T) => number) => arr.reduce((s, x) => s + fn(x), 0);
             setPipeline({
               quotesOpen: openQuotes.length,
-              quoteValueCents: openQuotes.reduce(
-                (s, q) => s + q.total_cents,
-                0
-              ),
-              projectsActive: activeProjects.length,
-              projectValueCents: activeProjects.reduce(
-                (s, p) => s + (p.budget_cents ?? 0),
-                0
-              ),
-              invoicedCents: invoices.reduce(
-                (s, i) => s + (i.total_cents ?? 0),
-                0
-              ),
-              paidCents: invoices
-                .filter((i) => i.status === "paid")
-                .reduce((s, i) => s + (i.total_cents ?? 0), 0),
+              quoteValueCents: sum(openQuotes, (q) => q.total_cents),
+              projectsActive: actProj.length,
+              projectValueCents: sum(actProj, (p) => p.budget_cents ?? 0),
+              invoicedCents: sum(invoices, (i) => i.total_cents ?? 0),
+              paidCents: sum(invoices.filter((i) => i.status === "paid"), (i) => i.total_cents ?? 0),
             });
 
             const agenda = await agendaFetch;
             if (!cancelled && agenda) {
-              const tasks: Array<AgendaTask & { date: string }> = [];
-              for (const day of agenda.days) {
-                for (const task of day.tasks) {
-                  if (task.status !== "done") {
-                    tasks.push({ ...task, date: day.date });
-                  }
-                }
-              }
-              setUpcomingTasks(tasks);
+              setUpcomingTasks(
+                agenda.days.flatMap((day) =>
+                  day.tasks
+                    .filter((t) => t.status !== "done")
+                    .map((t) => ({ ...t, date: day.date })),
+                ),
+              );
             }
 
             setLoading(false);
@@ -710,12 +495,8 @@ export default function DashboardPage() {
     };
   }, []);
 
-  const greeting = (() => {
-    const h = new Date().getHours();
-    if (h < 12) return "Goedemorgen";
-    if (h < 18) return "Goedemiddag";
-    return "Goedenavond";
-  })();
+  const h = new Date().getHours();
+  const greeting = h < 12 ? "Goedemorgen" : h < 18 ? "Goedemiddag" : "Goedenavond";
 
   return (
     <div className="space-y-6 page-enter">
@@ -788,37 +569,13 @@ export default function DashboardPage() {
 
       {!loading && !error && stats && (
         <>
-          {/* KPI Cards */}
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 stagger-children">
-            <KpiCard
-              title="Actieve Projecten"
-              value={stats.activeProjects}
-              icon={FolderKanban}
-              accent="bg-primary"
-              testId="kpi-active-projects"
-            />
-            <KpiCard
-              title="Omzet deze maand"
-              value={formatBudget(stats.monthlyRevenueCents)}
-              icon={TrendingUp}
-              accent="bg-emerald-500"
-              testId="kpi-monthly-revenue"
-            />
-            <KpiCard
-              title="Openstaand"
-              value={formatBudget(stats.outstandingCents)}
-              icon={Receipt}
-              accent="bg-amber-500"
-              testId="kpi-outstanding-invoices"
-            />
-            <KpiCard
-              title="Verlopen taken"
-              value={stats.overdueTasks}
-              icon={AlertCircle}
-              accent={stats.overdueTasks > 0 ? "bg-red-500" : "bg-emerald-500"}
-              testId="kpi-overdue-tasks"
-              subtitle={stats.overdueTasks > 0 ? "vereist aandacht" : "alles op schema"}
-            />
+            {([
+              { title: "Actieve Projecten", value: stats.activeProjects, icon: FolderKanban, accent: "bg-primary", testId: "kpi-active-projects" },
+              { title: "Omzet deze maand", value: formatBudget(stats.monthlyRevenueCents), icon: TrendingUp, accent: "bg-emerald-500", testId: "kpi-monthly-revenue" },
+              { title: "Openstaand", value: formatBudget(stats.outstandingCents), icon: Receipt, accent: "bg-amber-500", testId: "kpi-outstanding-invoices" },
+              { title: "Verlopen taken", value: stats.overdueTasks, icon: AlertCircle, accent: stats.overdueTasks > 0 ? "bg-red-500" : "bg-emerald-500", testId: "kpi-overdue-tasks", subtitle: stats.overdueTasks > 0 ? "vereist aandacht" : "alles op schema" },
+            ] as const).map((kpi) => <KpiCard key={kpi.testId} {...kpi} />)}
           </div>
 
           {/* Contract Pipeline — full width */}

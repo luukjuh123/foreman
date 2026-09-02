@@ -107,116 +107,53 @@ def _table(headers: list[str], rows: list[list[str]]) -> str:
 
 
 def _render_weekly(data: dict[str, Any]) -> str:
-    proj = data["project"]
-    period = data["period"]
-    totals = data["totals"]
-    completed = data.get("completed_this_week", [])
-    by_phase = data.get("hours_by_phase", [])
-    next_plan = data.get("next_week_plan", [])
-
+    proj, period, totals = data["project"], data["period"], data["totals"]
+    completed, by_phase, next_plan = data.get("completed_this_week", []), data.get("hours_by_phase", []), data.get("next_week_plan", [])
+    nw = data.get("next_week", {})
     sections = [
         _header(f"Weekly report — {proj['name']}", f"{period['start']} → {period['end']}"),
-        _kpis(
-            ("Tasks", f"{totals['task_count']}"),
-            ("Completed", f"{totals['completed_task_count']}"),
-            ("Hours", f"{totals['estimated_hours']:.1f}"),
-            ("Labor cost", _format_euros(totals["labor_cost_cents"])),
-        ),
+        _kpis(("Tasks", f"{totals['task_count']}"), ("Completed", f"{totals['completed_task_count']}"),
+              ("Hours", f"{totals['estimated_hours']:.1f}"), ("Labor cost", _format_euros(totals["labor_cost_cents"]))),
         "<h2>Completed this week</h2>",
-        _table(
-            ["Task", "Phase", "Hours", "Cost"],
-            [
-                [t["name"], t["phase_name"], f"{t['estimated_hours']:.1f}", _format_euros(t["labor_cost_cents"])]
-                for t in completed
-            ],
-        )
-        if completed
-        else "<p class='meta'>No tasks completed this week.</p>",
+        _table(["Task", "Phase", "Hours", "Cost"],
+               [[t["name"], t["phase_name"], f"{t['estimated_hours']:.1f}", _format_euros(t["labor_cost_cents"])] for t in completed])
+        if completed else "<p class='meta'>No tasks completed this week.</p>",
         "<h2>Hours by phase</h2>",
-        _table(
-            ["Phase", "Tasks", "Hours", "Labor cost"],
-            [
-                [
-                    p["phase_name"],
-                    str(p["task_count"]),
-                    f"{p['estimated_hours']:.1f}",
-                    _format_euros(p["labor_cost_cents"]),
-                ]
-                for p in by_phase
-            ],
-        )
-        if by_phase
-        else "<p class='meta'>No phase activity this week.</p>",
-        f"<h2>Next week plan ({data.get('next_week', {}).get('start', '')} → "
-        f"{data.get('next_week', {}).get('end', '')})</h2>",
-        _table(
-            ["Task", "Phase", "Status", "Start", "End", "Hours", "Cost"],
-            [
-                [
-                    t["name"],
-                    t["phase_name"],
-                    t["status"],
-                    t.get("start_date") or "",
-                    t.get("end_date") or "",
-                    f"{t['estimated_hours']:.1f}",
-                    _format_euros(t["labor_cost_cents"]),
-                ]
-                for t in next_plan
-            ],
-        )
-        if next_plan
-        else "<p class='meta'>No tasks scheduled for next week.</p>",
+        _table(["Phase", "Tasks", "Hours", "Labor cost"],
+               [[p["phase_name"], str(p["task_count"]), f"{p['estimated_hours']:.1f}", _format_euros(p["labor_cost_cents"])] for p in by_phase])
+        if by_phase else "<p class='meta'>No phase activity this week.</p>",
+        f"<h2>Next week plan ({nw.get('start', '')} → {nw.get('end', '')})</h2>",
+        _table(["Task", "Phase", "Status", "Start", "End", "Hours", "Cost"],
+               [[t["name"], t["phase_name"], t["status"], t.get("start_date") or "", t.get("end_date") or "",
+                 f"{t['estimated_hours']:.1f}", _format_euros(t["labor_cost_cents"])] for t in next_plan])
+        if next_plan else "<p class='meta'>No tasks scheduled for next week.</p>",
     ]
     return "".join(sections)
 
 
 def _render_completion(data: dict[str, Any]) -> str:
-    proj = data["project"]
-    tl = data["timeline"]
-    cb = data["costs_vs_budget"]
+    proj, tl, cb, totals = data["project"], data["timeline"], data["costs_vs_budget"], data["totals"]
     phase_summary = data.get("phase_summary", [])
-    totals = data["totals"]
-
-    variance_class = "over" if cb["over_budget"] else "under"
+    vc = "over" if cb["over_budget"] else "under"
     v = _format_euros(cb["variance_cents"])
     variance_str = f"{v} ({cb['variance_pct']:.1f}%)" if cb["variance_pct"] is not None else v
-
     sections = [
         _header(f"Completion report — {proj['name']}", f"Status: {proj['status']}"),
-        _kpis(
-            ("Tasks", f"{totals['task_count']}"),
-            ("Completed", f"{totals['completed_task_count']}"),
-            ("Hours", f"{totals['estimated_hours']:.1f}"),
-            ("Actual cost", _format_euros(totals["labor_cost_cents"])),
-        ),
+        _kpis(("Tasks", f"{totals['task_count']}"), ("Completed", f"{totals['completed_task_count']}"),
+              ("Hours", f"{totals['estimated_hours']:.1f}"), ("Actual cost", _format_euros(totals["labor_cost_cents"]))),
         "<h2>Timeline</h2>",
-        _table(["", "Start", "End", "Duration (days)"], [
-            [label, tl[f"{k}_start"] or "—", tl[f"{k}_end"] or "—", str(tl[f"{k}_duration_days"] or "—")]
-            for label, k in [("Planned", "planned"), ("Actual", "actual")]
-        ]),
+        _table(["", "Start", "End", "Duration (days)"],
+               [[label, tl[f"{k}_start"] or "—", tl[f"{k}_end"] or "—", str(tl[f"{k}_duration_days"] or "—")]
+                for label, k in [("Planned", "planned"), ("Actual", "actual")]]),
         "<h2>Costs vs Budget</h2>",
-        _table(
-            ["Budget", "Actual", "Variance"],
-            [[_format_euros(cb["budget_cents"]), _format_euros(cb["actual_cost_cents"]), variance_str]],
-        ),
-        f"<p class='{variance_class}'>{'Over budget' if cb['over_budget'] else 'Within budget'}.</p>",
+        _table(["Budget", "Actual", "Variance"],
+               [[_format_euros(cb["budget_cents"]), _format_euros(cb["actual_cost_cents"]), variance_str]]),
+        f"<p class='{vc}'>{'Over budget' if cb['over_budget'] else 'Within budget'}.</p>",
         "<h2>Phase summary</h2>",
-        _table(
-            ["Phase", "Status", "Tasks", "Completed", "Hours", "Actual cost"],
-            [
-                [
-                    p["phase_name"],
-                    p["status"],
-                    str(p["task_count"]),
-                    str(p["completed_task_count"]),
-                    f"{p['estimated_hours']:.1f}",
-                    _format_euros(p["actual_cost_cents"]),
-                ]
-                for p in phase_summary
-            ],
-        )
-        if phase_summary
-        else "<p class='meta'>No phases.</p>",
+        _table(["Phase", "Status", "Tasks", "Completed", "Hours", "Actual cost"],
+               [[p["phase_name"], p["status"], str(p["task_count"]), str(p["completed_task_count"]),
+                 f"{p['estimated_hours']:.1f}", _format_euros(p["actual_cost_cents"])] for p in phase_summary])
+        if phase_summary else "<p class='meta'>No phases.</p>",
     ]
     return "".join(sections)
 

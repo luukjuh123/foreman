@@ -53,17 +53,9 @@ def allowed_channels_for(prefs: NotificationPreference | None, notification_type
     if prefs is None:
         return set(ALL_CHANNELS)
 
-    allowed: set[str] = set()
-    for channel, field in _FIELD_FOR_CHANNEL.items():
-        if getattr(prefs, field, True):
-            allowed.add(channel)
+    allowed = {ch for ch, field in _FIELD_FOR_CHANNEL.items() if getattr(prefs, field, True)}
 
-    overrides = prefs.type_overrides or {}
-    for channel, enabled in (overrides.get(notification_type) or {}).items():
-        if channel not in ALL_CHANNELS:
-            continue  # unknown channels in stored data are ignored defensively
-        if enabled:
-            allowed.add(channel)
-        else:
-            allowed.discard(channel)
+    for channel, enabled in ((prefs.type_overrides or {}).get(notification_type) or {}).items():
+        if channel in ALL_CHANNELS:
+            allowed.add(channel) if enabled else allowed.discard(channel)
     return allowed

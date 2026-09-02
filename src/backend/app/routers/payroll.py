@@ -5,9 +5,9 @@ from datetime import date
 
 from app.core.database import get_db
 from app.models.payroll import TimeEntry
-from app.models.staff import Staff
 from app.models.user import User
 from app.routers.auth import get_current_user
+from app.routers.deps import get_owned_staff_or_404
 from app.schemas.payroll import (
     PayrollProjectBreakdown,
     PayrollSummary,
@@ -22,36 +22,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 router = APIRouter()
 
 
-async def _get_owned_staff(staff_id: uuid.UUID, user: User, db: AsyncSession) -> Staff:
-    result = await db.execute(
-        select(Staff).where(
-            Staff.id == staff_id,
-            Staff.owner_id == user.id,
-            Staff.deleted_at.is_(None),
-        )
-    )
-    staff = result.scalar_one_or_none()
-    if staff is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Staff not found")
-    return staff
-
-
 @router.post("/time-entries", response_model=TimeEntryResponse, status_code=status.HTTP_201_CREATED)
 async def create_time_entry(
     body: TimeEntryCreate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> TimeEntryResponse:
-    staff = await _get_owned_staff(body.staff_id, current_user, db)
-    entry = TimeEntry(
-        staff_id=staff.id,
-        project_id=body.project_id,
-        task_id=body.task_id,
-        work_date=body.work_date,
-        hours=body.hours,
-        hourly_rate_cents_snapshot=staff.hourly_rate_cents,
-        notes=body.notes,
-    )
+    staff = await get_owned_staff_or_404(body.staff_id, current_user, db)
+    entry = TimeEntry(**body.model_dump(exclude={"staff_id"}), staff_id=staff.id, hourly_rate_cents_snapshot=staff.hourly_rate_cents)
     db.add(entry)
     await db.commit()
     await db.refresh(entry)
@@ -66,7 +44,7 @@ async def list_time_entries(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[TimeEntryResponse]:
-    await _get_owned_staff(staff_id, current_user, db)
+    await get_owned_staff_or_404(staff_id, current_user, db)
     stmt = select(TimeEntry).where(TimeEntry.staff_id == staff_id)
     if period_start is not None:
         stmt = stmt.where(TimeEntry.work_date >= period_start)
@@ -90,7 +68,7 @@ async def payroll_summary(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="period_end must be on or after period_start",
         )
-    await _get_owned_staff(staff_id, current_user, db)
+    await get_owned_staff_or_404(staff_id, current_user, db)
     result = await db.execute(
         select(TimeEntry).where(
             TimeEntry.staff_id == staff_id,
@@ -99,14 +77,7 @@ async def payroll_summary(
         )
     )
     rows = result.scalars().all()
-    entries = [
-        _Entry(
-            project_id=r.project_id,
-            hours=r.hours,
-            hourly_rate_cents_snapshot=r.hourly_rate_cents_snapshot,
-        )
-        for r in rows
-    ]
+    entries = [_Entry(r.project_id, r.hours, r.hourly_rate_cents_snapshot) for r in rows]
     total_hours, total_gross, breakdown = summarize(entries)
     return PayrollSummary(
         staff_id=staff_id,

@@ -27,6 +27,6 @@ async def allocate_quote_number(db: AsyncSession, *, owner_id: uuid.UUID, year: 
         db.add(counter)
         await db.flush()
 
-    counter.last_number = counter.last_number + 1
+    counter.last_number += 1
     await db.flush()
     return format_quote_number(year, counter.last_number)

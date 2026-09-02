@@ -74,6 +74,4 @@ class MT940Formatter:
     @staticmethod
     def _format_amount(cents: int) -> str:
         """Format integer cents as MT940 amount string: e.g. 12150 → '121,50'."""
-        euros = cents // 100
-        remainder = cents % 100
-        return f"{euros},{remainder:02d}"
+        return f"{cents // 100},{cents % 100:02d}"

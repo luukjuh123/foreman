@@ -61,39 +61,23 @@ async def calculate_btw_boxes(
         Invoice.deleted_at.is_(None),
         Invoice.status != "cancelled",
     )
-    result = await db.execute(stmt)
-    invoices = result.scalars().all()
-
+    invoices = (await db.execute(stmt)).scalars().all()
     if not invoices:
         return BtwBoxes()
 
-    invoice_ids = [inv.id for inv in invoices]
-
-    # Load all lines for these invoices.
-    lines_stmt = select(InvoiceLine).where(InvoiceLine.invoice_id.in_(invoice_ids))
-    lines_result = await db.execute(lines_stmt)
-    lines = lines_result.scalars().all()
+    lines = (await db.execute(
+        select(InvoiceLine).where(InvoiceLine.invoice_id.in_([inv.id for inv in invoices]))
+    )).scalars().all()
 
     net_by_rate: dict[int, int] = {}
     for line in lines:
         net_by_rate[line.vat_rate_bp] = net_by_rate.get(line.vat_rate_bp, 0) + line.line_net_cents
 
-    box_1a, box_1b, box_1c = net_by_rate.get(2100, 0), net_by_rate.get(900, 0), net_by_rate.get(0, 0)
     box_5a = sum(net * rate_bp // 10000 for rate_bp, net in net_by_rate.items() if rate_bp > 0)
-
-    # box_5b: input VAT from purchase invoices/journal entries.
-    # For now simplified to 0 — a full implementation would query
-    # journal lines tagged to BTW-voorheffing accounts.
-    box_5b = 0
-
-    box_5d = box_5a - box_5b
-
     return BtwBoxes(
-        box_1a_net_cents=box_1a,
-        box_1b_net_cents=box_1b,
-        box_1c_net_cents=box_1c,
-        box_1d_net_cents=0,
+        box_1a_net_cents=net_by_rate.get(2100, 0),
+        box_1b_net_cents=net_by_rate.get(900, 0),
+        box_1c_net_cents=net_by_rate.get(0, 0),
         box_5a_vat_due_cents=box_5a,
-        box_5b_voorbelasting_cents=box_5b,
-        box_5d_payable_cents=box_5d,
+        box_5d_payable_cents=box_5a,  # box_5b is 0 (simplified), so payable = box_5a
     )

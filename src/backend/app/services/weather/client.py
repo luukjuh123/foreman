@@ -100,75 +100,44 @@ class WeatherService:
         return (round(lat, 2), round(lon, 2))
 
     def _get_cached(self, key: tuple[float, float]) -> list[WeatherDay] | None:
-        entry = self._cache.get(key)
-        if entry and entry.expires_at > time.monotonic():
-            return entry.value
-        return None
+        return e.value if (e := self._cache.get(key)) and e.expires_at > time.monotonic() else None
 
     def _set_cached(self, key: tuple[float, float], value: list[WeatherDay]) -> None:
         self._cache[key] = _CacheEntry(value=value, expires_at=time.monotonic() + self._cache_ttl)
 
     async def _fetch_open_meteo(self, lat: float, lon: float) -> list[WeatherDay]:
-        """Call Open-Meteo API and parse into WeatherDay list (live, not cached)."""
-        params = {
-            "latitude": lat,
-            "longitude": lon,
-            "daily": [
-                "weather_code",
-                "temperature_2m_max",
-                "temperature_2m_min",
-                "precipitation_sum",
-                "wind_speed_10m_max",
-            ],
-            "timezone": "Europe/Amsterdam",
-            "forecast_days": 7,
-        }
+        params = {"latitude": lat, "longitude": lon, "timezone": "Europe/Amsterdam", "forecast_days": 7,
+                  "daily": ["weather_code", "temperature_2m_max", "temperature_2m_min", "precipitation_sum", "wind_speed_10m_max"]}
         async with httpx.AsyncClient(timeout=10.0) as http:
-            response = await http.get(_OPEN_METEO_URL, params=params)
-            response.raise_for_status()
-            data = response.json()
-
+            data = (await http.get(_OPEN_METEO_URL, params=params)).raise_for_status().json()
         d = data["daily"]
         return [
-            WeatherDay(
-                date=d["time"][i], temp_min=d["temperature_2m_min"][i],
-                temp_max=d["temperature_2m_max"][i],
-                precipitation_mm=d["precipitation_sum"][i] or 0.0,
-                wind_speed_kmh=d["wind_speed_10m_max"][i] or 0.0,
-                weather_code=(code := d["weather_code"][i]),
-                description=_WMO_DESCRIPTIONS.get(code, f"Code {code}"),
-            )
+            WeatherDay(date=d["time"][i], temp_min=d["temperature_2m_min"][i], temp_max=d["temperature_2m_max"][i],
+                       precipitation_mm=d["precipitation_sum"][i] or 0.0, wind_speed_kmh=d["wind_speed_10m_max"][i] or 0.0,
+                       weather_code=(code := d["weather_code"][i]), description=_WMO_DESCRIPTIONS.get(code, f"Code {code}"))
             for i in range(len(d["time"]))
         ]
 
     async def get_forecast(self, lat: float, lon: float) -> list[WeatherDay]:
-        """Return 7-day forecast, using cache when available."""
         key = self._cache_key(lat, lon)
-        cached = self._get_cached(key)
-        if cached is not None:
+        if (cached := self._get_cached(key)) is not None:
             return cached
         forecast = await self._fetch_open_meteo(lat, lon)
         self._set_cached(key, forecast)
         return forecast
 
     def assess_risks(self, forecast: list[WeatherDay]) -> list[WeatherRisk]:
-        """Identify construction risk days in a forecast."""
         risks: list[WeatherRisk] = []
         for day in forecast:
-            checks: list[tuple[bool, str, str, str]] = [
+            checks = [
                 (day.precipitation_mm >= _RAIN_THRESHOLD_MM, "rain",
-                 "danger" if day.precipitation_mm >= 20.0 else "warning",
-                 f"{day.precipitation_mm:.1f} mm neerslag verwacht"),
+                 "danger" if day.precipitation_mm >= 20.0 else "warning", f"{day.precipitation_mm:.1f} mm neerslag verwacht"),
                 (day.wind_speed_kmh >= _WIND_THRESHOLD_KMH, "wind",
-                 "danger" if day.wind_speed_kmh >= 70.0 else "warning",
-                 f"Windstoten tot {day.wind_speed_kmh:.0f} km/h"),
-                (day.temp_min <= _FROST_THRESHOLD_C, "frost", "warning",
-                 f"Minimumtemperatuur {day.temp_min:.1f} °C — vorst mogelijk"),
+                 "danger" if day.wind_speed_kmh >= 70.0 else "warning", f"Windstoten tot {day.wind_speed_kmh:.0f} km/h"),
+                (day.temp_min <= _FROST_THRESHOLD_C, "frost", "warning", f"Minimumtemperatuur {day.temp_min:.1f} °C — vorst mogelijk"),
             ]
-            risks.extend(
-                WeatherRisk(date=day.date, risk_type=rtype, severity=sev, details=det)
-                for triggered, rtype, sev, det in checks if triggered
-            )
+            risks.extend(WeatherRisk(date=day.date, risk_type=rt, severity=sv, details=dt)
+                         for ok, rt, sv, dt in checks if ok)
         return risks
 
 

@@ -60,13 +60,10 @@ def apply_trial_expiry(sub: Subscription) -> bool:
         ends_at = ends_at.replace(tzinfo=UTC)
     if ends_at > datetime.now(UTC):
         return False
-    # Trial expired: drop to free-tier active state.
+    # Trial expired: flip to active; free tier also caps project limit.
+    sub.status = SubscriptionStatus.ACTIVE.value
     if sub.tier == SubscriptionTier.FREE.value:
-        sub.status = SubscriptionStatus.ACTIVE.value
         sub.project_limit = TIER_PROJECT_LIMIT[SubscriptionTier.FREE]
-    else:
-        # Paid tier but still trialing? Just flip status to active.
-        sub.status = SubscriptionStatus.ACTIVE.value
     return True
 
 

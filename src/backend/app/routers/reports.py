@@ -19,7 +19,7 @@ from app.schemas.report import (
 from app.services.reports.completion import generate_completion_report
 from app.services.reports.pdf import render_report_pdf
 from app.services.reports.weekly import generate_weekly_report
-from app.routers.deps import get_or_404
+from app.routers.deps import get_or_404, get_owned_project_or_404
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import Response
 from sqlalchemy import func, select
@@ -38,21 +38,6 @@ async def _get_own_report_or_404(report_id: uuid.UUID, user: User, db: AsyncSess
     return await get_or_404(db, Report, Report.id == report_id, Report.created_by_id == user.id)
 
 
-def _to_response(report: Report) -> ReportResponse:
-    return ReportResponse(
-        id=str(report.id),
-        project_id=str(report.project_id),
-        type=report.type,
-        title=report.title,
-        period_start=report.period_start,
-        period_end=report.period_end,
-        data=report.data,
-        is_shared=report.is_shared,
-        share_token=report.share_token,
-        created_at=report.created_at,
-    )
-
-
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
@@ -67,12 +52,7 @@ async def generate_report(
     project_id = uuid.UUID(body.project_id)
 
     # Verify project exists and belongs to user
-    result = await db.execute(select(Project).where(Project.id == project_id, Project.deleted_at.is_(None)))
-    project = result.scalar_one_or_none()
-    if project is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
-    if project.owner_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your project")
+    project = await get_owned_project_or_404(project_id, current_user, db)
 
     if body.type == "weekly":
         if body.period_start is None:
@@ -82,8 +62,7 @@ async def generate_report(
             )
         data = await generate_weekly_report(db, project_id, body.period_start)
         period_end = body.period_end or date.fromisoformat(data["period"]["end"])
-        pe_str = period_end.isoformat() if isinstance(period_end, date) else period_end
-        title = f"Weekly report \u2014 {project.name} ({body.period_start.isoformat()} \u2013 {pe_str})"
+        title = f"Weekly report \u2014 {project.name} ({body.period_start.isoformat()} \u2013 {period_end.isoformat()})"
     else:
         data = await generate_completion_report(db, project_id)
         title = f"Completion report — {project.name}"
@@ -95,16 +74,14 @@ async def generate_report(
         type=body.type,
         title=title,
         period_start=body.period_start,
-        period_end=(
-            period_end if isinstance(period_end, date) else (date.fromisoformat(period_end) if period_end else None)
-        ),
+        period_end=period_end,
         data=data,
     )
     db.add(report)
     await db.commit()
     await db.refresh(report)
 
-    return _to_response(report)
+    return ReportResponse.model_validate(report)
 
 
 @router.get("/", response_model=ReportListResponse)
@@ -122,9 +99,8 @@ async def list_reports(
     total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar() or 0
     reports = (await db.execute(base.order_by(Report.created_at.desc()).offset((page - 1) * per_page).limit(per_page))).scalars().all()
 
-    _SUMMARY_FIELDS = ("id", "project_id", "type", "title", "period_start", "period_end", "is_shared", "created_at")
     return ReportListResponse(
-        data=[ReportSummaryResponse(**{f: (str(getattr(r, f)) if f in ("id", "project_id") else getattr(r, f)) for f in _SUMMARY_FIELDS}) for r in reports],
+        data=[ReportSummaryResponse.model_validate(r) for r in reports],
         total=total, page=page, per_page=per_page,
     )
 
@@ -140,7 +116,7 @@ async def get_shared_report(
     if report is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
 
-    return _to_response(report)
+    return ReportResponse.model_validate(report)
 
 
 @router.get("/{report_id}", response_model=ReportResponse)
@@ -150,7 +126,7 @@ async def get_report(
     db: AsyncSession = Depends(get_db),
 ) -> ReportResponse:
     report = await _get_own_report_or_404(report_id, current_user, db)
-    return _to_response(report)
+    return ReportResponse.model_validate(report)
 
 
 @router.get("/{report_id}/pdf")

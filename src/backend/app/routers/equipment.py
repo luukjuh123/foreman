@@ -25,7 +25,7 @@ from app.schemas.equipment import (
     MaintenanceCreate,
     MaintenanceResponse,
 )
-from app.routers.deps import apply_updates, count_query, get_or_404
+from app.routers.deps import add_commit_refresh_validate, apply_updates, commit_refresh_validate, count_query, get_or_404
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -67,10 +67,7 @@ async def create_equipment(
     db: AsyncSession = Depends(get_db),
 ) -> EquipmentResponse:
     eq = Equipment(owner_id=current_user.id, **body.model_dump())
-    db.add(eq)
-    await db.commit()
-    await db.refresh(eq)
-    return EquipmentResponse.model_validate(eq)
+    return await add_commit_refresh_validate(db, eq, EquipmentResponse)
 
 
 # NOTE: /maintenance/upcoming must be defined BEFORE /{eq_id} to avoid
@@ -108,11 +105,8 @@ async def update_equipment(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> EquipmentResponse:
-    eq = await _get_owned_equipment_or_404(eq_id, current_user, db)
-    apply_updates(eq, body)
-    await db.commit()
-    await db.refresh(eq)
-    return EquipmentResponse.model_validate(eq)
+    apply_updates(eq := await _get_owned_equipment_or_404(eq_id, current_user, db), body)
+    return await commit_refresh_validate(db, eq, EquipmentResponse)
 
 
 @router.delete("/{eq_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -144,10 +138,7 @@ async def assign_to_project(
 ) -> AssignmentResponse:
     await _get_owned_equipment_or_404(eq_id, current_user, db)
     assignment = EquipmentAssignment(equipment_id=eq_id, **body.model_dump())
-    db.add(assignment)
-    await db.commit()
-    await db.refresh(assignment)
-    return AssignmentResponse.model_validate(assignment)
+    return await add_commit_refresh_validate(db, assignment, AssignmentResponse)
 
 
 @router.get("/{eq_id}/assignments", response_model=list[AssignmentResponse])
@@ -172,14 +163,10 @@ async def release_equipment(
     db: AsyncSession = Depends(get_db),
 ) -> AssignmentResponse:
     await _get_owned_equipment_or_404(eq_id, current_user, db)
-    assignment = await get_or_404(
-        db, EquipmentAssignment,
-        EquipmentAssignment.id == assignment_id, EquipmentAssignment.equipment_id == eq_id,
-    )
-    apply_updates(assignment, body)
-    await db.commit()
-    await db.refresh(assignment)
-    return AssignmentResponse.model_validate(assignment)
+    apply_updates(assignment := await get_or_404(
+        db, EquipmentAssignment, EquipmentAssignment.id == assignment_id, EquipmentAssignment.equipment_id == eq_id,
+    ), body)
+    return await commit_refresh_validate(db, assignment, AssignmentResponse)
 
 
 # ---------------------------------------------------------------------------
@@ -200,10 +187,7 @@ async def log_maintenance(
 ) -> MaintenanceResponse:
     await _get_owned_equipment_or_404(eq_id, current_user, db)
     record = EquipmentMaintenance(equipment_id=eq_id, **body.model_dump())
-    db.add(record)
-    await db.commit()
-    await db.refresh(record)
-    return MaintenanceResponse.model_validate(record)
+    return await add_commit_refresh_validate(db, record, MaintenanceResponse)
 
 
 @router.get("/{eq_id}/maintenance", response_model=list[MaintenanceResponse])

@@ -28,11 +28,6 @@ from sqlalchemy.orm import selectinload
 router = APIRouter()
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
 def _serialize_structure(structure: list[TemplatePhaseSchema]) -> str:
     return json.dumps([p.model_dump() for p in structure])
 
@@ -43,16 +38,9 @@ def _deserialize_structure(raw: str) -> list[TemplatePhaseSchema]:
 
 
 def _template_to_response(tmpl: ProjectTemplate) -> ProjectTemplateResponse:
-    structure = _deserialize_structure(tmpl.structure)
     return ProjectTemplateResponse(
-        id=tmpl.id,
-        owner_id=tmpl.owner_id,
-        name=tmpl.name,
-        description=tmpl.description,
-        category=tmpl.category,
-        structure=structure,
-        created_at=tmpl.created_at,
-        updated_at=tmpl.updated_at,
+        **{k: getattr(tmpl, k) for k in ("id", "owner_id", "name", "description", "category", "created_at", "updated_at")},
+        structure=_deserialize_structure(tmpl.structure),
     )
 
 
@@ -67,11 +55,6 @@ async def _get_template_or_404(
     )
 
 
-# ---------------------------------------------------------------------------
-# List templates
-# ---------------------------------------------------------------------------
-
-
 @router.get("/", response_model=ProjectTemplateListResponse)
 async def list_templates(
     page: int = Query(1, ge=1),
@@ -80,28 +63,10 @@ async def list_templates(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ProjectTemplateListResponse:
-    filters = [ProjectTemplate.owner_id == current_user.id]
-    if category is not None:
-        filters.append(ProjectTemplate.category == category)
-
-    count_result = await db.execute(select(func.count()).select_from(ProjectTemplate).where(*filters))
-    total = count_result.scalar_one()
-
-    offset = (page - 1) * per_page
-    result = await db.execute(select(ProjectTemplate).where(*filters).offset(offset).limit(per_page))
-    templates = result.scalars().all()
-
-    return ProjectTemplateListResponse(
-        data=[_template_to_response(t) for t in templates],
-        total=total,
-        page=page,
-        per_page=per_page,
-    )
-
-
-# ---------------------------------------------------------------------------
-# Create template manually
-# ---------------------------------------------------------------------------
+    filters = [ProjectTemplate.owner_id == current_user.id, *([ProjectTemplate.category == category] if category is not None else [])]
+    total = (await db.execute(select(func.count()).select_from(ProjectTemplate).where(*filters))).scalar_one()
+    templates = (await db.execute(select(ProjectTemplate).where(*filters).offset((page - 1) * per_page).limit(per_page))).scalars().all()
+    return ProjectTemplateListResponse(data=[_template_to_response(t) for t in templates], total=total, page=page, per_page=per_page)
 
 
 @router.post("/", response_model=ProjectTemplateResponse, status_code=status.HTTP_201_CREATED)
@@ -110,22 +75,11 @@ async def create_template(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ProjectTemplateResponse:
-    tmpl = ProjectTemplate(
-        owner_id=current_user.id,
-        name=body.name,
-        description=body.description,
-        category=body.category,
-        structure=_serialize_structure(body.structure),
-    )
+    tmpl = ProjectTemplate(owner_id=current_user.id, name=body.name, description=body.description, category=body.category, structure=_serialize_structure(body.structure))
     db.add(tmpl)
     await db.commit()
     await db.refresh(tmpl)
     return _template_to_response(tmpl)
-
-
-# ---------------------------------------------------------------------------
-# Create template from existing project
-# ---------------------------------------------------------------------------
 
 
 @router.post(
@@ -148,41 +102,19 @@ async def create_template_from_project(
     if project is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
 
-    phases = sorted(project.phases, key=lambda p: p.order_index)
+    _pick = lambda obj, *ks: {k: getattr(obj, k) for k in ks}
     structure = [
-        TemplatePhaseSchema(
-            name=phase.name,
-            description=phase.description,
-            order_index=phase.order_index,
-            tasks=[
-                TemplateTaskSchema(
-                    name=task.name,
-                    description=task.description,
-                    estimated_hours=task.estimated_hours,
-                    priority=task.priority,
-                )
-                for task in sorted(phase.tasks, key=lambda t: t.priority)
-            ],
-        )
-        for phase in phases
+        TemplatePhaseSchema(**_pick(ph, "name", "description", "order_index"),
+            tasks=[TemplateTaskSchema(**_pick(t, "name", "description", "estimated_hours", "priority"))
+                   for t in sorted(ph.tasks, key=lambda t: t.priority)])
+        for ph in sorted(project.phases, key=lambda p: p.order_index)
     ]
-
-    tmpl = ProjectTemplate(
-        owner_id=current_user.id,
-        name=body.name,
-        description=body.description,
-        category=body.category,
-        structure=_serialize_structure(structure),
-    )
+    tmpl = ProjectTemplate(owner_id=current_user.id, name=body.name, description=body.description,
+                           category=body.category, structure=_serialize_structure(structure))
     db.add(tmpl)
     await db.commit()
     await db.refresh(tmpl)
     return _template_to_response(tmpl)
-
-
-# ---------------------------------------------------------------------------
-# Get template
-# ---------------------------------------------------------------------------
 
 
 @router.get("/{template_id}", response_model=ProjectTemplateResponse)
@@ -193,11 +125,6 @@ async def get_template(
 ) -> ProjectTemplateResponse:
     tmpl = await _get_template_or_404(template_id, current_user.id, db)
     return _template_to_response(tmpl)
-
-
-# ---------------------------------------------------------------------------
-# Update template
-# ---------------------------------------------------------------------------
 
 
 @router.put("/{template_id}", response_model=ProjectTemplateResponse)
@@ -220,11 +147,6 @@ async def update_template(
     return _template_to_response(tmpl)
 
 
-# ---------------------------------------------------------------------------
-# Delete template
-# ---------------------------------------------------------------------------
-
-
 @router.delete("/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_template(
     template_id: uuid.UUID,
@@ -234,11 +156,6 @@ async def delete_template(
     tmpl = await _get_template_or_404(template_id, current_user.id, db)
     await db.delete(tmpl)
     await db.commit()
-
-
-# ---------------------------------------------------------------------------
-# Instantiate project from template
-# ---------------------------------------------------------------------------
 
 
 @router.post(
@@ -255,37 +172,18 @@ async def instantiate_template(
     tmpl = await _get_template_or_404(template_id, current_user.id, db)
     structure = _deserialize_structure(tmpl.structure)
 
-    project = Project(
-        owner_id=current_user.id,
-        name=body.project_name,
-        start_date=body.start_date,
-    )
+    project = Project(owner_id=current_user.id, name=body.project_name, start_date=body.start_date)
     db.add(project)
-    await db.flush()  # get project.id before adding phases
+    await db.flush()
 
-    for phase_schema in structure:
-        phase = Phase(
-            project_id=project.id,
-            name=phase_schema.name,
-            description=phase_schema.description,
-            order_index=phase_schema.order_index,
-        )
+    for ps in structure:
+        phase = Phase(project_id=project.id, name=ps.name, description=ps.description, order_index=ps.order_index)
         db.add(phase)
         await db.flush()
-
-        for task_schema in phase_schema.tasks:
-            task = Task(
-                phase_id=phase.id,
-                name=task_schema.name,
-                description=task_schema.description,
-                estimated_hours=task_schema.estimated_hours,
-                priority=task_schema.priority,
-            )
-            db.add(task)
+        for ts in ps.tasks:
+            db.add(Task(phase_id=phase.id, name=ts.name, description=ts.description, estimated_hours=ts.estimated_hours, priority=ts.priority))
 
     await db.commit()
-
-    result = await db.execute(
-        select(Project).where(Project.id == project.id).options(selectinload(Project.phases).selectinload(Phase.tasks))
+    return ProjectResponse.model_validate(
+        (await db.execute(select(Project).where(Project.id == project.id).options(selectinload(Project.phases).selectinload(Phase.tasks)))).scalar_one()
     )
-    return ProjectResponse.model_validate(result.scalar_one())

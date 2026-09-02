@@ -73,18 +73,16 @@ class LiveGoogleBusinessClient(GoogleBusinessClient):
             return []
         resp.raise_for_status()
         payload = resp.json()
-        out: list[GoogleReview] = []
-        for raw in payload.get("reviews", []):
-            out.append(
-                GoogleReview(
-                    external_id=str(raw.get("reviewId") or raw.get("name") or ""),
-                    author_name=(raw.get("reviewer") or {}).get("displayName", "Anonymous"),
-                    rating=int(raw.get("starRating", 0) or 0),
-                    comment=raw.get("comment"),
-                    created_at_external=raw.get("createTime"),
-                )
+        return [
+            GoogleReview(
+                external_id=str(raw.get("reviewId") or raw.get("name") or ""),
+                author_name=(raw.get("reviewer") or {}).get("displayName", "Anonymous"),
+                rating=int(raw.get("starRating", 0) or 0),
+                comment=raw.get("comment"),
+                created_at_external=raw.get("createTime"),
             )
-        return out
+            for raw in payload.get("reviews", [])
+        ]
 
     async def reply_to_review(self, location_id: str, review_id: str, text: str) -> None:
         url = f"{self.BASE_URL}/{location_id}/reviews/{review_id}/reply"

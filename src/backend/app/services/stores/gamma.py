@@ -46,16 +46,13 @@ _PRICE_TEXT = re.compile(r"€\s*(\d+)[,.](\d{2})")
 def _price_cents(node) -> int | None:
     if node is None:
         return None
-    raw = node.get("data-cents")
-    if raw is not None:
+    if (raw := node.get("data-cents")) is not None:
         try:
             return int(raw)
         except (TypeError, ValueError):
             pass
     m = _PRICE_TEXT.search(node.get_text(" ", strip=True))
-    if m:
-        return int(m.group(1)) * 100 + int(m.group(2))
-    return None
+    return int(m.group(1)) * 100 + int(m.group(2)) if m else None
 
 
 def _parse_search(html: str, *, base_url: str) -> list[ProductResult]:

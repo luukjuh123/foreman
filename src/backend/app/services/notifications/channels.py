@@ -47,7 +47,7 @@ class InAppChannel(NotificationChannel):
     name = "in_app"
 
     async def send(self, notification: Notification, user: User) -> None:
-        return None
+        pass
 
 
 class EmailChannel(NotificationChannel):

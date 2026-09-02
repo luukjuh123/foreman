@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import UTC, datetime
 
 from app.core.database import get_db
@@ -42,35 +42,21 @@ async def sync_reviews(
 ) -> Envelope:
     """Fetch reviews from Google for `location_id` and upsert by external_id."""
     fetched = await google.list_reviews(body.location_id)
-    synced = 0
+    # Prefetch all existing reviews in one query instead of N queries
+    existing_rows = (await db.execute(
+        select(Review).where(Review.location_id == body.location_id,
+                             Review.external_id.in_([g.external_id for g in fetched]))
+    )).scalars().all()
+    existing_map = {r.external_id: r for r in existing_rows}
+
+    _SYNC_FIELDS = ("author_name", "rating", "comment", "created_at_external")
     for g in fetched:
-        result = await db.execute(
-            select(Review).where(
-                Review.location_id == body.location_id,
-                Review.external_id == g.external_id,
-            )
-        )
-        existing = result.scalar_one_or_none()
-        if existing is None:
-            db.add(
-                Review(
-                    location_id=body.location_id,
-                    external_id=g.external_id,
-                    author_name=g.author_name,
-                    rating=g.rating,
-                    comment=g.comment,
-                    created_at_external=g.created_at_external,
-                )
-            )
-        else:
-            existing.author_name = g.author_name
-            existing.rating = g.rating
-            existing.comment = g.comment
-            existing.created_at_external = g.created_at_external
-            db.add(existing)
-        synced += 1
+        r = existing_map.get(g.external_id) or Review(location_id=body.location_id, external_id=g.external_id)
+        for f in _SYNC_FIELDS:
+            setattr(r, f, getattr(g, f))
+        db.add(r)
     await db.commit()
-    return Envelope(data=SyncReviewsData(location_id=body.location_id, synced_count=synced).model_dump())
+    return Envelope(data=SyncReviewsData(location_id=body.location_id, synced_count=len(fetched)).model_dump())
 
 
 @router.get("", response_model=Envelope)
@@ -100,45 +86,22 @@ async def get_review_stats(
 
     total_count = len(rows)
     if total_count == 0:
-        stats = ReviewStats(
-            average_rating=0.0,
-            total_count=0,
-            rating_distribution={"1": 0, "2": 0, "3": 0, "4": 0, "5": 0},
-            monthly_trend=[],
-        )
-        return Envelope(data=stats.model_dump())
+        return Envelope(data=ReviewStats(average_rating=0.0, total_count=0,
+                                         rating_distribution={"1": 0, "2": 0, "3": 0, "4": 0, "5": 0},
+                                         monthly_trend=[]).model_dump())
 
-    average_rating = sum(r.rating for r in rows) / total_count
-
-    dist: dict[str, int] = {"1": 0, "2": 0, "3": 0, "4": 0, "5": 0}
-    for r in rows:
-        key = str(r.rating)
-        if key in dist:
-            dist[key] += 1
-
+    dist = {"1": 0, "2": 0, "3": 0, "4": 0, "5": 0} | {str(k): v for k, v in Counter(r.rating for r in rows).items()}
     monthly: dict[str, list[int]] = defaultdict(list)
     for r in rows:
-        if r.created_at_external and len(r.created_at_external) >= 7:
-            month = r.created_at_external[:7]
-        else:
-            month = "unknown"
+        month = r.created_at_external[:7] if r.created_at_external and len(r.created_at_external) >= 7 else "unknown"
         monthly[month].append(r.rating)
 
-    monthly_trend = [
-        MonthlyTrend(
-            month=month,
-            average_rating=round(sum(ratings) / len(ratings), 2),
-            count=len(ratings),
-        )
-        for month, ratings in sorted(monthly.items())
-        if month != "unknown"
-    ]
-
     stats = ReviewStats(
-        average_rating=round(average_rating, 2),
+        average_rating=round(sum(r.rating for r in rows) / total_count, 2),
         total_count=total_count,
         rating_distribution=dist,
-        monthly_trend=monthly_trend,
+        monthly_trend=[MonthlyTrend(month=m, average_rating=round(sum(rs) / len(rs), 2), count=len(rs))
+                       for m, rs in sorted(monthly.items()) if m != "unknown"],
     )
     return Envelope(data=stats.model_dump())
 

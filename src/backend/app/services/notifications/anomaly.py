@@ -109,38 +109,25 @@ class AnomalyDetector:
             return None
         start = max(ctx.today, project.start_date) if project.start_date and project.start_date > ctx.today else ctx.today
         end = ctx.today + timedelta(days=14)
-        severe = []
-        for entry in ctx.weather_forecast:
+        def _is_severe(e: dict) -> bool:
             try:
-                d = date.fromisoformat(entry["date"])
+                d = date.fromisoformat(e["date"])
             except (KeyError, ValueError):
-                continue
-            if d < start or d > end:
-                continue
-            cond = str(entry.get("condition", "")).lower()
-            wind = entry.get("wind_kmh", 0) or 0
-            if cond in _SEVERE_CONDITIONS or wind >= _SEVERE_WIND_KMH:
-                severe.append(entry)
-        if not severe:
-            return None
+                return False
+            return start <= d <= end and (str(e.get("condition", "")).lower() in _SEVERE_CONDITIONS or (e.get("wind_kmh", 0) or 0) >= _SEVERE_WIND_KMH)
+        severe = [e for e in ctx.weather_forecast if _is_severe(e)]
         return self._anomaly("alert.weather_risk", "medium", f"Weather risk for {project.name}",
-                             {"project": project.name, "severe_days": severe})
+                             {"project": project.name, "severe_days": severe}) if severe else None
 
     def scan_project(self, project: Project, ctx: ProjectContext) -> list[Anomaly]:
         return [a for a in (self._over_budget(project, ctx), self._behind_schedule(project, ctx),
                             self._weather_risk(project, ctx)) if a is not None]
 
-    async def scan_and_dispatch(
-        self, db: AsyncSession, *, dispatcher: NotificationDispatcher,
-        project: Project, recipient_user_id: uuid.UUID, context: ProjectContext,
-    ) -> list[Notification]:
-        sent: list[Notification] = []
-        for a in self.scan_project(project, context):
-            sent.append(await dispatcher.dispatch(
-                db, user_id=recipient_user_id, type=a.type, title=a.title, body=a.reasoning,
-                data={"project_id": str(project.id), "severity": a.severity, "facts": a.facts},
-            ))
-        return sent
+    async def scan_and_dispatch(self, db: AsyncSession, *, dispatcher: NotificationDispatcher,
+                               project: Project, recipient_user_id: uuid.UUID, context: ProjectContext) -> list[Notification]:
+        return [await dispatcher.dispatch(db, user_id=recipient_user_id, type=a.type, title=a.title, body=a.reasoning,
+                                          data={"project_id": str(project.id), "severity": a.severity, "facts": a.facts})
+                for a in self.scan_project(project, context)]
 
 
 ContextProvider = Callable[[Project], ProjectContext | Awaitable[ProjectContext]]
@@ -151,20 +138,12 @@ async def _resolve_context(provider: ContextProvider, project: Project) -> Proje
     return await result if inspect.isawaitable(result) else result  # type: ignore[return-value]
 
 
-async def run_scheduled_scan(
-    db: AsyncSession, *, detector: AnomalyDetector,
-    dispatcher: NotificationDispatcher, context_provider: ContextProvider,
-) -> list[dict]:
-    rows = (await db.execute(select(Project).where(
-        Project.deleted_at.is_(None), Project.status == "active",
-    ))).scalars().all()
+async def run_scheduled_scan(db: AsyncSession, *, detector: AnomalyDetector,
+                            dispatcher: NotificationDispatcher, context_provider: ContextProvider) -> list[dict]:
+    projects = (await db.execute(select(Project).where(Project.deleted_at.is_(None), Project.status == "active"))).scalars().all()
     summary: list[dict] = []
-    for project in rows:
-        ctx = await _resolve_context(context_provider, project)
-        sent = await detector.scan_and_dispatch(
-            db, dispatcher=dispatcher, project=project,
-            recipient_user_id=project.owner_id, context=ctx,
-        )
-        if sent:
-            summary.append({"project_id": str(project.id), "project_name": project.name, "notifications": sent})
+    for p in projects:
+        if sent := await detector.scan_and_dispatch(db, dispatcher=dispatcher, project=p,
+                                                    recipient_user_id=p.owner_id, context=await _resolve_context(context_provider, p)):
+            summary.append({"project_id": str(p.id), "project_name": p.name, "notifications": sent})
     return summary

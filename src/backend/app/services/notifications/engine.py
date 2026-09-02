@@ -73,28 +73,15 @@ class NotificationDispatcher:
         await db.flush()  # need PK for channels referencing it
 
         dispatched: list[str] = []
-        # User preferences always win — even an explicit `channels=[...]` arg
-        # is intersected with the user's allowed set so opt-outs are honored.
-        # Channels not registered in the prefs model (e.g. custom in-process
-        # channels) are passed through unfiltered.
-        prefs = await get_or_create_preferences(db, user_id=user_id)
-        allowed = allowed_channels_for(prefs, type)
-        for channel in self.channels:
-            if channels is not None and channel.name not in channels:
-                continue
-            if channel.name in KNOWN_CHANNELS and channel.name not in allowed:
+        allowed = allowed_channels_for(await get_or_create_preferences(db, user_id=user_id), type)
+        for ch in self.channels:
+            if (channels and ch.name not in channels) or (ch.name in KNOWN_CHANNELS and ch.name not in allowed):
                 continue
             try:
-                await channel.send(notification, user)
-                dispatched.append(channel.name)
+                await ch.send(notification, user)
+                dispatched.append(ch.name)
             except Exception:
-                logger.exception(
-                    "notification_channel_failed",
-                    extra={
-                        "channel": channel.name,
-                        "notification_id": str(notification.id),
-                    },
-                )
+                logger.exception("notification_channel_failed", extra={"channel": ch.name, "notification_id": str(notification.id)})
 
         notification.channels_dispatched = dispatched
         await db.commit()

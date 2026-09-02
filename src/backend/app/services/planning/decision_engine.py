@@ -92,67 +92,27 @@ class DecisionEngine:
             unmet = [d for d in r.dependencies if d not in done_ids]
 
             if r.status == "in_progress":
-                in_progress.append(
-                    Decision(
-                        task_id=r.task_id,
-                        name=r.name,
-                        score=0.0,
-                        reasoning=f"Task '{r.name}' is currently in progress.",
-                        factors=["in_progress"],
-                    )
-                )
+                in_progress.append(Decision(task_id=r.task_id, name=r.name, score=0.0,
+                                            reasoning=f"Task '{r.name}' is currently in progress.", factors=["in_progress"]))
                 continue
-
             if r.status == "blocked":
-                blocked.append(
-                    Decision(
-                        task_id=r.task_id,
-                        name=r.name,
-                        score=0.0,
-                        reasoning=f"Task '{r.name}' is marked blocked.",
-                        factors=["status=blocked"],
-                    )
-                )
+                blocked.append(Decision(task_id=r.task_id, name=r.name, score=0.0,
+                                        reasoning=f"Task '{r.name}' is marked blocked.", factors=["status=blocked"]))
                 continue
-
             if unmet:
-                blocked.append(
-                    Decision(
-                        task_id=r.task_id,
-                        name=r.name,
-                        score=0.0,
-                        reasoning=(
-                            f"Waiting on unfinished dependencies: "
-                            f"{', '.join(row_by_id[d].name for d in unmet if d in row_by_id)}"
-                        ),
-                        factors=[f"depends_on={','.join(unmet)}"],
-                    )
-                )
+                dep_names = ', '.join(row_by_id[d].name for d in unmet if d in row_by_id)
+                blocked.append(Decision(task_id=r.task_id, name=r.name, score=0.0,
+                                        reasoning=f"Waiting on unfinished dependencies: {dep_names}",
+                                        factors=[f"depends_on={','.join(unmet)}"]))
                 continue
 
-            # Ready task — score it.
             factors: list[str] = []
-            score = 0.0
-            if cpm.is_critical:
-                score += self.CRITICAL_BONUS
-                factors.append("on critical path")
-            else:
-                pen = self.FLOAT_PENALTY * cpm.total_float
-                score -= pen
-                factors.append(f"slack={cpm.total_float:.1f}h")
+            score = self.CRITICAL_BONUS if cpm.is_critical else -(self.FLOAT_PENALTY * cpm.total_float)
+            factors.append("on critical path" if cpm.is_critical else f"slack={cpm.total_float:.1f}h")
             score -= self.DURATION_PENALTY * cpm.duration_hours
             factors.append(f"duration={cpm.duration_hours:.1f}h")
-
-            reasoning_bits = ["Ready to start — " + "; ".join(factors)]
-            priorities.append(
-                Decision(
-                    task_id=r.task_id,
-                    name=r.name,
-                    score=score,
-                    reasoning=" ".join(reasoning_bits),
-                    factors=factors,
-                )
-            )
+            priorities.append(Decision(task_id=r.task_id, name=r.name, score=score,
+                                       reasoning="Ready to start — " + "; ".join(factors), factors=factors))
 
         priorities.sort(key=lambda d: (-d.score, d.task_id))
         if top_n is not None:

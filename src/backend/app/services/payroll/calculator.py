@@ -39,12 +39,13 @@ def summarize(entries: list[_Entry]) -> tuple[float, int, dict[uuid.UUID | None,
     """
     total_hours = 0.0
     total_gross = 0
-    per_project: dict[uuid.UUID | None, list[int]] = defaultdict(lambda: [0.0, 0])
+    hours_by: dict[uuid.UUID | None, float] = defaultdict(float)
+    gross_by: dict[uuid.UUID | None, int] = defaultdict(int)
     for e in entries:
         gross = gross_cents_for_entry(e.hours, e.hourly_rate_cents_snapshot)
         total_hours += e.hours
         total_gross += gross
-        per_project[e.project_id][0] += e.hours
-        per_project[e.project_id][1] += gross
-    breakdown = {pid: (h, g) for pid, (h, g) in per_project.items()}
+        hours_by[e.project_id] += e.hours
+        gross_by[e.project_id] += gross
+    breakdown = {pid: (hours_by[pid], gross_by[pid]) for pid in hours_by}
     return total_hours, total_gross, breakdown

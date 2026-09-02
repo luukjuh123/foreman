@@ -23,7 +23,7 @@ from app.services.process_analytics.analytics import (
     stats_all_processes,
     stats_for_process,
 )
-from app.routers.deps import apply_updates, get_or_404
+from app.routers.deps import apply_updates, get_or_404, get_owned_project_or_404
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -79,7 +79,7 @@ async def list_project_processes(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ProjectProcessListResponse:
-    await _get_project_owned(project_id, user, db)
+    await get_owned_project_or_404(project_id, user, db)
     result = await db.execute(
         select(ProjectProcess)
         .where(ProjectProcess.project_id == project_id)
@@ -100,7 +100,7 @@ async def attach_process_to_project(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ProjectProcessResponse:
-    await _get_project_owned(project_id, user, db)
+    await get_owned_project_or_404(project_id, user, db)
     await _get_process_or_404(body.process_id, db)
     link = ProjectProcess(project_id=project_id, process_id=body.process_id, notes=body.notes)
     db.add(link)
@@ -128,7 +128,7 @@ async def detach_process_from_project(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    await _get_project_owned(project_id, user, db)
+    await get_owned_project_or_404(project_id, user, db)
     link = await get_or_404(
         db, ProjectProcess,
         ProjectProcess.id == project_process_id, ProjectProcess.project_id == project_id,
@@ -184,8 +184,3 @@ async def update_process(
     return ProcessResponse.model_validate(proc)
 
 
-async def _get_project_owned(project_id: uuid.UUID, user: User, db: AsyncSession) -> Project:
-    project = await get_or_404(db, Project, Project.id == project_id, Project.deleted_at.is_(None))
-    if project.owner_id != user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your project")
-    return project

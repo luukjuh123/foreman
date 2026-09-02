@@ -33,14 +33,12 @@ async def _notify_admins(
 ) -> None:
     admins = (await db.execute(select(User).where(User.role == "admin"))).scalars().all()
     for admin in admins:
-        subj = inquiry.subject or "(no subject)"
-        from_label = inquiry.from_email or "anonymous"
         await dispatcher.dispatch(
             db,
             user_id=admin.id,
             type="inbound.inquiry_received",
-            title=f"New {inquiry.source} inquiry: {subj}",
-            body=(f"You have a new inbound {inquiry.source} inquiry from {from_label}. Message: {inquiry.body[:500]}"),
+            title=f"New {inquiry.source} inquiry: {inquiry.subject or '(no subject)'}",
+            body=f"You have a new inbound {inquiry.source} inquiry from {inquiry.from_email or 'anonymous'}. Message: {inquiry.body[:500]}",
             data={
                 "inquiry_id": str(inquiry.id),
                 "source": inquiry.source,

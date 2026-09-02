@@ -46,30 +46,20 @@ def _customer_schema_to_model(data: dict, owner_id: uuid.UUID) -> dict:
     }
 
 
+def _customer_common(c: Customer) -> dict:
+    return dict(name=c.name, email=c.email, kvk_number=c.kvk_number, vat_number=c.btw_number,
+                address_line1=c.address, postal_code=c.postal_code, city=c.city, country_code="NL")
+
+
 def _customer_to_response(c: Customer) -> CustomerResponse:
-    return CustomerResponse(
-        id=c.id, name=c.name, email=c.email, kvk_number=c.kvk_number,
-        vat_number=c.btw_number, address_line1=c.address, address_line2=None,
-        postal_code=c.postal_code, city=c.city, country_code="NL",
-    )
-
-
-def _customer_to_dict(c: Customer) -> dict:
-    return dict(
-        name=c.name, email=c.email, vat_number=c.btw_number,
-        kvk_number=c.kvk_number, address_line1=c.address,
-        postal_code=c.postal_code, city=c.city, country_code="NL",
-    )
+    return CustomerResponse(id=c.id, address_line2=None, **_customer_common(c))
 
 
 @router.post("/customers", response_model=CustomerResponse, status_code=status.HTTP_201_CREATED)
 async def create_customer(
-    body: CustomerCreate,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    body: CustomerCreate, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db),
 ) -> CustomerResponse:
-    customer = Customer(**_customer_schema_to_model(body.model_dump(), current_user.id))
-    db.add(customer)
+    db.add(customer := Customer(**_customer_schema_to_model(body.model_dump(), current_user.id)))
     await db.commit()
     await db.refresh(customer)
     return _customer_to_response(customer)
@@ -77,13 +67,10 @@ async def create_customer(
 
 @router.get("/customers", response_model=list[CustomerResponse])
 async def list_customers(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db),
 ) -> list[CustomerResponse]:
-    result = await db.execute(
-        select(Customer).where(Customer.owner_id == current_user.id, Customer.deleted_at.is_(None))
-    )
-    return [_customer_to_response(c) for c in result.scalars().all()]
+    rows = (await db.execute(select(Customer).where(Customer.owner_id == current_user.id, Customer.deleted_at.is_(None)))).scalars().all()
+    return [_customer_to_response(c) for c in rows]
 
 
 async def _load_customer(db: AsyncSession, owner_id: uuid.UUID, customer_id: uuid.UUID) -> Customer:
@@ -101,25 +88,17 @@ async def _load_invoice(db: AsyncSession, owner_id: uuid.UUID, invoice_id: uuid.
     )
 
 
-def _build_lines(invoice: Invoice, lines) -> None:
+async def _create_and_save(db: AsyncSession, invoice: Invoice, lines, owner_id: uuid.UUID) -> InvoiceResponse:
     for idx, ln in enumerate(lines):
         net, vat = compute_line_totals(quantity=ln.quantity, unit_price_cents=ln.unit_price_cents, vat_rate_bp=ln.vat_rate_bp)
-        invoice.lines.append(InvoiceLine(
-            position=idx, description=ln.description, quantity=ln.quantity, unit=ln.unit,
-            unit_price_cents=ln.unit_price_cents, vat_rate_bp=ln.vat_rate_bp,
-            line_net_cents=net, line_vat_cents=vat,
-        ))
+        invoice.lines.append(InvoiceLine(position=idx, description=ln.description, quantity=ln.quantity, unit=ln.unit,
+                                         unit_price_cents=ln.unit_price_cents, vat_rate_bp=ln.vat_rate_bp, line_net_cents=net, line_vat_cents=vat))
     invoice.subtotal_cents = sum(ln.line_net_cents for ln in invoice.lines)
     invoice.vat_total_cents = sum(ln.line_vat_cents for ln in invoice.lines)
     invoice.total_cents = invoice.subtotal_cents + invoice.vat_total_cents
-
-
-async def _create_and_save(db: AsyncSession, invoice: Invoice, lines, owner_id: uuid.UUID) -> InvoiceResponse:
-    _build_lines(invoice, lines)
     db.add(invoice)
     await db.commit()
-    loaded = await _load_invoice(db, owner_id, invoice.id)
-    return InvoiceResponse.model_validate(loaded)
+    return InvoiceResponse.model_validate(await _load_invoice(db, owner_id, invoice.id))
 
 
 @router.post("/", response_model=InvoiceResponse, status_code=status.HTTP_201_CREATED)
@@ -163,39 +142,32 @@ async def list_invoices(
 
 @router.get("/{invoice_id}", response_model=InvoiceResponse)
 async def get_invoice(
-    invoice_id: uuid.UUID,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    invoice_id: uuid.UUID, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db),
 ) -> InvoiceResponse:
     return InvoiceResponse.model_validate(await _load_invoice(db, current_user.id, invoice_id))
 
 
+_INVOICE_FIELDS = ("invoice_number", "issue_date", "due_date", "currency", "notes", "payment_terms_days", "subtotal_cents", "vat_total_cents", "total_cents")
+_LINE_FIELDS = ("position", "description", "quantity", "unit", "unit_price_cents", "vat_rate_bp", "line_net_cents", "line_vat_cents")
+
+
 def _invoice_to_dict(invoice: Invoice) -> dict:
-    return {
-        "invoice_number": invoice.invoice_number, "issue_date": invoice.issue_date,
-        "due_date": invoice.due_date, "currency": invoice.currency, "notes": invoice.notes,
-        "payment_terms_days": invoice.payment_terms_days, "subtotal_cents": invoice.subtotal_cents,
-        "vat_total_cents": invoice.vat_total_cents, "total_cents": invoice.total_cents,
-        "lines": [
-            {k: getattr(ln, k) for k in (
-                "position", "description", "quantity", "unit",
-                "unit_price_cents", "vat_rate_bp", "line_net_cents", "line_vat_cents",
-            )} for ln in invoice.lines
-        ],
-    }
+    return {**{k: getattr(invoice, k) for k in _INVOICE_FIELDS}, "lines": [{k: getattr(ln, k) for k in _LINE_FIELDS} for ln in invoice.lines]}
+
+
+_SUPPLIER_ATTR = {"kvk_number": "company_kvk"}
 
 
 def _supplier_from_settings() -> dict:
-    _map = {"kvk_number": "company_kvk"}
-    keys = ("name", "vat_number", "kvk_number", "address_line1", "postal_code", "city", "country_code", "email", "iban")
-    return {k: getattr(settings, _map.get(k, f"company_{k}")) for k in keys}
+    return {k: getattr(settings, _SUPPLIER_ATTR.get(k, f"company_{k}"))
+            for k in ("name", "vat_number", "kvk_number", "address_line1", "postal_code", "city", "country_code", "email", "iban")}
 
 
 async def _render_doc(db, current_user, invoice_id, render_fn, media_type, ext):
     invoice = await _load_invoice(db, current_user.id, invoice_id)
     customer = await _load_customer(db, current_user.id, invoice.customer_id)
     content = render_fn(
-        _invoice_to_dict(invoice), customer=_customer_to_dict(customer), supplier=_supplier_from_settings(),
+        _invoice_to_dict(invoice), customer=_customer_common(customer), supplier=_supplier_from_settings(),
     )
     return Response(
         content=content, media_type=media_type,
@@ -205,18 +177,14 @@ async def _render_doc(db, current_user, invoice_id, render_fn, media_type, ext):
 
 @router.get("/{invoice_id}/ubl", response_class=Response, responses={200: {"content": {"application/xml": {}}}})
 async def get_invoice_ubl(
-    invoice_id: uuid.UUID,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    invoice_id: uuid.UUID, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db),
 ) -> Response:
     return await _render_doc(db, current_user, invoice_id, build_invoice_ubl_xml, "application/xml", "xml")
 
 
 @router.get("/{invoice_id}/pdf", response_class=Response, responses={200: {"content": {"application/pdf": {}}}})
 async def get_invoice_pdf(
-    invoice_id: uuid.UUID,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    invoice_id: uuid.UUID, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db),
 ) -> Response:
     from app.services.invoices import pdf as pdf_mod
     return await _render_doc(db, current_user, invoice_id, pdf_mod.render_invoice_pdf, "application/pdf", "pdf")
@@ -228,17 +196,10 @@ class _SweepRequest(BaseModel):
 
 @router.post("/sweep-overdue")
 async def sweep_overdue_endpoint(
-    body: _SweepRequest | None = None,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    body: _SweepRequest | None = None, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db),
 ) -> dict:
-    today = body.as_of if body and body.as_of else _date.today()
-    invoices = (await db.execute(
-        select(Invoice).where(
-            Invoice.owner_id == current_user.id, Invoice.status == "sent",
-            Invoice.due_date < today, Invoice.deleted_at.is_(None),
-        )
-    )).scalars().all()
+    today = (body and body.as_of) or _date.today()
+    invoices = (await db.execute(select(Invoice).where(Invoice.owner_id == current_user.id, Invoice.status == "sent", Invoice.due_date < today, Invoice.deleted_at.is_(None)))).scalars().all()
     for inv in invoices:
         inv.status = "overdue"
     await db.commit()
@@ -247,18 +208,16 @@ async def sweep_overdue_endpoint(
 
 @router.post("/{invoice_id}/transition", response_model=InvoiceResponse)
 async def transition_invoice(
-    invoice_id: uuid.UUID,
-    body: InvoiceStatusUpdate,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    invoice_id: uuid.UUID, body: InvoiceStatusUpdate,
+    current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db),
 ) -> InvoiceResponse:
-    invoice = await _load_invoice(db, current_user.id, invoice_id)
     try:
-        apply_transition(invoice, body.status)
+        apply_transition(invoice := await _load_invoice(db, current_user.id, invoice_id), body.status)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     await db.commit()
-    return InvoiceResponse.model_validate(await _load_invoice(db, current_user.id, invoice_id))
+    await db.refresh(invoice)
+    return InvoiceResponse.model_validate(invoice)
 
 
 class _FromProjectRequest(BaseModel):
@@ -281,23 +240,17 @@ async def create_invoice_from_project(
     customer = await _load_customer(db, current_user.id, body.customer_id)
     try:
         project, draft_lines = await build_project_lines(
-            db, project_id=project_id, owner_id=current_user.id,
-            vat_rate_bp=body.default_vat_rate_bp,
-            include_materials=body.include_materials, include_labor=body.include_labor,
-        )
+            db, project_id=project_id, owner_id=current_user.id, vat_rate_bp=body.default_vat_rate_bp,
+            include_materials=body.include_materials, include_labor=body.include_labor)
     except LookupError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     if not draft_lines:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Project has no billable materials or labor — invoice would be empty.",
-        )
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Project has no billable materials or labor — invoice would be empty.")
     issue_date = body.issue_date or _date.today()
-    invoice_number = await allocate_invoice_number(db, owner_id=current_user.id, year=issue_date.year)
     invoice = Invoice(
         owner_id=current_user.id, customer_id=customer.id, project_id=project.id,
-        invoice_number=invoice_number, issue_date=issue_date,
-        due_date=issue_date + timedelta(days=body.payment_terms_days),
+        invoice_number=await allocate_invoice_number(db, owner_id=current_user.id, year=issue_date.year),
+        issue_date=issue_date, due_date=issue_date + timedelta(days=body.payment_terms_days),
         payment_terms_days=body.payment_terms_days, notes=body.notes, status="draft",
     )
     return await _create_and_save(db, invoice, draft_lines, current_user.id)

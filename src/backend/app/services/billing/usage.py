@@ -8,9 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 
 async def get_or_create_counter(user_id: uuid.UUID, db: AsyncSession) -> UsageCounter:
-    result = await db.execute(select(UsageCounter).where(UsageCounter.owner_id == user_id))
-    counter = result.scalar_one_or_none()
-    if counter is not None:
+    if (counter := (await db.execute(select(UsageCounter).where(UsageCounter.owner_id == user_id))).scalar_one_or_none()) is not None:
         return counter
     counter = UsageCounter(owner_id=user_id, project_count=0, user_count=1, storage_bytes=0)
     db.add(counter)

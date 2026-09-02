@@ -37,16 +37,11 @@ def _task_in_period(task: Task, start: date | None, end: date | None) -> bool:
     return not (end is not None and t_start is not None and t_start > end)
 
 
+_TASK_FIELDS = {"id": str, "name": None, "status": None, "estimated_hours": lambda v: float(v or 0.0),
+                "labor_cost_cents": lambda v: int(v or 0), "start_date": _date_str, "end_date": _date_str}
+
 def _serialise_task(task: Task) -> dict[str, Any]:
-    return {
-        "id": str(task.id),
-        "name": task.name,
-        "status": task.status,
-        "estimated_hours": float(task.estimated_hours or 0.0),
-        "labor_cost_cents": int(task.labor_cost_cents or 0),
-        "start_date": _date_str(task.start_date),
-        "end_date": _date_str(task.end_date),
-    }
+    return {k: (fn(getattr(task, k)) if fn else getattr(task, k)) for k, fn in _TASK_FIELDS.items()}
 
 
 async def aggregate_project_data(
@@ -71,23 +66,11 @@ async def aggregate_project_data(
     selected_tasks: list[Task] = []
     phases_payload: list[dict[str, Any]] = []
     for phase in sorted(project.phases, key=lambda p: p.order_index):
-        phase_tasks = [t for t in phase.tasks if _task_in_period(t, period_start, period_end)]
-        selected_tasks.extend(phase_tasks)
-        phases_payload.append(
-            {
-                "id": str(phase.id),
-                "name": phase.name,
-                "status": phase.status,
-                "order_index": phase.order_index,
-                "task_count": len(phase_tasks),
-                "start_date": _date_str(phase.start_date),
-                "end_date": _date_str(phase.end_date),
-            }
-        )
-
-    completed = [t for t in selected_tasks if t.status == "done"]
-    total_hours = sum(float(t.estimated_hours or 0.0) for t in selected_tasks)
-    total_cost = sum(int(t.labor_cost_cents or 0) for t in selected_tasks)
+        pt = [t for t in phase.tasks if _task_in_period(t, period_start, period_end)]
+        selected_tasks.extend(pt)
+        phases_payload.append({"id": str(phase.id), "name": phase.name, "status": phase.status,
+                               "order_index": phase.order_index, "task_count": len(pt),
+                               "start_date": _date_str(phase.start_date), "end_date": _date_str(phase.end_date)})
 
     return {
         "project": {
@@ -107,8 +90,8 @@ async def aggregate_project_data(
         "tasks": [_serialise_task(t) for t in selected_tasks],
         "totals": {
             "task_count": len(selected_tasks),
-            "completed_task_count": len(completed),
-            "estimated_hours": total_hours,
-            "labor_cost_cents": total_cost,
+            "completed_task_count": sum(1 for t in selected_tasks if t.status == "done"),
+            "estimated_hours": sum(float(t.estimated_hours or 0.0) for t in selected_tasks),
+            "labor_cost_cents": sum(int(t.labor_cost_cents or 0) for t in selected_tasks),
         },
     }

@@ -1,5 +1,3 @@
-"""Customers router — CRUD for customers, scoped per authenticated owner."""
-
 import uuid
 from datetime import date
 
@@ -19,8 +17,8 @@ from app.schemas.customer import (
     ProjectSummaryItem,
 )
 from app.routers.deps import apply_updates, count_query, get_or_404
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, select
+from fastapi import APIRouter, Depends, Query, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/api/v1/customers")
@@ -43,8 +41,7 @@ async def create_customer(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Customer:
-    customer = Customer(owner_id=current_user.id, **body.model_dump())
-    db.add(customer)
+    db.add(customer := Customer(owner_id=current_user.id, **body.model_dump()))
     await db.commit()
     await db.refresh(customer)
     return customer
@@ -58,21 +55,13 @@ async def list_customers(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> CustomerListResponse:
-    base_q = select(Customer).where(
-        Customer.owner_id == current_user.id,
-        Customer.deleted_at.is_(None),
-    )
+    base_q = select(Customer).where(Customer.owner_id == current_user.id, Customer.deleted_at.is_(None))
     if search:
         term = f"%{search}%"
         base_q = base_q.where(Customer.name.ilike(term) | Customer.city.ilike(term) | Customer.email.ilike(term))
-
     total = await count_query(db, base_q)
-
-    items_q = base_q.order_by(Customer.name).offset((page - 1) * per_page).limit(per_page)
-    result = await db.execute(items_q)
-    customers = list(result.scalars().all())
-
-    return CustomerListResponse(data=customers, total=total, page=page, per_page=per_page)
+    result = await db.execute(base_q.order_by(Customer.name).offset((page - 1) * per_page).limit(per_page))
+    return CustomerListResponse(data=list(result.scalars().all()), total=total, page=page, per_page=per_page)
 
 
 @router.get("/{customer_id}/summary", response_model=CustomerSummaryResponse)
@@ -82,61 +71,21 @@ async def get_customer_summary(
     db: AsyncSession = Depends(get_db),
 ) -> CustomerSummaryResponse:
     customer = await _get_or_404(customer_id, current_user.id, db)
-
-    # Invoices linked to this customer
-    inv_result = await db.execute(
-        select(Invoice)
-        .where(
-            Invoice.customer_id == customer_id,
-            Invoice.owner_id == current_user.id,
-            Invoice.deleted_at.is_(None),
-        )
-        .order_by(Invoice.issue_date.desc())
-    )
-    invoices = list(inv_result.scalars().all())
-
-    # Projects linked via invoices (unique project_ids)
+    invoices = list((await db.execute(
+        select(Invoice).where(Invoice.customer_id == customer_id, Invoice.owner_id == current_user.id,
+                              Invoice.deleted_at.is_(None)).order_by(Invoice.issue_date.desc())
+    )).scalars().all())
     project_ids = {inv.project_id for inv in invoices if inv.project_id is not None}
-    projects: list[ProjectSummaryItem] = []
-    if project_ids:
-        proj_result = await db.execute(
-            select(Project).where(
-                Project.id.in_(project_ids),
-                Project.deleted_at.is_(None),
-            )
-        )
-        for p in proj_result.scalars().all():
-            projects.append(
-                ProjectSummaryItem(
-                    id=p.id,
-                    name=p.name,
-                    status=p.status,
-                    start_date=_fmt_date(p.start_date),
-                    end_date=_fmt_date(p.end_date),
-                )
-            )
-
-    invoice_items = [
-        InvoiceSummaryItem(
-            id=inv.id,
-            invoice_number=inv.invoice_number,
-            issue_date=_fmt_date(inv.issue_date),  # type: ignore[arg-type]
-            due_date=_fmt_date(inv.due_date),  # type: ignore[arg-type]
-            status=inv.status,
-            total_cents=inv.total_cents,
-        )
-        for inv in invoices
-    ]
-
-    outstanding_cents = sum(inv.total_cents for inv in invoices if inv.status not in ("paid", "cancelled"))
-
+    projects = [ProjectSummaryItem(id=p.id, name=p.name, status=p.status,
+                                   start_date=_fmt_date(p.start_date), end_date=_fmt_date(p.end_date))
+                for p in ((await db.execute(select(Project).where(
+                    Project.id.in_(project_ids), Project.deleted_at.is_(None)))).scalars().all() if project_ids else [])]
     return CustomerSummaryResponse(
-        id=customer.id,
-        name=customer.name,
-        projects=projects,
-        invoices=invoice_items,
-        outstanding_cents=outstanding_cents,
-    )
+        id=customer.id, name=customer.name, projects=projects,
+        invoices=[InvoiceSummaryItem(id=inv.id, invoice_number=inv.invoice_number,
+                                     issue_date=_fmt_date(inv.issue_date), due_date=_fmt_date(inv.due_date),  # type: ignore[arg-type]
+                                     status=inv.status, total_cents=inv.total_cents) for inv in invoices],
+        outstanding_cents=sum(inv.total_cents for inv in invoices if inv.status not in ("paid", "cancelled")))
 
 
 @router.get("/{customer_id}", response_model=CustomerResponse)
@@ -155,8 +104,7 @@ async def update_customer(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Customer:
-    customer = await _get_or_404(customer_id, current_user.id, db)
-    apply_updates(customer, body)
+    apply_updates(customer := await _get_or_404(customer_id, current_user.id, db), body)
     await db.commit()
     await db.refresh(customer)
     return customer
@@ -168,6 +116,5 @@ async def delete_customer(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    customer = await _get_or_404(customer_id, current_user.id, db)
-    await db.delete(customer)
+    await db.delete(await _get_or_404(customer_id, current_user.id, db))
     await db.commit()

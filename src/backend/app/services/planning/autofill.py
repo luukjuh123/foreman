@@ -111,33 +111,19 @@ def compute_schedule(
 
         task_end = _add_working_days(task_start, days)
 
-        if task.dependencies:
-            dep_names = [task_map[d].name for d in task.dependencies if d in task_map]
-            reasoning = (
-                f"Scheduled after {'dependency' if len(dep_names) == 1 else 'dependencies'} "
-                f"{', '.join(dep_names)}. "
-                f"Duration: {task.duration_hours:.0f}h ({days}d)."
-            )
-        else:
-            reasoning = (
-                f"No dependencies - starts on project start date. Duration: {task.duration_hours:.0f}h ({days}d)."
-            )
-
+        dep_names = [task_map[d].name for d in task.dependencies if d in task_map]
+        dur = f"Duration: {task.duration_hours:.0f}h ({days}d)."
+        reasoning = (f"Scheduled after {'dependency' if len(dep_names) == 1 else 'dependencies'} {', '.join(dep_names)}. {dur}"
+                     if dep_names else f"No dependencies - starts on project start date. {dur}")
         if task.duration_hours == _DEFAULT_FALLBACK_HOURS and not hist.get(task.name):
             reasoning += " Duration estimated using default fallback (no historical data)."
-
         if weather_skipped:
             reasoning += " Start delayed due to poor weather forecast on original start date."
 
-        proposals.append(
-            TaskScheduleProposal(
-                task_id=task.id,
-                proposed_start_date=task_start,
-                proposed_end_date=task_end,
-                reasoning=reasoning,
-                is_critical=task.is_critical,
-            )
-        )
+        proposals.append(TaskScheduleProposal(
+            task_id=task.id, proposed_start_date=task_start, proposed_end_date=task_end,
+            reasoning=reasoning, is_critical=task.is_critical,
+        ))
 
     return proposals
 

@@ -66,28 +66,16 @@ async def create_checkout(
     provider: PaymentProvider = Depends(get_payment_provider),
 ) -> CheckoutResponse:
     if body.tier == SubscriptionTier.FREE:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot checkout for the free tier",
-        )
-    amount = TIER_PRICE_CENTS[body.tier]
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot checkout for the free tier")
     sub = await ensure_free_subscription(current_user.id, db)
-    result = provider.create_subscription(
-        customer_email=current_user.email,
-        tier=body.tier.value,
-        amount_cents=amount,
-    )
-    # Record the intent on the subscription row; the webhook activates it.
-    sub.provider = "mollie"
-    sub.provider_subscription_id = result.provider_subscription_id
-    sub.provider_customer_id = result.provider_customer_id
-    sub.tier = body.tier.value
-    sub.status = SubscriptionStatus.PAST_DUE.value  # pending activation
+    result = provider.create_subscription(customer_email=current_user.email, tier=body.tier.value,
+                                          amount_cents=TIER_PRICE_CENTS[body.tier])
+    sub.provider, sub.provider_subscription_id = "mollie", result.provider_subscription_id
+    sub.provider_customer_id, sub.tier = result.provider_customer_id, body.tier.value
+    sub.status = SubscriptionStatus.PAST_DUE.value
     await db.commit()
-    return CheckoutResponse(
-        checkout_url=result.checkout_url,
-        provider_subscription_id=result.provider_subscription_id,
-    )
+    return CheckoutResponse(checkout_url=result.checkout_url,
+                            provider_subscription_id=result.provider_subscription_id)
 
 
 @router.post("/webhook/mollie")
@@ -99,33 +87,23 @@ async def mollie_webhook(
 ) -> dict:
     body = await request.body()
     if not x_mollie_signature or not provider.verify_webhook_signature(body, x_mollie_signature):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid webhook signature",
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid webhook signature")
     event = provider.parse_webhook(body)
-    result = await db.execute(
+    sub = (await db.execute(
         select(Subscription).where(Subscription.provider_subscription_id == event.provider_subscription_id)
-    )
-    sub = result.scalar_one_or_none()
+    )).scalar_one_or_none()
     if sub is None:
-        # Unknown subscription — acknowledge so Mollie does not retry forever.
         return {"data": {"acknowledged": True}, "error": None}
 
+    status_map = {"active": SubscriptionStatus.ACTIVE, "cancelled": SubscriptionStatus.CANCELLED,
+                   "past_due": SubscriptionStatus.PAST_DUE, "trialing": SubscriptionStatus.TRIALING}
+    if mapped := status_map.get(event.status):
+        sub.status = mapped.value
     if event.status == "active":
-        sub.status = SubscriptionStatus.ACTIVE.value
-        try:
-            tier = SubscriptionTier(sub.tier)
-        except ValueError:
-            tier = SubscriptionTier.STARTER
+        tier = SubscriptionTier(sub.tier) if sub.tier in {t.value for t in SubscriptionTier} else SubscriptionTier.STARTER
         sub.project_limit = TIER_PROJECT_LIMIT[tier]
     elif event.status == "cancelled":
-        sub.status = SubscriptionStatus.CANCELLED.value
         sub.tier = SubscriptionTier.FREE.value
         sub.project_limit = TIER_PROJECT_LIMIT[SubscriptionTier.FREE]
-    elif event.status == "past_due":
-        sub.status = SubscriptionStatus.PAST_DUE.value
-    elif event.status == "trialing":
-        sub.status = SubscriptionStatus.TRIALING.value
     await db.commit()
     return {"data": {"acknowledged": True}, "error": None}

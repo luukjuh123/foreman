@@ -20,19 +20,12 @@ from app.services.recognition.photo_client import (
     PhotoRecognitionClient,
     get_default_client,
 )
-from app.routers.deps import get_or_404
+from app.routers.deps import get_or_404, get_owned_project_or_404
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
-
-
-async def _get_project_owned(project_id: uuid.UUID, user: User, db: AsyncSession) -> Project:
-    project = await get_or_404(db, Project, Project.id == project_id, Project.deleted_at.is_(None))
-    if project.owner_id != user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your project")
-    return project
 
 
 def _to_response(photo: ProcessPhoto, slug: str | None) -> PhotoResponse:
@@ -60,7 +53,7 @@ async def upload_photo(
     db: AsyncSession = Depends(get_db),
     client: PhotoRecognitionClient = Depends(get_default_client),
 ) -> PhotoResponse:
-    await _get_project_owned(project_id, user, db)
+    await get_owned_project_or_404(project_id, user, db)
 
     result = await client.analyze(body.image_url)
 
@@ -109,7 +102,7 @@ async def list_photos(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> PhotoListResponse:
-    await _get_project_owned(project_id, user, db)
+    await get_owned_project_or_404(project_id, user, db)
     result = await db.execute(
         select(ProcessPhoto, Process.slug)
         .join(Process, ProcessPhoto.recognized_process_id == Process.id, isouter=True)

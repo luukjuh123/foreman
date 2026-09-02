@@ -93,10 +93,10 @@ async def search_materials(query: str = "") -> dict:
 
 def _surface_area_m2(length_m: float, width_m: float, height_m: float, surface: str) -> float:
     """Compute the relevant surface area for a given room face."""
-    areas = {"floor": length_m * width_m, "ceiling": length_m * width_m, "walls": 2.0 * (length_m + width_m) * height_m}
-    if surface not in areas:
-        raise ValueError(f"Unknown surface: {surface!r}")
-    return areas[surface]
+    match surface:
+        case "floor" | "ceiling": return length_m * width_m
+        case "walls": return 2.0 * (length_m + width_m) * height_m
+        case _: raise ValueError(f"Unknown surface: {surface!r}")
 
 
 @router.post("/estimate", response_model=RoomEstimateResponse)
@@ -109,33 +109,18 @@ async def estimate_room_materials(payload: RoomEstimateRequest) -> RoomEstimateR
     """
     estimates: list[EstimateItem] = []
     for spec in payload.materials:
+        area = lambda s: _surface_area_m2(payload.length_m, payload.width_m, payload.height_m, s)
         if isinstance(spec, PaintSpec):
-            area = _surface_area_m2(payload.length_m, payload.width_m, payload.height_m, spec.surface)
-            est = estimate_paint(
-                area_m2=area,
-                coats=spec.coats,
-                coverage_m2_per_liter=spec.coverage_m2_per_liter,
-            )
+            est = estimate_paint(area_m2=area(spec.surface), coats=spec.coats, coverage_m2_per_liter=spec.coverage_m2_per_liter)
         elif isinstance(spec, TileSpec):
-            area = _surface_area_m2(payload.length_m, payload.width_m, payload.height_m, spec.surface)
-            est = estimate_tiles(area_m2=area, waste_pct=spec.waste_pct)
+            est = estimate_tiles(area_m2=area(spec.surface), waste_pct=spec.waste_pct)
         elif isinstance(spec, ConcreteSpec):
-            est = estimate_concrete(
-                length_m=payload.length_m,
-                width_m=payload.width_m,
-                thickness_m=spec.thickness_m,
-            )
+            est = estimate_concrete(length_m=payload.length_m, width_m=payload.width_m, thickness_m=spec.thickness_m)
         elif isinstance(spec, LumberSpec):
-            est = estimate_lumber(
-                total_length_m=spec.total_length_m,
-                piece_length_m=spec.piece_length_m,
-            )
-        else:  # pragma: no cover — discriminated union exhausts above
-            msg = f"Unhandled material spec: {type(spec).__name__}"
-            raise TypeError(msg)
-
+            est = estimate_lumber(total_length_m=spec.total_length_m, piece_length_m=spec.piece_length_m)
+        else:  # pragma: no cover
+            raise TypeError(f"Unhandled material spec: {type(spec).__name__}")
         estimates.append(EstimateItem(material=est.material, quantity=est.quantity, unit=est.unit, notes=est.notes))
-
     return RoomEstimateResponse(data=RoomEstimateResponseData(estimates=estimates), error=None)
 
 
@@ -157,34 +142,17 @@ async def import_csv(file: UploadFile) -> MaterialImportResponse:
     raw = await file.read()
     if not raw.strip():
         raise HTTPException(status_code=422, detail="Het bestand is leeg.")
-
-    text = raw.decode("utf-8", errors="replace")
-    reader = csv.DictReader(io.StringIO(text))
-
-    # Validate required columns exist in header
+    reader = csv.DictReader(io.StringIO(raw.decode("utf-8", errors="replace")))
     fieldnames = {f.strip().lower() for f in (reader.fieldnames or [])}
-    missing = _REQUIRED_COLUMNS - fieldnames
-    if missing:
-        missing_str = ", ".join(sorted(missing))
-        raise HTTPException(
-            status_code=422,
-            detail=f"Ontbrekende kolommen: {missing_str}",
-        )
-
+    if missing := _REQUIRED_COLUMNS - fieldnames:
+        raise HTTPException(status_code=422, detail=f"Ontbrekende kolommen: {', '.join(sorted(missing))}")
     rows: list[MaterialImportRow] = []
     errors: list[str] = []
-
     for i, raw_row in enumerate(reader, start=1):
-        name = (raw_row.get("name") or "").strip()
-        unit = (raw_row.get("unit") or "").strip()
+        name, unit = (raw_row.get("name") or "").strip(), (raw_row.get("unit") or "").strip()
         qty_str = (raw_row.get("quantity") or "").strip()
-
         try:
-            quantity = float(qty_str)
+            rows.append(MaterialImportRow(name=name, quantity=float(qty_str), unit=unit))
         except (ValueError, TypeError):
             errors.append(f"Rij {i} ({name!r}): ongeldige hoeveelheid {qty_str!r}")
-            continue
-
-        rows.append(MaterialImportRow(name=name, quantity=quantity, unit=unit))
-
     return MaterialImportResponse(rows=rows, errors=errors)

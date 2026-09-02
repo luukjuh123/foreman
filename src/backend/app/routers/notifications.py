@@ -59,10 +59,7 @@ async def update_preferences(
     db: AsyncSession = Depends(get_db),
 ) -> NotificationPreferencesEnvelope:
     prefs = await get_or_create_preferences(db, user_id=current_user.id)
-    for field in ("in_app_enabled", "email_enabled", "push_enabled", "type_overrides"):
-        new_val = getattr(payload, field)
-        if new_val is not None:
-            setattr(prefs, field, new_val)
+    apply_updates(prefs, payload)
     await db.commit()
     await db.refresh(prefs)
     return NotificationPreferencesEnvelope(data=NotificationPreferencesResponse.model_validate(prefs))
@@ -86,17 +83,11 @@ async def list_notifications(
     offset = (page - 1) * per_page
     rows = (await db.execute(base.offset(offset).limit(per_page))).scalars().all()
 
-    unread = (
-        await db.execute(
-            select(func.count())
-            .select_from(Notification)
-            .where(
-                Notification.user_id == current_user.id,
-                Notification.deleted_at.is_(None),
-                Notification.read_at.is_(None),
-            )
+    unread = (await db.execute(
+        select(func.count()).select_from(Notification).where(
+            Notification.user_id == current_user.id, Notification.deleted_at.is_(None), Notification.read_at.is_(None),
         )
-    ).scalar_one()
+    )).scalar_one()
 
     return NotificationListResponse(
         data=[NotificationResponse.model_validate(n) for n in rows],
@@ -148,9 +139,7 @@ class ReportReadyRequest(BaseModel):
 
 
 async def _assert_recipient_exists(user_id: uuid.UUID, db: AsyncSession) -> None:
-    exists = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
-    if exists is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recipient user not found")
+    await get_or_404(db, User, User.id == user_id, detail="Recipient user not found")
 
 
 @router.post(

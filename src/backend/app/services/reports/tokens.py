@@ -48,11 +48,10 @@ def verify_report_token(token: str, secret: str) -> uuid.UUID:
     Raises ``InvalidReportToken`` for any malformed, tampered, or
     wrong-secret token.
     """
-    if not token or token.count(".") != 1:
+    parts = token.split(".") if token else []
+    if len(parts) != 2 or not parts[0] or not parts[1]:
         raise InvalidReportToken("malformed token")
-    payload_b64, signature = token.split(".")
-    if not payload_b64 or not signature:
-        raise InvalidReportToken("malformed token")
+    payload_b64, signature = parts
     try:
         payload = _b64decode(payload_b64)
     except (ValueError, binascii.Error) as exc:

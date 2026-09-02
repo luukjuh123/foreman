@@ -29,6 +29,35 @@ class CpmTask:
         return abs(self.total_float) < 1e-9
 
 
+def _build_graph(tasks: list[CpmTask]) -> tuple[dict[str, CpmTask], dict[str, int], dict[str, list[str]]]:
+    task_map = {t.id: t for t in tasks}
+    in_degree: dict[str, int] = {t.id: 0 for t in tasks}
+    successors: dict[str, list[str]] = {t.id: [] for t in tasks}
+    for task in tasks:
+        for dep_id in task.dependencies:
+            if dep_id not in task_map:
+                raise ValueError(f"Unknown dependency: {dep_id}")
+            in_degree[task.id] += 1
+            successors[dep_id].append(task.id)
+    return task_map, in_degree, successors
+
+
+def _kahn_sort(in_degree: dict[str, int], successors: dict[str, list[str]]) -> list[str]:
+    in_deg = dict(in_degree)
+    queue: deque[str] = deque(tid for tid, d in in_deg.items() if d == 0)
+    order: list[str] = []
+    while queue:
+        cur = queue.popleft()
+        order.append(cur)
+        for s in successors[cur]:
+            in_deg[s] -= 1
+            if in_deg[s] == 0:
+                queue.append(s)
+    if len(order) != len(in_degree):
+        raise ValueError("Dependency cycle detected in task graph")
+    return order
+
+
 def compute_critical_path(tasks: list[CpmTask]) -> list[CpmTask]:
     """Compute early/late start/finish and float for each task.
 
@@ -37,59 +66,26 @@ def compute_critical_path(tasks: list[CpmTask]) -> list[CpmTask]:
 
     Raises ValueError if a dependency cycle is detected.
     """
-    task_map = {t.id: t for t in tasks}
+    task_map, in_degree, successors = _build_graph(tasks)
+    order = _kahn_sort(in_degree, successors)
 
-    # Build reverse adjacency map and in-degree in one pass — O(n)
-    in_degree: dict[str, int] = {t.id: 0 for t in tasks}
-    successors: dict[str, list[str]] = {t.id: [] for t in tasks}
-    for task in tasks:
-        for dep_id in task.dependencies:
-            if dep_id not in task_map:
-                msg = f"Unknown dependency: {dep_id}"
-                raise ValueError(msg)
-            in_degree[task.id] += 1
-            successors[dep_id].append(task.id)
-
-    # Topological sort (Kahn's algorithm) using deque — O(n)
-    queue: deque[str] = deque(t.id for t in tasks if in_degree[t.id] == 0)
-    order: list[str] = []
-
-    while queue:
-        current_id = queue.popleft()
-        order.append(current_id)
-        for successor_id in successors[current_id]:
-            in_degree[successor_id] -= 1
-            if in_degree[successor_id] == 0:
-                queue.append(successor_id)
-
-    if len(order) != len(tasks):
-        msg = "Dependency cycle detected in task graph"
-        raise ValueError(msg)
-
-    # Forward pass
     for task_id in order:
-        task = task_map[task_id]
-        if not task.dependencies:
-            task.early_start = 0.0
-        else:
-            task.early_start = max(task_map[dep_id].early_finish for dep_id in task.dependencies)
-        task.early_finish = task.early_start + task.duration_hours
-
-    # Project duration
+        t = task_map[task_id]
+        t.early_start = max((task_map[d].early_finish for d in t.dependencies), default=0.0)
+        t.early_finish = t.early_start + t.duration_hours
     project_duration = max(t.early_finish for t in tasks)
-
-    # Backward pass — uses successors map, no O(n) scan
     for task_id in reversed(order):
-        task = task_map[task_id]
-        successor_tasks = [task_map[s] for s in successors[task_id]]
-        if not successor_tasks:
-            task.late_finish = project_duration
-        else:
-            task.late_finish = min(s.late_start for s in successor_tasks)
-        task.late_start = task.late_finish - task.duration_hours
-        task.total_float = task.late_start - task.early_start
-
+        t = task_map[task_id]
+        succs = [task_map[s] for s in successors[task_id]]
+        t.late_finish = min((s.late_start for s in succs), default=project_duration)
+        t.late_start = t.late_finish - t.duration_hours
+        t.total_float = t.late_start - t.early_start
     return tasks
+
+
+def _snapshot(tasks: list[CpmTask]) -> list[CpmTask]:
+    """Create a deep-enough copy of tasks for CPM computation without mutating originals."""
+    return [CpmTask(id=t.id, name=t.name, duration_hours=t.duration_hours, dependencies=list(t.dependencies)) for t in tasks]
 
 
 def _critical_topo_sort(tasks: list[CpmTask]) -> list[str]:
@@ -97,33 +93,21 @@ def _critical_topo_sort(tasks: list[CpmTask]) -> list[str]:
 
     Raises ValueError on dependency cycle.
     """
-    snapshot = [
-        CpmTask(id=t.id, name=t.name, duration_hours=t.duration_hours, dependencies=list(t.dependencies))
-        for t in tasks
-    ]
+    snapshot = _snapshot(tasks)
     compute_critical_path(snapshot)
-    task_map = {t.id: t for t in snapshot}
-    in_degree: dict[str, int] = {t.id: 0 for t in snapshot}
-    successors: dict[str, list[str]] = {t.id: [] for t in snapshot}
-    for t in snapshot:
-        for dep_id in t.dependencies:
-            in_degree[t.id] += 1
-            successors[dep_id].append(t.id)
+    task_map, in_degree, successors = _build_graph(snapshot)
 
     key = lambda tid: (0 if task_map[tid].is_critical else 1, -task_map[tid].early_finish, tid)
-    ready = sorted([t.id for t in snapshot if in_degree[t.id] == 0], key=key)
+    ready = sorted([tid for tid, d in in_degree.items() if d == 0], key=key)
     order: list[str] = []
     while ready:
         cur = ready.pop(0)
         order.append(cur)
-        promoted: list[str] = []
         for s in successors[cur]:
             in_degree[s] -= 1
             if in_degree[s] == 0:
-                promoted.append(s)
-        if promoted:
-            ready.extend(promoted)
-            ready.sort(key=key)
+                ready.append(s)
+        ready.sort(key=key)
 
     if len(order) != len(snapshot):
         raise ValueError("Dependency cycle detected in task graph")
@@ -131,74 +115,39 @@ def _critical_topo_sort(tasks: list[CpmTask]) -> list[str]:
 
 
 def resolve_dependencies(tasks: list[CpmTask]) -> list[CpmTask]:
-    """Return tasks in a valid execution order, critical-path tasks first.
-
-    Raises ValueError on a dependency cycle.
-    """
     if not tasks:
         return []
-    original_map = {t.id: t for t in tasks}
-    return [original_map[tid] for tid in _critical_topo_sort(tasks)]
+    m = {t.id: t for t in tasks}
+    return [m[tid] for tid in _critical_topo_sort(tasks)]
 
 
 def critical_path_sequence(tasks: list[CpmTask]) -> list[CpmTask]:
-    """Return one valid critical-path chain from start to end.
-
-    Walks from a critical task with no critical predecessors, following critical
-    successor edges. Deterministic (ties broken by task id).
-    """
     if not tasks:
         return []
-
-    snapshot = [
-        CpmTask(id=t.id, name=t.name, duration_hours=t.duration_hours, dependencies=list(t.dependencies))
-        for t in tasks
-    ]
-    compute_critical_path(snapshot)
-    original_map = {t.id: t for t in tasks}
-    task_map = {t.id: t for t in snapshot}
-    critical_ids = {t.id for t in snapshot if t.is_critical}
-    successors: dict[str, list[str]] = {t.id: [] for t in snapshot}
-    for t in snapshot:
-        for dep in t.dependencies:
-            successors[dep].append(t.id)
-
-    # Find critical starters (no critical predecessors)
-    starts = sorted(tid for tid in critical_ids if not any(d in critical_ids for d in task_map[tid].dependencies))
+    snap = _snapshot(tasks)
+    compute_critical_path(snap)
+    m = {t.id: t for t in tasks}
+    tm, _, succs = _build_graph(snap)
+    crit = {t.id for t in snap if t.is_critical}
+    starts = sorted(tid for tid in crit if not any(d in crit for d in tm[tid].dependencies))
     if not starts:
         return []
-
     chain, cur = [], starts[0]
-    while True:
+    while cur:
         chain.append(cur)
-        nxt = sorted(s for s in successors[cur] if s in critical_ids)
-        if not nxt:
-            break
-        cur = nxt[0]
-
-    return [original_map[tid] for tid in chain]
+        cur = next(iter(sorted(s for s in succs[cur] if s in crit)), None)
+    return [m[tid] for tid in chain]
 
 
 async def detect_cycle(task_id: uuid.UUID, depends_on_task_id: uuid.UUID, db: AsyncSession) -> bool:
-    """Return True if adding task_id -> depends_on_task_id would create a cycle.
-
-    We DFS from depends_on_task_id following existing depends_on edges.
-    If we reach task_id, a cycle would form.
-    """
-    from app.models.project import TaskDependency  # local import to avoid circular
-
-    result = await db.execute(select(TaskDependency))
-    all_deps = result.scalars().all()
-
+    from app.models.project import TaskDependency
     adj: dict[uuid.UUID, list[uuid.UUID]] = {}
-    for dep in all_deps:
+    for dep in (await db.execute(select(TaskDependency))).scalars().all():
         adj.setdefault(dep.task_id, []).append(dep.depends_on_task_id)
-
     visited: set[uuid.UUID] = set()
     stack = [depends_on_task_id]
     while stack:
-        current = stack.pop()
-        if current == task_id:
+        if (current := stack.pop()) == task_id:
             return True
         if current not in visited:
             visited.add(current)

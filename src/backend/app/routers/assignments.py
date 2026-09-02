@@ -8,7 +8,7 @@ from app.models.staff import Staff
 from app.models.user import User
 from app.routers.auth import get_current_user
 from app.schemas.assignment import StaffAssignmentCreate, StaffAssignmentResponse
-from app.routers.deps import get_or_404
+from app.routers.deps import add_commit_refresh_validate, get_or_404
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,19 +23,22 @@ async def _get_owned_staff(staff_id: uuid.UUID, user: User, db: AsyncSession) ->
     )
 
 
-async def _find_overlap(
-    db: AsyncSession,
-    staff_id: uuid.UUID,
-    start_at,
-    end_at,
-) -> StaffAssignment | None:
-    stmt = select(StaffAssignment).where(
-        StaffAssignment.staff_id == staff_id,
-        StaffAssignment.start_at < end_at,
-        StaffAssignment.end_at > start_at,
-    )
-    result = await db.execute(stmt)
-    return result.scalars().first()
+async def _get_owned_assignment_or_404(assignment_id: uuid.UUID, owner_id: uuid.UUID, db: AsyncSession) -> StaffAssignment:
+    a = (await db.execute(
+        select(StaffAssignment).join(Staff, StaffAssignment.staff_id == Staff.id)
+        .where(StaffAssignment.id == assignment_id, Staff.owner_id == owner_id)
+    )).scalar_one_or_none()
+    if a is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assignment not found")
+    return a
+
+
+async def _find_overlap(db: AsyncSession, staff_id: uuid.UUID, start_at, end_at) -> StaffAssignment | None:
+    return (await db.execute(
+        select(StaffAssignment).where(
+            StaffAssignment.staff_id == staff_id, StaffAssignment.start_at < end_at, StaffAssignment.end_at > start_at,
+        )
+    )).scalars().first()
 
 
 @router.post("/", response_model=StaffAssignmentResponse, status_code=status.HTTP_201_CREATED)
@@ -51,18 +54,7 @@ async def create_assignment(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Assignment overlaps existing assignment {conflict.id}",
         )
-    assignment = StaffAssignment(
-        staff_id=body.staff_id,
-        project_id=body.project_id,
-        task_id=body.task_id,
-        start_at=body.start_at,
-        end_at=body.end_at,
-        notes=body.notes,
-    )
-    db.add(assignment)
-    await db.commit()
-    await db.refresh(assignment)
-    return StaffAssignmentResponse.model_validate(assignment)
+    return await add_commit_refresh_validate(db, StaffAssignment(**body.model_dump()), StaffAssignmentResponse)
 
 
 @router.get("/", response_model=list[StaffAssignmentResponse])
@@ -92,15 +84,7 @@ async def get_assignment(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> StaffAssignmentResponse:
-    result = await db.execute(
-        select(StaffAssignment)
-        .join(Staff, StaffAssignment.staff_id == Staff.id)
-        .where(StaffAssignment.id == assignment_id, Staff.owner_id == current_user.id)
-    )
-    a = result.scalar_one_or_none()
-    if a is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assignment not found")
-    return StaffAssignmentResponse.model_validate(a)
+    return StaffAssignmentResponse.model_validate(await _get_owned_assignment_or_404(assignment_id, current_user.id, db))
 
 
 @router.delete("/{assignment_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -109,13 +93,5 @@ async def delete_assignment(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    result = await db.execute(
-        select(StaffAssignment)
-        .join(Staff, StaffAssignment.staff_id == Staff.id)
-        .where(StaffAssignment.id == assignment_id, Staff.owner_id == current_user.id)
-    )
-    a = result.scalar_one_or_none()
-    if a is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assignment not found")
-    await db.delete(a)
+    await db.delete(await _get_owned_assignment_or_404(assignment_id, current_user.id, db))
     await db.commit()
