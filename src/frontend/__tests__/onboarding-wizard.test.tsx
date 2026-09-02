@@ -2,25 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-// Mock window.matchMedia
-Object.defineProperty(window, "matchMedia", {
-  writable: true,
-  value: vi.fn().mockImplementation((query: string) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn(),
-  })),
-});
-
 // Mock Next.js navigation
 vi.mock("next/navigation", () => ({
   useRouter: vi.fn(() => ({ push: vi.fn(), replace: vi.fn() })),
-  usePathname: vi.fn(() => "/dashboard/onboarding"),
+  usePathname: vi.fn(() => "/dashboard"),
   redirect: vi.fn(),
 }));
 
@@ -38,302 +23,216 @@ vi.mock("@/lib/auth-context", () => ({
   })),
 }));
 
-// Mock api + auth
-vi.mock("@/lib/api", () => ({ apiFetch: vi.fn() }));
-vi.mock("@/lib/auth", () => ({ getAccessToken: vi.fn().mockReturnValue("tok") }));
-
 // Mock projects module
 vi.mock("@/lib/projects", () => ({
-  createProject: vi.fn().mockResolvedValue({ id: "proj-1", name: "Badkamer renovatie" }),
+  createProject: vi.fn().mockResolvedValue({ id: "proj-1", name: "Voorbeeld Renovatie" }),
   createPhase: vi.fn().mockResolvedValue({ id: "phase-1", name: "Sloop" }),
-  createTask: vi.fn().mockResolvedValue({ id: "task-1", name: "Taak 1" }),
+  createTask: vi.fn().mockResolvedValue({ id: "task-1", name: "Taak" }),
+  formatBudget: vi.fn((cents: number) => `€${cents / 100}`),
+  listProjects: vi.fn().mockResolvedValue({ data: [], total: 0, page: 1, per_page: 20 }),
 }));
 
+vi.mock("@/lib/api", () => ({ apiFetch: vi.fn() }));
+
 // ---------------------------------------------------------------------------
-// OnboardingWizard component
+// OnboardingWizard component tests
 // ---------------------------------------------------------------------------
 
 describe("OnboardingWizard", () => {
   beforeEach(() => {
     localStorage.clear();
-    vi.resetModules();
-    vi.mock("next/navigation", () => ({
-      useRouter: vi.fn(() => ({ push: vi.fn(), replace: vi.fn() })),
-      usePathname: vi.fn(() => "/dashboard/onboarding"),
-      redirect: vi.fn(),
-    }));
-    vi.mock("@/lib/projects", () => ({
-      createProject: vi.fn().mockResolvedValue({ id: "proj-1", name: "Badkamer renovatie" }),
-      createPhase: vi.fn().mockResolvedValue({ id: "phase-1", name: "Sloop" }),
-      createTask: vi.fn().mockResolvedValue({ id: "task-1", name: "Taak 1" }),
-    }));
+    vi.clearAllMocks();
   });
 
   afterEach(() => {
     localStorage.clear();
-    vi.clearAllMocks();
   });
 
   async function renderWizard() {
-    const { default: OnboardingWizard } = await import("@/components/onboarding-wizard");
+    const { default: OnboardingWizard } = await import(
+      "@/components/onboarding/OnboardingWizard"
+    );
     return render(<OnboardingWizard />);
   }
 
-  // -------------------------------------------------------------------------
-  // Step 1 — Welkom
-  // -------------------------------------------------------------------------
-
-  it("renders step 1 welcome message", async () => {
+  // Step 1 rendering
+  it("renders step 1 (Welkom) by default", async () => {
     await renderWizard();
     expect(screen.getByText(/welkom bij foreman/i)).toBeInTheDocument();
   });
 
-  it("step 1 shows Begin button", async () => {
+  it("shows step indicator dots", async () => {
     await renderWizard();
-    expect(screen.getByRole("button", { name: /begin/i })).toBeInTheDocument();
+    // 5 steps — look for the step dots container
+    const dots = screen.getAllByRole("presentation");
+    expect(dots.length).toBeGreaterThanOrEqual(5);
   });
 
-  it("step 1 explains key features", async () => {
+  it("renders a Volgende button on step 1", async () => {
     await renderWizard();
-    // Should mention key features — use getAllByText since stepper also shows "Project"
-    expect(screen.getAllByText(/project/i).length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: /volgende/i })).toBeInTheDocument();
   });
 
-  it("step 1 has stepper with 4 steps", async () => {
-    await renderWizard();
-    // All 4 step indicators should be visible
-    const stepNumbers = screen.getAllByText(/^[1234]$/);
-    expect(stepNumbers.length).toBeGreaterThanOrEqual(4);
-  });
-
-  // -------------------------------------------------------------------------
-  // Navigation
-  // -------------------------------------------------------------------------
-
-  it("clicking Begin advances to step 2", async () => {
-    const user = userEvent.setup();
-    await renderWizard();
-
-    await user.click(screen.getByRole("button", { name: /begin/i }));
-
-    expect(screen.getByText(/uw eerste project/i)).toBeInTheDocument();
-  });
-
-  it("step 2 has Vorige button that returns to step 1", async () => {
-    const user = userEvent.setup();
-    await renderWizard();
-
-    await user.click(screen.getByRole("button", { name: /begin/i }));
-    await user.click(screen.getByRole("button", { name: /vorige/i }));
-
-    expect(screen.getByText(/welkom bij foreman/i)).toBeInTheDocument();
-  });
-
-  it("step 2 Volgende advances to step 3", async () => {
-    const user = userEvent.setup();
-    await renderWizard();
-
-    await user.click(screen.getByRole("button", { name: /begin/i }));
-    await user.click(screen.getByRole("button", { name: /volgende/i }));
-
-    expect(screen.getByText(/fasen & taken/i)).toBeInTheDocument();
-  });
-
-  // -------------------------------------------------------------------------
-  // Step 2 — Uw eerste project
-  // -------------------------------------------------------------------------
-
-  it("step 2 pre-fills sample project name 'Badkamer renovatie'", async () => {
-    const user = userEvent.setup();
-    await renderWizard();
-
-    await user.click(screen.getByRole("button", { name: /begin/i }));
-
-    const nameInput = screen.getByDisplayValue(/badkamer renovatie/i);
-    expect(nameInput).toBeInTheDocument();
-  });
-
-  it("step 2 pre-fills sample project description", async () => {
-    const user = userEvent.setup();
-    await renderWizard();
-
-    await user.click(screen.getByRole("button", { name: /begin/i }));
-
-    // Description field should be pre-filled with non-empty content
-    const descriptionField = screen.getByRole("textbox", { name: /beschrijving/i });
-    const value = (descriptionField as HTMLTextAreaElement).value;
-    expect(value.length).toBeGreaterThan(0);
-  });
-
-  it("step 2 allows editing the project name", async () => {
-    const user = userEvent.setup();
-    await renderWizard();
-
-    await user.click(screen.getByRole("button", { name: /begin/i }));
-
-    const nameInput = screen.getByDisplayValue(/badkamer renovatie/i);
-    await user.clear(nameInput);
-    await user.type(nameInput, "Nieuw project");
-
-    expect(nameInput).toHaveValue("Nieuw project");
-  });
-
-  // -------------------------------------------------------------------------
-  // Step 3 — Fasen & taken
-  // -------------------------------------------------------------------------
-
-  it("step 3 shows phase list with sample phases", async () => {
-    const user = userEvent.setup();
-    await renderWizard();
-
-    await user.click(screen.getByRole("button", { name: /begin/i }));
-    await user.click(screen.getByRole("button", { name: /volgende/i }));
-
-    // Should show some phases
-    expect(screen.getByText(/sloop/i)).toBeInTheDocument();
-  });
-
-  it("step 3 shows progress indicator", async () => {
-    const user = userEvent.setup();
-    await renderWizard();
-
-    await user.click(screen.getByRole("button", { name: /begin/i }));
-    await user.click(screen.getByRole("button", { name: /volgende/i }));
-
-    // Should show the phases list — stepper also has "Fasen" so use getAllByText
-    expect(screen.getAllByText(/fasen/i).length).toBeGreaterThan(0);
-    // Phase list should be present
-    expect(screen.getByTestId("phases-list")).toBeInTheDocument();
-  });
-
-  it("step 3 Volgende calls createProject and createPhase then advances to step 4", async () => {
-    const user = userEvent.setup();
-    await renderWizard();
-
-    await user.click(screen.getByRole("button", { name: /begin/i }));
-    await user.click(screen.getByRole("button", { name: /volgende/i }));
-
-    const voltooienBtn = screen.getByRole("button", { name: /voltooien/i });
-    await user.click(voltooienBtn);
-
-    const { createProject } = await import("@/lib/projects");
-    await waitFor(() => {
-      expect(vi.mocked(createProject)).toHaveBeenCalled();
-    });
-
-    await waitFor(() => {
-      expect(screen.getByRole("heading", { name: /klaar/i })).toBeInTheDocument();
-    });
-  });
-
-  // -------------------------------------------------------------------------
-  // Step 4 — Klaar!
-  // -------------------------------------------------------------------------
-
-  async function navigateToStep4(user: ReturnType<typeof userEvent.setup>) {
-    await user.click(screen.getByRole("button", { name: /begin/i }));
-    await user.click(screen.getByRole("button", { name: /volgende/i }));
-    const voltooienBtn = screen.getByRole("button", { name: /voltooien/i });
-    await user.click(voltooienBtn);
-    // Wait for step 4 heading to appear (distinct from stepper label)
-    await waitFor(() => {
-      expect(screen.getByRole("heading", { name: /klaar/i })).toBeInTheDocument();
-    });
-  }
-
-  it("step 4 shows completion success message", async () => {
-    const user = userEvent.setup();
-    await renderWizard();
-    await navigateToStep4(user);
-
-    expect(screen.getByRole("heading", { name: /klaar/i })).toBeInTheDocument();
-  });
-
-  it("step 4 shows 'Naar mijn project' link", async () => {
-    const user = userEvent.setup();
-    await renderWizard();
-    await navigateToStep4(user);
-
-    const projectLink = screen.getByRole("link", { name: /naar mijn project/i });
-    expect(projectLink).toBeInTheDocument();
-    expect(projectLink).toHaveAttribute("href", expect.stringContaining("/dashboard/projects/proj-1"));
-  });
-
-  it("step 4 shows 'Naar het dashboard' link", async () => {
-    const user = userEvent.setup();
-    await renderWizard();
-    await navigateToStep4(user);
-
-    const dashboardLink = screen.getByRole("link", { name: /naar het dashboard/i });
-    expect(dashboardLink).toHaveAttribute("href", "/dashboard");
-  });
-
-  it("step 4 shows 'Ontdek meer functies' section", async () => {
-    const user = userEvent.setup();
-    await renderWizard();
-    await navigateToStep4(user);
-
-    expect(screen.getByText(/ontdek meer functies/i)).toBeInTheDocument();
-  });
-
-  // -------------------------------------------------------------------------
-  // localStorage completion flag
-  // -------------------------------------------------------------------------
-
-  it("sets foreman_onboarding_done in localStorage on step 4", async () => {
-    const user = userEvent.setup();
-    await renderWizard();
-    await navigateToStep4(user);
-
-    expect(localStorage.getItem("foreman_onboarding_done")).toBe("true");
-  });
-
-  // -------------------------------------------------------------------------
-  // Skip button
-  // -------------------------------------------------------------------------
-
-  it("shows Overslaan button on steps 1-3", async () => {
+  it("renders an Overslaan button on step 1", async () => {
     await renderWizard();
     expect(screen.getByRole("button", { name: /overslaan/i })).toBeInTheDocument();
   });
 
-  it("Overslaan sets localStorage flag and redirects to dashboard", async () => {
+  // Navigation — Next
+  it("advances to step 2 (Projecten) when Volgende is clicked", async () => {
     const user = userEvent.setup();
     await renderWizard();
+    await user.click(screen.getByRole("button", { name: /volgende/i }));
+    expect(screen.getByText(/projectbeheer/i)).toBeInTheDocument();
+  });
 
-    const { useRouter } = await import("next/navigation");
-    const mockPush = vi.fn();
-    vi.mocked(useRouter).mockReturnValue({ push: mockPush, replace: vi.fn() } as never);
+  it("advances through all steps to step 5 (Voorbeeldproject)", async () => {
+    const user = userEvent.setup();
+    await renderWizard();
+    for (let i = 0; i < 4; i++) {
+      await user.click(screen.getByRole("button", { name: /volgende/i }));
+    }
+    expect(screen.getAllByText(/voorbeeldproject/i).length).toBeGreaterThan(0);
+  });
 
-    // Re-render to pick up updated mock
-    const { default: OnboardingWizard } = await import("@/components/onboarding-wizard");
-    const { unmount } = render(<OnboardingWizard />);
+  // Navigation — Back
+  it("shows Vorige button from step 2 onwards", async () => {
+    const user = userEvent.setup();
+    await renderWizard();
+    await user.click(screen.getByRole("button", { name: /volgende/i }));
+    expect(screen.getByRole("button", { name: /vorige/i })).toBeInTheDocument();
+  });
 
-    await user.click(screen.getAllByRole("button", { name: /overslaan/i })[1]);
+  it("goes back to step 1 when Vorige is clicked on step 2", async () => {
+    const user = userEvent.setup();
+    await renderWizard();
+    await user.click(screen.getByRole("button", { name: /volgende/i }));
+    await user.click(screen.getByRole("button", { name: /vorige/i }));
+    expect(screen.getByText(/welkom bij foreman/i)).toBeInTheDocument();
+  });
 
-    expect(localStorage.getItem("foreman_onboarding_done")).toBe("true");
-    expect(mockPush).toHaveBeenCalledWith("/dashboard");
+  it("does not show Vorige button on step 1", async () => {
+    await renderWizard();
+    expect(screen.queryByRole("button", { name: /vorige/i })).not.toBeInTheDocument();
+  });
 
-    unmount();
+  // Skip button sets localStorage flag
+  it("sets localStorage flag when Overslaan is clicked", async () => {
+    const user = userEvent.setup();
+    await renderWizard();
+    await user.click(screen.getByRole("button", { name: /overslaan/i }));
+    expect(localStorage.getItem("foreman_onboarding_complete")).toBe("true");
+  });
+
+  it("calls onClose callback when Overslaan is clicked", async () => {
+    const { default: OnboardingWizard } = await import(
+      "@/components/onboarding/OnboardingWizard"
+    );
+    const onClose = vi.fn();
+    const user = userEvent.setup();
+    render(<OnboardingWizard onClose={onClose} />);
+    await user.click(screen.getByRole("button", { name: /overslaan/i }));
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  // Completion (last step "Afronden" / sets localStorage flag)
+  it("sets localStorage flag when wizard is completed", async () => {
+    const user = userEvent.setup();
+    await renderWizard();
+    // Navigate to step 5
+    for (let i = 0; i < 4; i++) {
+      await user.click(screen.getByRole("button", { name: /volgende/i }));
+    }
+    // On last step, click finish/afronden
+    const finishBtn = screen.getByRole("button", { name: /afronden/i });
+    await user.click(finishBtn);
+    expect(localStorage.getItem("foreman_onboarding_complete")).toBe("true");
+  });
+
+  // Sample project creation
+  it("shows 'Maak voorbeeldproject' button on step 5", async () => {
+    const user = userEvent.setup();
+    await renderWizard();
+    for (let i = 0; i < 4; i++) {
+      await user.click(screen.getByRole("button", { name: /volgende/i }));
+    }
+    expect(
+      screen.getByRole("button", { name: /maak voorbeeldproject/i })
+    ).toBeInTheDocument();
+  });
+
+  it("calls createProject with correct data when sample project button is clicked", async () => {
+    const { createProject } = await import("@/lib/projects");
+    const user = userEvent.setup();
+    await renderWizard();
+    for (let i = 0; i < 4; i++) {
+      await user.click(screen.getByRole("button", { name: /volgende/i }));
+    }
+    await user.click(screen.getByRole("button", { name: /maak voorbeeldproject/i }));
+    await waitFor(() => {
+      expect(createProject).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: "Voorbeeld Renovatie",
+          status: "active",
+          budget_cents: 5000000,
+        })
+      );
+    });
+  });
+
+  it("calls createPhase three times for Sloop, Ruwbouw, Afwerking", async () => {
+    const { createPhase } = await import("@/lib/projects");
+    const user = userEvent.setup();
+    await renderWizard();
+    for (let i = 0; i < 4; i++) {
+      await user.click(screen.getByRole("button", { name: /volgende/i }));
+    }
+    await user.click(screen.getByRole("button", { name: /maak voorbeeldproject/i }));
+    await waitFor(() => {
+      expect(createPhase).toHaveBeenCalledTimes(3);
+    });
+    const calls = vi.mocked(createPhase).mock.calls;
+    const phaseNames = calls.map((c) => (c[1] as { name: string }).name);
+    expect(phaseNames).toContain("Sloop");
+    expect(phaseNames).toContain("Ruwbouw");
+    expect(phaseNames).toContain("Afwerking");
+  });
+
+  it("calls createTask for tasks under each phase", async () => {
+    const { createTask } = await import("@/lib/projects");
+    const user = userEvent.setup();
+    await renderWizard();
+    for (let i = 0; i < 4; i++) {
+      await user.click(screen.getByRole("button", { name: /volgende/i }));
+    }
+    await user.click(screen.getByRole("button", { name: /maak voorbeeldproject/i }));
+    // 7 tasks total (2 + 2 + 3)
+    await waitFor(() => {
+      expect(createTask).toHaveBeenCalledTimes(7);
+    });
+  });
+
+  it("shows success message after sample project creation", async () => {
+    const user = userEvent.setup();
+    await renderWizard();
+    for (let i = 0; i < 4; i++) {
+      await user.click(screen.getByRole("button", { name: /volgende/i }));
+    }
+    await user.click(screen.getByRole("button", { name: /maak voorbeeldproject/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/project aangemaakt/i)).toBeInTheDocument();
+    });
   });
 });
 
 // ---------------------------------------------------------------------------
-// Dashboard onboarding redirect
+// Onboarding trigger logic in DashboardPage
 // ---------------------------------------------------------------------------
 
-describe("DashboardPage onboarding redirect", () => {
+describe("Dashboard onboarding trigger", () => {
   beforeEach(() => {
     localStorage.clear();
     vi.resetModules();
-    vi.doMock("@/lib/projects", () => ({
-      listProjects: vi.fn().mockReturnValue(new Promise(() => {})),
-      formatBudget: (cents: number) =>
-        new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", minimumFractionDigits: 2 }).format(cents / 100),
-    }));
-    vi.doMock("@/lib/api", () => ({
-      apiFetch: vi.fn().mockReturnValue(new Promise(() => {})),
-    }));
   });
 
   afterEach(() => {
@@ -341,12 +240,14 @@ describe("DashboardPage onboarding redirect", () => {
     vi.resetModules();
   });
 
-  it("redirects to /dashboard/onboarding when onboarding not done", async () => {
-    localStorage.removeItem("foreman_onboarding_done");
-
-    const { useRouter } = await import("next/navigation");
-    const mockPush = vi.fn();
-    vi.mocked(useRouter).mockReturnValue({ push: mockPush, replace: vi.fn() } as never);
+  it("shows OnboardingWizard when flag not set", async () => {
+    vi.doMock("@/lib/projects", () => ({
+      listProjects: vi.fn().mockResolvedValue({ data: [], total: 0, page: 1, per_page: 20 }),
+      formatBudget: (cents: number) => `€${cents / 100}`,
+    }));
+    vi.doMock("@/lib/api", () => ({
+      apiFetch: vi.fn().mockResolvedValue({ data: { data: [], total: 0 }, error: null }),
+    }));
 
     const { default: DashboardPage } = await import("@/app/dashboard/page");
 
@@ -354,17 +255,20 @@ describe("DashboardPage onboarding redirect", () => {
       render(<DashboardPage />);
     });
 
-    await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith("/dashboard/onboarding");
-    });
+    // The wizard dialog should be rendered
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
-  it("does NOT redirect to onboarding when flag is set", async () => {
-    localStorage.setItem("foreman_onboarding_done", "true");
+  it("does not show OnboardingWizard when flag is set", async () => {
+    localStorage.setItem("foreman_onboarding_complete", "true");
 
-    const { useRouter } = await import("next/navigation");
-    const mockPush = vi.fn();
-    vi.mocked(useRouter).mockReturnValue({ push: mockPush, replace: vi.fn() } as never);
+    vi.doMock("@/lib/projects", () => ({
+      listProjects: vi.fn().mockResolvedValue({ data: [], total: 0, page: 1, per_page: 20 }),
+      formatBudget: (cents: number) => `€${cents / 100}`,
+    }));
+    vi.doMock("@/lib/api", () => ({
+      apiFetch: vi.fn().mockResolvedValue({ data: { data: [], total: 0 }, error: null }),
+    }));
 
     const { default: DashboardPage } = await import("@/app/dashboard/page");
 
@@ -372,7 +276,9 @@ describe("DashboardPage onboarding redirect", () => {
       render(<DashboardPage />);
     });
 
-    // push should NOT have been called with onboarding path
-    expect(mockPush).not.toHaveBeenCalledWith("/dashboard/onboarding");
+    // Dashboard stats header renders, but the standalone onboarding modal should not
+    // The wizard-specific step content (Projectbeheer, Voorbeeldproject) should not be visible
+    expect(screen.queryByText(/projectbeheer/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/voorbeeldproject/i)).not.toBeInTheDocument();
   });
 });

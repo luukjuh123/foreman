@@ -253,7 +253,7 @@ describe("DashboardPage", () => {
       render(<DashboardPage />);
     });
 
-    expect(screen.getByText(/welkom bij foreman/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/welkom bij foreman/i).length).toBeGreaterThan(0);
   });
 
   it("shows loading skeleton while fetching", async () => {
