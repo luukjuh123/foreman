@@ -57,17 +57,24 @@ const mockPhase = (overrides: Partial<{ tasks: ReturnType<typeof mockTask>[] }> 
 
 const mockProject = (overrides: Partial<{
   id: string;
+  name: string;
+  description: string;
   status: "draft" | "active" | "completed" | "archived";
   phases: ReturnType<typeof mockPhase>[];
+  budget_cents: number;
+  start_date: string;
+  end_date: string;
+  created_at: string;
 }> = {}) => ({
   id: overrides.id ?? "proj-1",
   owner_id: "user-1",
-  name: "Nieuwbouw Pand A",
-  description: "Bouw van een nieuw bedrijfspand met 3 verdiepingen.",
+  name: overrides.name ?? "Nieuwbouw Pand A",
+  description: overrides.description ?? "Bouw van een nieuw bedrijfspand met 3 verdiepingen.",
   status: overrides.status ?? "active",
-  start_date: "2024-01-15",
-  end_date: "2024-12-31",
-  budget_cents: 500000_00,
+  start_date: overrides.start_date ?? "2024-01-15",
+  end_date: overrides.end_date ?? "2024-12-31",
+  budget_cents: overrides.budget_cents ?? 500000_00,
+  created_at: overrides.created_at ?? "2024-01-01T00:00:00Z",
   phases: overrides.phases ?? [mockPhase()],
 });
 
@@ -156,14 +163,14 @@ describe("ProjectsPage", () => {
     expect(screen.getByText("Projecten")).toBeInTheDocument();
   });
 
-  it("renders Nieuw Project button linking to /dashboard/projects/new", async () => {
+  it("renders Nieuw project button linking to /dashboard/projects/new", async () => {
     const { default: ProjectsPage } = await import("@/app/dashboard/projects/page");
     render(<ProjectsPage />);
-    const link = screen.getByRole("link", { name: /nieuw project/i });
-    expect(link).toHaveAttribute("href", "/dashboard/projects/new");
+    const links = screen.getAllByRole("link", { name: /nieuw project/i });
+    expect(links[0]).toHaveAttribute("href", "/dashboard/projects/new");
   });
 
-  it("renders filter tabs: Alle, Actief, Concept, Voltooid, Gearchiveerd", async () => {
+  it("renders status filter chips: Alle, Actief, Concept, Voltooid, Gearchiveerd", async () => {
     const { default: ProjectsPage } = await import("@/app/dashboard/projects/page");
     render(<ProjectsPage />);
     expect(screen.getByRole("button", { name: /alle/i })).toBeInTheDocument();
@@ -182,24 +189,24 @@ describe("ProjectsPage", () => {
     });
   });
 
-  it("shows task summary '1/3 taken voltooid' on a card", async () => {
+  it("shows task summary on a card", async () => {
     const { default: ProjectsPage } = await import("@/app/dashboard/projects/page");
     render(<ProjectsPage />);
 
     await waitFor(() => {
-      const summaries = screen.getAllByText(/1\/3 taken voltooid/i);
+      const summaries = screen.getAllByText(/1\/3 taken/i);
       expect(summaries.length).toBeGreaterThan(0);
     });
   });
 
-  it("filters to only active projects when Actief tab is clicked", async () => {
+  it("filters to only active projects when Actief chip is clicked", async () => {
     const { default: ProjectsPage } = await import("@/app/dashboard/projects/page");
     render(<ProjectsPage />);
 
     // Wait for all 3 projects to load (active + draft + completed)
     await waitFor(() => expect(screen.getAllByText("Nieuwbouw Pand A").length).toBe(3));
 
-    fireEvent.click(screen.getByRole("button", { name: /^actief$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^actief/i }));
 
     // After filtering, only 1 project (active) should remain
     await waitFor(() => {
@@ -225,6 +232,199 @@ describe("ProjectsPage", () => {
       // 3 cards, each with the same date range
       const ranges = screen.getAllByText(/15-01-2024/);
       expect(ranges.length).toBeGreaterThan(0);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // New: search filtering
+  // -------------------------------------------------------------------------
+
+  it("filters by search term matching project name", async () => {
+    const { listProjects } = await import("@/lib/projects");
+    vi.mocked(listProjects).mockResolvedValue({
+      data: [
+        mockProject({ id: "proj-1", name: "Nieuwbouw Pand A", status: "active" }),
+        mockProject({ id: "proj-2", name: "Renovatie Kantoor", status: "active" }),
+      ],
+      total: 2,
+      page: 1,
+      per_page: 10,
+    });
+
+    const { default: ProjectsPage } = await import("@/app/dashboard/projects/page");
+    render(<ProjectsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Nieuwbouw Pand A")).toBeInTheDocument();
+      expect(screen.getByText("Renovatie Kantoor")).toBeInTheDocument();
+    });
+
+    const searchInput = screen.getByPlaceholderText(/zoeken/i);
+    fireEvent.change(searchInput, { target: { value: "Renovatie" } });
+
+    await waitFor(() => {
+      expect(screen.getByText("Renovatie Kantoor")).toBeInTheDocument();
+      expect(screen.queryByText("Nieuwbouw Pand A")).not.toBeInTheDocument();
+    });
+  });
+
+  it("filters by search term matching description", async () => {
+    const { listProjects } = await import("@/lib/projects");
+    vi.mocked(listProjects).mockResolvedValue({
+      data: [
+        mockProject({ id: "proj-1", name: "Project Alpha", description: "kantoor verbouwing", status: "active" }),
+        mockProject({ id: "proj-2", name: "Project Beta", description: "woningbouw project", status: "active" }),
+      ],
+      total: 2,
+      page: 1,
+      per_page: 10,
+    });
+
+    const { default: ProjectsPage } = await import("@/app/dashboard/projects/page");
+    render(<ProjectsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Project Alpha")).toBeInTheDocument();
+    });
+
+    const searchInput = screen.getByPlaceholderText(/zoeken/i);
+    fireEvent.change(searchInput, { target: { value: "woningbouw" } });
+
+    await waitFor(() => {
+      expect(screen.getByText("Project Beta")).toBeInTheDocument();
+      expect(screen.queryByText("Project Alpha")).not.toBeInTheDocument();
+    });
+  });
+
+  it("shows empty state with clear button when filters produce no results", async () => {
+    const { default: ProjectsPage } = await import("@/app/dashboard/projects/page");
+    render(<ProjectsPage />);
+
+    await waitFor(() => screen.getAllByText("Nieuwbouw Pand A"));
+
+    const searchInput = screen.getByPlaceholderText(/zoeken/i);
+    fireEvent.change(searchInput, { target: { value: "xyznonexistent" } });
+
+    await waitFor(() => {
+      expect(screen.getByText(/geen resultaten/i)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /filters wissen/i })).toBeInTheDocument();
+    });
+  });
+
+  it("clears search when filters wissen is clicked", async () => {
+    const { default: ProjectsPage } = await import("@/app/dashboard/projects/page");
+    render(<ProjectsPage />);
+
+    await waitFor(() => screen.getAllByText("Nieuwbouw Pand A"));
+
+    const searchInput = screen.getByPlaceholderText(/zoeken/i);
+    fireEvent.change(searchInput, { target: { value: "xyznonexistent" } });
+
+    await waitFor(() => screen.getByRole("button", { name: /filters wissen/i }));
+    fireEvent.click(screen.getByRole("button", { name: /filters wissen/i }));
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Nieuwbouw Pand A").length).toBeGreaterThan(0);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // New: stat cards
+  // -------------------------------------------------------------------------
+
+  it("renders summary stat cards after loading", async () => {
+    const { default: ProjectsPage } = await import("@/app/dashboard/projects/page");
+    render(<ProjectsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Actieve projecten")).toBeInTheDocument();
+      expect(screen.getByText("Afgerond dit jaar")).toBeInTheDocument();
+      expect(screen.getByText("Totale begroting")).toBeInTheDocument();
+      expect(screen.getByText("Gem. voortgang")).toBeInTheDocument();
+    });
+  });
+
+  it("stat card shows correct active project count", async () => {
+    const { default: ProjectsPage } = await import("@/app/dashboard/projects/page");
+    render(<ProjectsPage />);
+
+    // mockListResponse has 1 active project
+    await waitFor(() => {
+      expect(screen.getByText("Actieve projecten")).toBeInTheDocument();
+      const activeEl = screen.getByText("Actieve projecten").closest("div");
+      expect(activeEl?.textContent).toContain("1");
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // New: view toggle
+  // -------------------------------------------------------------------------
+
+  it("switches to table view when tabelweergave button is clicked", async () => {
+    const { default: ProjectsPage } = await import("@/app/dashboard/projects/page");
+    render(<ProjectsPage />);
+
+    await waitFor(() => screen.getAllByText("Nieuwbouw Pand A"));
+
+    fireEvent.click(screen.getByRole("button", { name: /tabelweergave/i }));
+
+    await waitFor(() => {
+      // Table headers should appear
+      expect(screen.getByRole("columnheader", { name: /naam/i })).toBeInTheDocument();
+      expect(screen.getByRole("columnheader", { name: /status/i })).toBeInTheDocument();
+    });
+  });
+
+  it("switches back to grid view when rasterweergave button is clicked", async () => {
+    const { default: ProjectsPage } = await import("@/app/dashboard/projects/page");
+    render(<ProjectsPage />);
+
+    await waitFor(() => screen.getAllByText("Nieuwbouw Pand A"));
+
+    // Switch to table
+    fireEvent.click(screen.getByRole("button", { name: /tabelweergave/i }));
+    // Switch back to grid
+    fireEvent.click(screen.getByRole("button", { name: /rasterweergave/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("columnheader", { name: /naam/i })).not.toBeInTheDocument();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // New: combined status + search filtering
+  // -------------------------------------------------------------------------
+
+  it("applies status filter and search together", async () => {
+    const { listProjects } = await import("@/lib/projects");
+    vi.mocked(listProjects).mockResolvedValue({
+      data: [
+        mockProject({ id: "proj-1", name: "Actief Project A", status: "active" }),
+        mockProject({ id: "proj-2", name: "Actief Project B", status: "active" }),
+        mockProject({ id: "proj-3", name: "Concept Project", status: "draft" }),
+      ],
+      total: 3,
+      page: 1,
+      per_page: 10,
+    });
+
+    const { default: ProjectsPage } = await import("@/app/dashboard/projects/page");
+    render(<ProjectsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Actief Project A")).toBeInTheDocument();
+    });
+
+    // Filter to active status
+    fireEvent.click(screen.getByRole("button", { name: /^actief/i }));
+    // Also search for "A"
+    const searchInput = screen.getByPlaceholderText(/zoeken/i);
+    fireEvent.change(searchInput, { target: { value: "Project A" } });
+
+    await waitFor(() => {
+      expect(screen.getByText("Actief Project A")).toBeInTheDocument();
+      expect(screen.queryByText("Actief Project B")).not.toBeInTheDocument();
+      expect(screen.queryByText("Concept Project")).not.toBeInTheDocument();
     });
   });
 });
