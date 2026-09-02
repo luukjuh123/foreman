@@ -1,31 +1,13 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  listProjectProcesses,
-  startTimer,
-  stopTimer,
-  listTimeEntries,
-} from "@/lib/time-tracking";
-import type { ProjectProcessResponse } from "@/lib/types";
+import { apiFetch } from "@/lib/api";
 
 // ---------------------------------------------------------------------------
 // Exported duration formatter (also tested directly)
 // ---------------------------------------------------------------------------
 
-export function formatTotalDuration(seconds: number): string {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  if (h > 0) {
-    return `${h} u ${m} min`;
-  }
-  return `${m} min`;
-}
-
-function formatElapsed(seconds: number): string {
+export function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const s = seconds % 60;
@@ -36,32 +18,73 @@ function formatElapsed(seconds: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// ProcessRow — one row per project process
+// Types
 // ---------------------------------------------------------------------------
 
-interface ProcessRowProps {
-  pp: ProjectProcessResponse;
+interface TimeEntry {
+  id: string;
+  project_process_id: string;
+  started_at: string;
+  stopped_at: string | null;
+  duration_seconds: number | null;
+  notes: string | null;
+  created_at: string;
 }
 
-function ProcessRow({ pp }: ProcessRowProps) {
-  const [running, setRunning] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
+interface TimeEntriesResponse {
+  data: TimeEntry[];
+  total_seconds: number;
+}
+
+// ---------------------------------------------------------------------------
+// Props
+// ---------------------------------------------------------------------------
+
+interface TimeTrackerProps {
+  projectProcessId: string;
+  processName: string;
+  onUpdate?: () => void;
+}
+
+// ---------------------------------------------------------------------------
+// TimeTracker component
+// ---------------------------------------------------------------------------
+
+export default function TimeTracker({
+  projectProcessId,
+  processName,
+  onUpdate,
+}: TimeTrackerProps) {
+  const [entries, setEntries] = useState<TimeEntry[]>([]);
   const [totalSeconds, setTotalSeconds] = useState(0);
-  const [showNotes, setShowNotes] = useState(false);
   const [notes, setNotes] = useState("");
+  const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Load existing total on mount
+  const runningEntry = entries.find((e) => e.stopped_at === null);
+  const isRunning = runningEntry !== undefined;
+
+  async function loadEntries() {
+    try {
+      const res = await apiFetch<TimeEntriesResponse>(
+        `/time-tracking/${projectProcessId}`
+      );
+      setEntries(res.data);
+      setTotalSeconds(res.total_seconds);
+    } catch {
+      // silently ignore
+    }
+  }
+
   useEffect(() => {
-    listTimeEntries(pp.id)
-      .then((res) => setTotalSeconds(res.total_seconds))
-      .catch(() => {/* silently ignore per-row errors */});
-  }, [pp.id]);
+    loadEntries();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectProcessId]);
 
   // Live ticker
   useEffect(() => {
-    if (running) {
+    if (isRunning) {
       intervalRef.current = setInterval(() => {
         setElapsed((e) => e + 1);
       }, 1000);
@@ -70,131 +93,93 @@ function ProcessRow({ pp }: ProcessRowProps) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
+      setElapsed(0);
     }
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [running]);
+  }, [isRunning]);
 
   async function handleStart() {
     setError(null);
     try {
-      await startTimer(pp.id, undefined);
-      setElapsed(0);
-      setRunning(true);
+      await apiFetch(`/time-tracking/${projectProcessId}/start`, {
+        method: "POST",
+        body: JSON.stringify({ notes: notes || null }),
+      });
+      await loadEntries();
+      onUpdate?.();
     } catch (e) {
       setError((e as Error).message);
     }
   }
 
-  function handleStopClick() {
-    setShowNotes(true);
-  }
-
-  async function handleStopConfirm() {
+  async function handleStop() {
     setError(null);
     try {
-      await stopTimer(pp.id, notes || undefined);
-      setRunning(false);
-      setShowNotes(false);
-      setNotes("");
-      // Refresh totals
-      const res = await listTimeEntries(pp.id);
-      setTotalSeconds(res.total_seconds);
+      await apiFetch(`/time-tracking/${projectProcessId}/stop`, {
+        method: "POST",
+      });
+      await loadEntries();
+      onUpdate?.();
     } catch (e) {
       setError((e as Error).message);
     }
   }
 
+  const completedEntries = entries.filter((e) => e.stopped_at !== null);
+
   return (
-    <div className="space-y-2 rounded-md border p-3">
+    <div className="space-y-3 rounded-md border p-4">
       <div className="flex items-center justify-between">
-        <span className="font-medium text-sm">{pp.process.name}</span>
-        <div className="flex items-center gap-2">
-          {running && (
-            <span className="text-sm font-mono text-blue-600">{formatElapsed(elapsed)}</span>
-          )}
-          {!running && !showNotes && (
-            <Button size="sm" onClick={handleStart}>
-              Starten
-            </Button>
-          )}
-          {running && !showNotes && (
-            <Button size="sm" variant="destructive" onClick={handleStopClick}>
-              Stoppen
-            </Button>
-          )}
-        </div>
+        <span className="font-medium">{processName}</span>
+        {isRunning && (
+          <span className="text-sm font-mono text-blue-600">
+            {formatDuration(elapsed)}
+          </span>
+        )}
       </div>
 
-      {showNotes && (
-        <div className="flex items-center gap-2">
-          <Input
-            placeholder="Notities (optioneel)"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            className="h-8 text-sm"
-          />
-          <Button size="sm" onClick={handleStopConfirm}>
-            Opslaan
-          </Button>
-        </div>
-      )}
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          placeholder="Opmerkingen"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          className="flex-1 rounded border px-2 py-1 text-sm"
+        />
+        {!isRunning ? (
+          <button
+            onClick={handleStart}
+            className="rounded bg-primary px-3 py-1 text-sm text-primary-foreground"
+          >
+            Start
+          </button>
+        ) : (
+          <button
+            onClick={handleStop}
+            className="rounded bg-destructive px-3 py-1 text-sm text-destructive-foreground"
+          >
+            Stop
+          </button>
+        )}
+      </div>
 
       <div className="text-xs text-muted-foreground">
-        Totaal: {formatTotalDuration(totalSeconds)}
+        Totale tijd: {formatDuration(totalSeconds)}
       </div>
 
-      {error && <p className="text-xs text-destructive">{error}</p>}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// TimeTracker — main widget
-// ---------------------------------------------------------------------------
-
-interface TimeTrackerProps {
-  projectId: string;
-}
-
-export default function TimeTracker({ projectId }: TimeTrackerProps) {
-  const [processes, setProcesses] = useState<ProjectProcessResponse[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    listProjectProcesses(projectId)
-      .then((res) => setProcesses(res.data))
-      .catch((e: Error) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, [projectId]);
-
-  if (loading) {
-    return <p className="text-sm text-muted-foreground">Laden…</p>;
-  }
-
-  if (error) {
-    return <p className="text-sm text-destructive">{error}</p>;
-  }
-
-  return (
-    <div className="space-y-3">
-      <h2 className="text-lg font-semibold">Tijdregistratie</h2>
-      {processes.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Geen processen gekoppeld aan dit project.</p>
-      ) : (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Processen</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {processes.map((pp) => (
-              <ProcessRow key={pp.id} pp={pp} />
-            ))}
-          </CardContent>
-        </Card>
+      {completedEntries.length > 0 && (
+        <ul className="space-y-1">
+          {completedEntries.map((entry) => (
+            <li key={entry.id} className="text-xs text-muted-foreground">
+              {formatDuration(entry.duration_seconds ?? 0)}
+            </li>
+          ))}
+        </ul>
       )}
+
+      {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   );
 }

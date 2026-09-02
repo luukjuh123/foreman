@@ -18,6 +18,7 @@ import {
   Settings,
   Menu,
   X,
+  Bell,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, FileText, Download, Send } from "lucide-react";
+import { ArrowLeft, Download, Send, CheckCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiFetch } from "@/lib/api";
 import type { InvoiceResponse } from "@/lib/types";
@@ -29,10 +29,10 @@ const STATUS_BADGE_CLASS: Record<string, string> = {
 };
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Exported helpers (also tested directly)
 // ---------------------------------------------------------------------------
 
-function formatMoney(cents: number): string {
+export function formatMoney(cents: number): string {
   return new Intl.NumberFormat("nl-NL", {
     style: "currency",
     currency: "EUR",
@@ -40,7 +40,8 @@ function formatMoney(cents: number): string {
   }).format(cents / 100);
 }
 
-function formatDate(iso: string): string {
+export function formatInvoiceDate(iso: string | null): string {
+  if (!iso) return "";
   const [y, m, d] = iso.split("T")[0].split("-");
   return `${d}-${m}-${y}`;
 }
@@ -50,17 +51,79 @@ function formatVatRate(bp: number): string {
 }
 
 // ---------------------------------------------------------------------------
+// Send email dialog
+// ---------------------------------------------------------------------------
+
+interface SendEmailDialogProps {
+  invoiceId: string;
+  onClose: () => void;
+  onSent: (invoice: InvoiceResponse) => void;
+}
+
+function SendEmailDialog({ invoiceId, onClose, onSent }: SendEmailDialogProps) {
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSend() {
+    setSending(true);
+    setError(null);
+    try {
+      const updated = await apiFetch<InvoiceResponse>(`/invoices/${invoiceId}/transition`, {
+        method: "POST",
+        body: JSON.stringify({ status: "sent" }),
+      });
+      onSent(updated);
+    } catch (e: unknown) {
+      setError((e as Error).message);
+      setSending(false);
+    }
+  }
+
+  return (
+    <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="bg-card rounded-lg shadow-lg p-6 w-full max-w-md space-y-4">
+        <h2 className="text-lg font-semibold">Factuur versturen</h2>
+        <p className="text-sm text-muted-foreground">
+          Weet u zeker dat u deze factuur per e-mail wilt versturen?
+        </p>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={onClose} disabled={sending}>
+            Annuleren
+          </Button>
+          <Button onClick={handleSend} disabled={sending}>
+            {sending ? "Versturen…" : "Versturen"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
-export default function InvoicePreviewPage() {
-  const params = useParams();
-  const id = params?.id as string;
+interface Props {
+  params?: Promise<{ id: string }>;
+}
 
+export default function InvoicePreviewPage({ params }: Props = {}) {
+  const routeParams = useParams();
+  const [id, setId] = useState<string>("");
   const [invoice, setInvoice] = useState<InvoiceResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [sending, setSending] = useState(false);
+  const [sendDialogOpen, setSendDialogOpen] = useState(false);
+  const [markingPaid, setMarkingPaid] = useState(false);
+
+  useEffect(() => {
+    if (params) {
+      params.then(({ id: resolvedId }) => setId(resolvedId));
+    } else {
+      setId(routeParams?.id as string);
+    }
+  }, [params, routeParams]);
 
   useEffect(() => {
     if (!id) return;
@@ -72,30 +135,58 @@ export default function InvoicePreviewPage() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  async function handleSend() {
+  async function handleMarkPaid() {
     if (!id || !invoice) return;
-    setSending(true);
+    setMarkingPaid(true);
     try {
       const updated = await apiFetch<InvoiceResponse>(`/invoices/${id}/transition`, {
         method: "POST",
-        body: JSON.stringify({ status: "sent" }),
+        body: JSON.stringify({ status: "paid" }),
       });
       setInvoice(updated);
     } catch (e: unknown) {
       setError((e as Error).message);
     } finally {
-      setSending(false);
+      setMarkingPaid(false);
     }
   }
 
-  function handlePdf() {
+  function handleDownloadPdf() {
     const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
-    window.open(`${apiBase}/invoices/${id}/pdf`, "_blank");
+    const token = typeof window !== "undefined" ? localStorage.getItem("foreman_access_token") : null;
+    fetch(`${apiBase}/invoices/${id}/pdf`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+      .then((res) => res.blob())
+      .then((blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `factuur-${id}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      });
   }
 
-  function handleUbl() {
+  function handleDownloadUbl() {
     const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
-    window.open(`${apiBase}/invoices/${id}/ubl`, "_blank");
+    const token = typeof window !== "undefined" ? localStorage.getItem("foreman_access_token") : null;
+    fetch(`${apiBase}/invoices/${id}/ubl`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+      .then((res) => res.blob())
+      .then((blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `factuur-${id}.xml`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      });
   }
 
   // ------------------------------------------------------------------
@@ -103,16 +194,40 @@ export default function InvoicePreviewPage() {
   // ------------------------------------------------------------------
 
   if (loading) {
-    return <p className="text-sm text-muted-foreground">Laden…</p>;
+    return (
+      <div className="space-y-6">
+        <Link
+          href="/dashboard/invoices"
+          className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Facturen
+        </Link>
+        <p className="text-sm text-muted-foreground">Laden…</p>
+      </div>
+    );
   }
 
   if (error) {
-    return <p className="text-sm text-destructive">{error}</p>;
+    return (
+      <div className="space-y-6">
+        <Link
+          href="/dashboard/invoices"
+          className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Facturen
+        </Link>
+        <p className="text-sm text-destructive">{error}</p>
+      </div>
+    );
   }
 
   if (!invoice) {
     return null;
   }
+
+  const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 
   return (
     <div className="space-y-6">
@@ -141,18 +256,24 @@ export default function InvoicePreviewPage() {
 
         {/* Action buttons */}
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" onClick={handlePdf}>
-            <FileText className="mr-1.5 h-4 w-4" />
-            PDF Bekijken
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleUbl}>
+          <Button variant="outline" size="sm" onClick={handleDownloadPdf}>
             <Download className="mr-1.5 h-4 w-4" />
-            UBL Downloaden
+            Download PDF
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleDownloadUbl}>
+            <Download className="mr-1.5 h-4 w-4" />
+            Download UBL
           </Button>
           {invoice.status === "draft" && (
-            <Button size="sm" onClick={handleSend} disabled={sending}>
+            <Button size="sm" onClick={() => setSendDialogOpen(true)}>
               <Send className="mr-1.5 h-4 w-4" />
-              {sending ? "Versturen…" : "Versturen"}
+              Verstuur per e-mail
+            </Button>
+          )}
+          {invoice.status === "sent" && (
+            <Button size="sm" onClick={handleMarkPaid} disabled={markingPaid}>
+              <CheckCircle className="mr-1.5 h-4 w-4" />
+              {markingPaid ? "Verwerken…" : "Markeer als betaald"}
             </Button>
           )}
         </div>
@@ -167,7 +288,7 @@ export default function InvoicePreviewPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm font-medium">{formatDate(invoice.issue_date)}</p>
+            <p className="text-sm font-medium">{formatInvoiceDate(invoice.issue_date)}</p>
           </CardContent>
         </Card>
         <Card>
@@ -177,7 +298,7 @@ export default function InvoicePreviewPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm font-medium">{formatDate(invoice.due_date)}</p>
+            <p className="text-sm font-medium">{formatInvoiceDate(invoice.due_date)}</p>
           </CardContent>
         </Card>
       </div>
@@ -195,6 +316,22 @@ export default function InvoicePreviewPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* PDF Preview */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium text-muted-foreground">
+            PDF Preview
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <iframe
+            src={`${apiBase}/invoices/${id}/pdf`}
+            className="w-full h-96 border rounded"
+            title="Factuur PDF"
+          />
+        </CardContent>
+      </Card>
 
       {/* Line items */}
       <Card>
@@ -268,6 +405,18 @@ export default function InvoicePreviewPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Send email dialog */}
+      {sendDialogOpen && (
+        <SendEmailDialog
+          invoiceId={id}
+          onClose={() => setSendDialogOpen(false)}
+          onSent={(updated) => {
+            setInvoice(updated);
+            setSendDialogOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 }
