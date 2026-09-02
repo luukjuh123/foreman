@@ -6,6 +6,7 @@ from app.core.rate_limit_middleware import RateLimitMiddleware
 from app.routers import (
     agenda,
     ai_planning,
+    analytics,
     assignments,
     auth,
     billing,
@@ -81,6 +82,7 @@ def create_app() -> FastAPI:
     app.include_router(staff.router, prefix="/api/v1/staff", tags=["staff"])
     app.include_router(templates.router, prefix="/api/v1/templates", tags=["templates"])
     app.include_router(voice.router, prefix="/api/v1/voice", tags=["voice"])
+    app.include_router(analytics.router, prefix="/api/v1/analytics", tags=["analytics"])
     app.include_router(portal.router, prefix="/api/v1", tags=["portal"])
 
     @app.get("/healthz", tags=["health"])

@@ -89,6 +89,23 @@ export default function FinancialsPage() {
       {/* Header */}
       <h1 className="text-2xl font-bold text-foreground">Overzicht Financiën</h1>
 
+      {/* Analytics navigation — always visible */}
+      <div>
+        <h2 className="text-lg font-semibold mb-3">Analyse</h2>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <Link href="/dashboard/financials/profitability">
+            <Card className="hover:shadow-md transition-shadow cursor-pointer">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">Winstgevendheid Heatmap</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-xs text-muted-foreground">Marge per project in kleurcodering</p>
+              </CardContent>
+            </Card>
+          </Link>
+        </div>
+      </div>
+
       {/* Boekhouding navigation — always visible */}
       <div>
         <h2 className="text-lg font-semibold mb-3">Boekhouding</h2>
