@@ -110,23 +110,12 @@ async def create_project(
     db: AsyncSession = Depends(get_db),
 ) -> ProjectResponse:
     await enforce_project_limit(current_user.id, db)
-    project = Project(
-        owner_id=current_user.id,
-        name=body.name,
-        description=body.description,
-        status=body.status,
-        start_date=body.start_date,
-        end_date=body.end_date,
-        budget_cents=body.budget_cents,
-        location_lat=body.location_lat,
-        location_lon=body.location_lon,
-    )
+    project = Project(owner_id=current_user.id, **body.model_dump())
     db.add(project)
     await db.commit()
     await db.refresh(project)
     await increment_projects(current_user.id, db, +1)
     await db.commit()
-    # Load relationships for response
     result = await db.execute(
         select(Project).where(Project.id == project.id).options(selectinload(Project.phases).selectinload(Phase.tasks))
     )
@@ -197,15 +186,7 @@ async def create_phase(
     project = await _get_project_or_404(project_id, db)
     _assert_owner(project, current_user)
 
-    phase = Phase(
-        project_id=project_id,
-        name=body.name,
-        description=body.description,
-        order_index=body.order_index,
-        status=body.status,
-        start_date=body.start_date,
-        end_date=body.end_date,
-    )
+    phase = Phase(project_id=project_id, **body.model_dump())
     db.add(phase)
     await db.commit()
     await db.refresh(phase)
@@ -287,17 +268,7 @@ async def create_task(
     _assert_owner(project, current_user)
     await _get_phase_or_404(project_id, phase_id, db)
 
-    task = Task(
-        phase_id=phase_id,
-        name=body.name,
-        description=body.description,
-        status=body.status,
-        priority=body.priority,
-        estimated_hours=body.estimated_hours,
-        labor_cost_cents=body.labor_cost_cents,
-        start_date=body.start_date,
-        end_date=body.end_date,
-    )
+    task = Task(phase_id=phase_id, **body.model_dump())
     db.add(task)
     await db.commit()
     await db.refresh(task)
@@ -406,16 +377,9 @@ async def remove_dependency(
     project = await _get_project_or_404(project_id, db)
     _assert_owner(project, current_user)
 
-    result = await db.execute(
-        select(TaskDependency).where(
-            TaskDependency.id == dependency_id,
-            TaskDependency.task_id == task_id,
-        )
-    )
-    dep = result.scalar_one_or_none()
+    dep = (await db.execute(select(TaskDependency).where(TaskDependency.id == dependency_id, TaskDependency.task_id == task_id))).scalar_one_or_none()
     if dep is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Dependency not found")
-
     await db.delete(dep)
     await db.commit()
 
@@ -426,7 +390,6 @@ async def remove_dependency(
 
 
 def _default(obj: object) -> str:
-    """JSON serializer for uuid.UUID and datetime objects."""
     if isinstance(obj, (uuid.UUID, datetime)):
         return str(obj)
     raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
@@ -442,19 +405,11 @@ async def export_project(
     project = await _get_project_or_404(project_id, db)
     _assert_owner(project, current_user)
 
-    # Fetch invoices linked to project (FK stored on Invoice.project_id)
-    inv_result = await db.execute(select(Invoice).where(Invoice.project_id == project_id))
-    invoices = inv_result.scalars().all()
+    async def _fetch(model):
+        return (await db.execute(select(model).where(model.project_id == project_id))).scalars().all()
 
-    # Fetch reports
-    rep_result = await db.execute(select(Report).where(Report.project_id == project_id))
-    reports = rep_result.scalars().all()
+    invoices, reports, photos = await _fetch(Invoice), await _fetch(Report), await _fetch(ProcessPhoto)
 
-    # Fetch process photos
-    photo_result = await db.execute(select(ProcessPhoto).where(ProcessPhoto.project_id == project_id))
-    photos = photo_result.scalars().all()
-
-    # Build project dict with nested phases + tasks
     project_dict: dict = {
         "id": project.id,
         "name": project.name,

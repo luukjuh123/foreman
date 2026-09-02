@@ -85,16 +85,10 @@ async def create_account(
         parent = await db.get(Account, payload.parent_id)
         if parent is None or parent.owner_id != user.id:
             raise HTTPException(status_code=404, detail="Parent account not found")
-    account = Account(
-        owner_id=user.id,
-        code=payload.code,
-        name=payload.name,
-        account_type=payload.account_type,
-        normal_balance=payload.normal_balance,
-        parent_id=payload.parent_id,
-        cashflow_category=payload.cashflow_category,
-        description=payload.description,
-    )
+    account = Account(owner_id=user.id, code=payload.code, name=payload.name,
+                      account_type=payload.account_type, normal_balance=payload.normal_balance,
+                      parent_id=payload.parent_id, cashflow_category=payload.cashflow_category,
+                      description=payload.description)
     db.add(account)
     await db.commit()
     await db.refresh(account)
@@ -182,26 +176,17 @@ async def seed_dutch_rgs(
     for seed in DUTCH_RGS_LIGHT:
         if seed.code in existing_codes:
             continue
-        acc = Account(
-            owner_id=user.id,
-            code=seed.code,
-            name=seed.name,
-            account_type=seed.account_type,
-            normal_balance=seed.normal_balance,
-            cashflow_category=seed.cashflow_category,
-        )
+        acc = Account(owner_id=user.id, code=seed.code, name=seed.name,
+                      account_type=seed.account_type, normal_balance=seed.normal_balance,
+                      cashflow_category=seed.cashflow_category)
         db.add(acc)
         by_code[seed.code] = acc
     await db.flush()
 
     for seed in DUTCH_RGS_LIGHT:
-        if seed.parent_code is None:
-            continue
-        child = by_code.get(seed.code)
-        parent = by_code.get(seed.parent_code)
-        if child is None or parent is None:
-            continue
-        child.parent_id = parent.id
+        child, parent = by_code.get(seed.code), by_code.get(seed.parent_code) if seed.parent_code else None
+        if child and parent:
+            child.parent_id = parent.id
     await db.commit()
 
     result = await db.execute(select(Account).where(Account.owner_id == user.id).order_by(Account.code))
@@ -222,6 +207,29 @@ async def _project_for_user_or_404(project_id: uuid.UUID, user: User, db: AsyncS
         raise HTTPException(status_code=404, detail="Project not found")
     if project.owner_id != user.id:
         raise HTTPException(status_code=403, detail="Not your project")
+
+
+def _budget_response(budget: Any) -> "BudgetResponse":
+    return BudgetResponse(
+        id=budget.id,
+        project_id=budget.project_id,
+        total_budget_cents=budget.total_budget_cents,
+        contingency_pct=budget.contingency_pct,
+        created_at=budget.created_at,
+        updated_at=budget.updated_at,
+        items=[BudgetItemResponse.model_validate(i) for i in budget.items],
+    )
+
+
+def _material_line(item: Any) -> "MaterialLineResponse":
+    return MaterialLineResponse(
+        material_id=item.material_id,
+        name=item.name,
+        quantity=item.quantity,
+        unit=item.unit,
+        unit_price_cents=item.unit_price_cents,
+        total_cents=item.total_cents,
+    )
 
 
 async def _entry_date_in_locked_period(db: AsyncSession, owner_id: uuid.UUID, entry_date: _date) -> bool:
@@ -268,22 +276,13 @@ async def create_journal_entry(
             detail="Cannot create entry: date falls in a locked period",
         )
 
-    entry = JournalEntry(
-        owner_id=user.id,
-        entry_date=payload.entry_date,
-        description=payload.description,
-        reference=payload.reference,
-        is_posted=True,
+    entry = JournalEntry(owner_id=user.id, entry_date=payload.entry_date,
+                         description=payload.description, reference=payload.reference, is_posted=True)
+    entry.lines.extend(
+        JournalLine(account_id=l.account_id, debit_cents=l.debit_cents,
+                    credit_cents=l.credit_cents, description=l.description)
+        for l in payload.lines
     )
-    for line in payload.lines:
-        entry.lines.append(
-            JournalLine(
-                account_id=line.account_id,
-                debit_cents=line.debit_cents,
-                credit_cents=line.credit_cents,
-                description=line.description,
-            )
-        )
     db.add(entry)
     await db.commit()
     # Re-fetch with eager lines
@@ -407,12 +406,7 @@ async def create_period(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Period:
-    period = Period(
-        owner_id=user.id,
-        name=payload.name,
-        start_date=payload.start_date,
-        end_date=payload.end_date,
-    )
+    period = Period(owner_id=user.id, name=payload.name, start_date=payload.start_date, end_date=payload.end_date)
     db.add(period)
     await db.commit()
     await db.refresh(period)
@@ -428,22 +422,26 @@ async def list_periods(
     return list(result.scalars().all())
 
 
+async def _toggle_period_lock(period_id: uuid.UUID, lock: bool, user: User, db: AsyncSession) -> Period:
+    period = await db.get(Period, period_id)
+    if period is None or period.owner_id != user.id:
+        raise HTTPException(status_code=404, detail="Period not found")
+    if lock and period.is_locked:
+        raise HTTPException(status_code=409, detail="Period already locked")
+    period.is_locked = lock
+    period.locked_at = _datetime.now(UTC) if lock else None
+    await db.commit()
+    await db.refresh(period)
+    return period
+
+
 @router.post("/periods/{period_id}/lock", response_model=PeriodResponse)
 async def lock_period(
     period_id: uuid.UUID,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Period:
-    period = await db.get(Period, period_id)
-    if period is None or period.owner_id != user.id:
-        raise HTTPException(status_code=404, detail="Period not found")
-    if period.is_locked:
-        raise HTTPException(status_code=409, detail="Period already locked")
-    period.is_locked = True
-    period.locked_at = _datetime.now(UTC)
-    await db.commit()
-    await db.refresh(period)
-    return period
+    return await _toggle_period_lock(period_id, True, user, db)
 
 
 @router.post("/periods/{period_id}/unlock", response_model=PeriodResponse)
@@ -452,15 +450,7 @@ async def unlock_period(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Period:
-    """Unlock an accounting period (admin / correction)."""
-    period = await db.get(Period, period_id)
-    if period is None or period.owner_id != user.id:
-        raise HTTPException(status_code=404, detail="Period not found")
-    period.is_locked = False
-    period.locked_at = None
-    await db.commit()
-    await db.refresh(period)
-    return period
+    return await _toggle_period_lock(period_id, False, user, db)
 
 
 @router.get("/periods/{period_id}/year-end-report")
@@ -491,11 +481,8 @@ async def year_end_report(
 
     return {
         "period": {
-            "id": str(period.id),
-            "name": period.name,
-            "start_date": period.start_date.isoformat(),
-            "end_date": period.end_date.isoformat(),
-            "is_locked": period.is_locked,
+            "id": str(period.id), "name": period.name, "is_locked": period.is_locked,
+            "start_date": period.start_date.isoformat(), "end_date": period.end_date.isoformat(),
             "locked_at": period.locked_at.isoformat() if period.locked_at else None,
         },
         "balance_sheet": balance_sheet.to_dict(),
@@ -532,15 +519,9 @@ async def get_labor_cost(
         hourly_rate_cents=report.hourly_rate_cents,
         total_hours=report.total_hours,
         total_cents=report.total_cents,
-        tasks=[
-            TaskLaborResponse(
-                task_id=t.task_id,
-                name=t.name,
-                estimated_hours=t.estimated_hours,
-                cost_cents=t.cost_cents,
-            )
-            for t in report.tasks
-        ],
+        tasks=[TaskLaborResponse(task_id=t.task_id, name=t.name,
+                                 estimated_hours=t.estimated_hours, cost_cents=t.cost_cents)
+               for t in report.tasks],
     )
 
 
@@ -570,15 +551,14 @@ async def get_total_cost(
     await _project_for_user_or_404(project_id, current_user, db)
     calc = TotalCostCalculator(price_provider=provider, hourly_rate_cents=hourly_rate_cents)
     report = await calc.calculate(project_id, db)
+    bd = report.breakdown
     return TotalCostResponse(
         total_cents=report.total_cents,
         hourly_rate_cents=report.hourly_rate_cents,
         breakdown=CostBreakdownResponse(
-            materials_cents=report.breakdown.materials_cents,
-            labor_cents=report.breakdown.labor_cents,
-            equipment_cents=report.breakdown.equipment_cents,
-            overhead_cents=report.breakdown.overhead_cents,
-            other_cents=report.breakdown.other_cents,
+            materials_cents=bd.materials_cents, labor_cents=bd.labor_cents,
+            equipment_cents=bd.equipment_cents, overhead_cents=bd.overhead_cents,
+            other_cents=bd.other_cents,
         ),
         materials_missing_count=report.materials_missing_count,
     )
@@ -605,28 +585,8 @@ async def get_material_cost(
     report = await aggregator.aggregate(project_id, db)
     return MaterialCostResponse(
         total_cents=report.total_cents,
-        items=[
-            MaterialLineResponse(
-                material_id=item.material_id,
-                name=item.name,
-                quantity=item.quantity,
-                unit=item.unit,
-                unit_price_cents=item.unit_price_cents,
-                total_cents=item.total_cents,
-            )
-            for item in report.items
-        ],
-        missing=[
-            MaterialLineResponse(
-                material_id=item.material_id,
-                name=item.name,
-                quantity=item.quantity,
-                unit=item.unit,
-                unit_price_cents=item.unit_price_cents,
-                total_cents=item.total_cents,
-            )
-            for item in report.missing
-        ],
+        items=[_material_line(i) for i in report.items],
+        missing=[_material_line(i) for i in report.missing],
     )
 
 
@@ -667,18 +627,9 @@ async def get_budget(
         budget = Budget(project_id=project_id)
         db.add(budget)
         await db.commit()
-        # Re-fetch with eager-loaded items to avoid MissingGreenlet on lazy load
         result = await db.execute(select(Budget).where(Budget.id == budget.id).options(selectinload(Budget.items)))
         budget = result.scalar_one()
-    return BudgetResponse(
-        id=budget.id,
-        project_id=budget.project_id,
-        total_budget_cents=budget.total_budget_cents,
-        contingency_pct=budget.contingency_pct,
-        created_at=budget.created_at,
-        updated_at=budget.updated_at,
-        items=[BudgetItemResponse.model_validate(i) for i in budget.items],
-    )
+    return _budget_response(budget)
 
 
 @router.put(
@@ -704,19 +655,8 @@ async def upsert_budget(
     budget.total_budget_cents = payload.total_budget_cents
     budget.contingency_pct = payload.contingency_pct
     await db.commit()
-    await db.refresh(budget)
-    # Re-fetch with items
-    result2 = await db.execute(select(Budget).where(Budget.id == budget.id).options(selectinload(Budget.items)))
-    budget = result2.scalar_one()
-    return BudgetResponse(
-        id=budget.id,
-        project_id=budget.project_id,
-        total_budget_cents=budget.total_budget_cents,
-        contingency_pct=budget.contingency_pct,
-        created_at=budget.created_at,
-        updated_at=budget.updated_at,
-        items=[BudgetItemResponse.model_validate(i) for i in budget.items],
-    )
+    result = await db.execute(select(Budget).where(Budget.id == budget.id).options(selectinload(Budget.items)))
+    return _budget_response(result.scalar_one())
 
 
 @router.post(
@@ -735,14 +675,9 @@ async def create_budget_item(
 
     await _project_for_user_or_404(project_id, current_user, db)
     budget = await _get_or_create_budget(project_id, db)
-    item = BudgetItem(
-        budget_id=budget.id,
-        category=payload.category,
-        name=payload.name,
-        description=payload.description,
-        estimated_cents=payload.estimated_cents,
-        actual_cents=payload.actual_cents,
-    )
+    item = BudgetItem(budget_id=budget.id, category=payload.category, name=payload.name,
+                      description=payload.description, estimated_cents=payload.estimated_cents,
+                      actual_cents=payload.actual_cents)
     db.add(item)
     await db.commit()
     await db.refresh(item)

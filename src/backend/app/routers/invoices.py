@@ -102,33 +102,29 @@ async def list_customers(
 
 
 async def _load_customer(db: AsyncSession, owner_id: uuid.UUID, customer_id: uuid.UUID) -> Customer:
-    result = await db.execute(
-        select(Customer).where(
-            Customer.id == customer_id,
-            Customer.owner_id == owner_id,
-            Customer.deleted_at.is_(None),
-        )
-    )
-    customer = result.scalar_one_or_none()
-    if customer is None:
+    q = select(Customer).where(Customer.id == customer_id, Customer.owner_id == owner_id, Customer.deleted_at.is_(None))
+    c = (await db.execute(q)).scalar_one_or_none()
+    if c is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
-    return customer
+    return c
 
 
 async def _load_invoice(db: AsyncSession, owner_id: uuid.UUID, invoice_id: uuid.UUID) -> Invoice:
-    result = await db.execute(
-        select(Invoice)
-        .where(
-            Invoice.id == invoice_id,
-            Invoice.owner_id == owner_id,
-            Invoice.deleted_at.is_(None),
-        )
-        .options(selectinload(Invoice.lines))
-    )
-    invoice = result.scalar_one_or_none()
-    if invoice is None:
+    q = select(Invoice).where(Invoice.id == invoice_id, Invoice.owner_id == owner_id, Invoice.deleted_at.is_(None)).options(selectinload(Invoice.lines))
+    inv = (await db.execute(q)).scalar_one_or_none()
+    if inv is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
-    return invoice
+    return inv
+
+
+def _attach_lines(invoice: Invoice, lines: list) -> None:
+    subtotal = vat_total = 0
+    for idx, ln in enumerate(lines):
+        net, vat = compute_line_totals(quantity=ln.quantity, unit_price_cents=ln.unit_price_cents, vat_rate_bp=ln.vat_rate_bp)
+        invoice.lines.append(InvoiceLine(position=idx, description=ln.description, quantity=ln.quantity, unit=ln.unit, unit_price_cents=ln.unit_price_cents, vat_rate_bp=ln.vat_rate_bp, line_net_cents=net, line_vat_cents=vat))
+        subtotal += net
+        vat_total += vat
+    invoice.subtotal_cents, invoice.vat_total_cents, invoice.total_cents = subtotal, vat_total, subtotal + vat_total
 
 
 @router.post("/", response_model=InvoiceResponse, status_code=status.HTTP_201_CREATED)
@@ -138,10 +134,7 @@ async def create_invoice(
     db: AsyncSession = Depends(get_db),
 ) -> InvoiceResponse:
     await _load_customer(db, current_user.id, body.customer_id)
-
-    year = body.issue_date.year
-    invoice_number = await allocate_invoice_number(db, owner_id=current_user.id, year=year)
-
+    invoice_number = await allocate_invoice_number(db, owner_id=current_user.id, year=body.issue_date.year)
     invoice = Invoice(
         owner_id=current_user.id,
         customer_id=body.customer_id,
@@ -153,36 +146,9 @@ async def create_invoice(
         notes=body.notes,
         status="draft",
     )
-    subtotal = 0
-    vat_total = 0
-    for idx, line_in in enumerate(body.lines):
-        net, vat = compute_line_totals(
-            quantity=line_in.quantity,
-            unit_price_cents=line_in.unit_price_cents,
-            vat_rate_bp=line_in.vat_rate_bp,
-        )
-        invoice.lines.append(
-            InvoiceLine(
-                position=idx,
-                description=line_in.description,
-                quantity=line_in.quantity,
-                unit=line_in.unit,
-                unit_price_cents=line_in.unit_price_cents,
-                vat_rate_bp=line_in.vat_rate_bp,
-                line_net_cents=net,
-                line_vat_cents=vat,
-            )
-        )
-        subtotal += net
-        vat_total += vat
-
-    invoice.subtotal_cents = subtotal
-    invoice.vat_total_cents = vat_total
-    invoice.total_cents = subtotal + vat_total
-
+    _attach_lines(invoice, body.lines)
     db.add(invoice)
     await db.commit()
-
     loaded = await _load_invoice(db, current_user.id, invoice.id)
     return InvoiceResponse.model_validate(loaded)
 
@@ -267,17 +233,14 @@ def _customer_to_dict(customer: Customer) -> dict:
 
 
 def _supplier_from_settings() -> dict:
-    return {
-        "name": settings.company_name,
-        "vat_number": settings.company_vat_number,
-        "kvk_number": settings.company_kvk,
-        "address_line1": settings.company_address_line1,
-        "postal_code": settings.company_postal_code,
-        "city": settings.company_city,
-        "country_code": settings.company_country_code,
-        "email": settings.company_email,
-        "iban": settings.company_iban,
-    }
+    s = settings
+    return {"name": s.company_name, "vat_number": s.company_vat_number, "kvk_number": s.company_kvk, "address_line1": s.company_address_line1, "postal_code": s.company_postal_code, "city": s.company_city, "country_code": s.company_country_code, "email": s.company_email, "iban": s.company_iban}
+
+
+async def _invoice_render_context(db: AsyncSession, owner_id: uuid.UUID, invoice_id: uuid.UUID) -> tuple[Invoice, dict, dict, dict]:
+    invoice = await _load_invoice(db, owner_id, invoice_id)
+    customer = await _load_customer(db, owner_id, invoice.customer_id)
+    return invoice, _invoice_to_dict(invoice), _customer_to_dict(customer), _supplier_from_settings()
 
 
 @router.get(
@@ -290,18 +253,11 @@ async def get_invoice_ubl(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
-    invoice = await _load_invoice(db, current_user.id, invoice_id)
-    customer = await _load_customer(db, current_user.id, invoice.customer_id)
-    xml_bytes = build_invoice_ubl_xml(
-        _invoice_to_dict(invoice),
-        customer=_customer_to_dict(customer),
-        supplier=_supplier_from_settings(),
-    )
-    filename = f"invoice-{invoice.invoice_number}.xml"
+    invoice, inv_dict, cust_dict, sup_dict = await _invoice_render_context(db, current_user.id, invoice_id)
     return Response(
-        content=xml_bytes,
+        content=build_invoice_ubl_xml(inv_dict, customer=cust_dict, supplier=sup_dict),
         media_type="application/xml",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": f'attachment; filename="invoice-{invoice.invoice_number}.xml"'},
     )
 
 
@@ -315,21 +271,14 @@ async def get_invoice_pdf(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
-    invoice = await _load_invoice(db, current_user.id, invoice_id)
-    customer = await _load_customer(db, current_user.id, invoice.customer_id)
+    invoice, inv_dict, cust_dict, sup_dict = await _invoice_render_context(db, current_user.id, invoice_id)
     # Import the function lazily via the module so tests can monkeypatch it.
     from app.services.invoices import pdf as pdf_mod
 
-    pdf_bytes = pdf_mod.render_invoice_pdf(
-        _invoice_to_dict(invoice),
-        customer=_customer_to_dict(customer),
-        supplier=_supplier_from_settings(),
-    )
-    filename = f"invoice-{invoice.invoice_number}.pdf"
     return Response(
-        content=pdf_bytes,
+        content=pdf_mod.render_invoice_pdf(inv_dict, customer=cust_dict, supplier=sup_dict),
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": f'attachment; filename="invoice-{invoice.invoice_number}.pdf"'},
     )
 
 
@@ -446,33 +395,7 @@ async def create_invoice_from_project(
         status="draft",
     )
 
-    subtotal = 0
-    vat_total = 0
-    for idx, dl in enumerate(draft_lines):
-        net, vat = compute_line_totals(
-            quantity=dl.quantity,
-            unit_price_cents=dl.unit_price_cents,
-            vat_rate_bp=dl.vat_rate_bp,
-        )
-        invoice.lines.append(
-            InvoiceLine(
-                position=idx,
-                description=dl.description,
-                quantity=dl.quantity,
-                unit=dl.unit,
-                unit_price_cents=dl.unit_price_cents,
-                vat_rate_bp=dl.vat_rate_bp,
-                line_net_cents=net,
-                line_vat_cents=vat,
-            )
-        )
-        subtotal += net
-        vat_total += vat
-
-    invoice.subtotal_cents = subtotal
-    invoice.vat_total_cents = vat_total
-    invoice.total_cents = subtotal + vat_total
-
+    _attach_lines(invoice, draft_lines)
     db.add(invoice)
     await db.commit()
     loaded = await _load_invoice(db, current_user.id, invoice.id)
