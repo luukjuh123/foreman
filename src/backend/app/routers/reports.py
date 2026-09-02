@@ -92,18 +92,7 @@ async def generate_report(
     await db.commit()
     await db.refresh(report)
 
-    return ReportResponse(
-        id=str(report.id),
-        project_id=str(report.project_id),
-        type=report.type,
-        title=report.title,
-        period_start=report.period_start,
-        period_end=report.period_end,
-        data=report.data,
-        is_shared=report.is_shared,
-        share_token=report.share_token,
-        created_at=report.created_at,
-    )
+    return ReportResponse.model_validate(report)
 
 
 @router.get("/", response_model=ReportListResponse)
@@ -122,27 +111,14 @@ async def list_reports(
         base = base.where(Report.project_id == pid)
         count_base = count_base.where(Report.project_id == pid)
 
-    total_result = await db.execute(count_base)
-    total = total_result.scalar() or 0
+    total = (await db.execute(count_base)).scalar() or 0
 
     offset = (page - 1) * per_page
     result = await db.execute(base.order_by(Report.created_at.desc()).offset(offset).limit(per_page))
     reports = result.scalars().all()
 
     return ReportListResponse(
-        data=[
-            ReportSummaryResponse(
-                id=str(r.id),
-                project_id=str(r.project_id),
-                type=r.type,
-                title=r.title,
-                period_start=r.period_start,
-                period_end=r.period_end,
-                is_shared=r.is_shared,
-                created_at=r.created_at,
-            )
-            for r in reports
-        ],
+        data=[ReportSummaryResponse.model_validate(r) for r in reports],
         total=total,
         page=page,
         per_page=per_page,
@@ -159,19 +135,7 @@ async def get_shared_report(
     report = result.scalar_one_or_none()
     if report is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
-
-    return ReportResponse(
-        id=str(report.id),
-        project_id=str(report.project_id),
-        type=report.type,
-        title=report.title,
-        period_start=report.period_start,
-        period_end=report.period_end,
-        data=report.data,
-        is_shared=report.is_shared,
-        share_token=report.share_token,
-        created_at=report.created_at,
-    )
+    return ReportResponse.model_validate(report)
 
 
 @router.get("/{report_id}", response_model=ReportResponse)
@@ -181,18 +145,7 @@ async def get_report(
     db: AsyncSession = Depends(get_db),
 ) -> ReportResponse:
     report = await _get_own_report_or_404(report_id, current_user, db)
-    return ReportResponse(
-        id=str(report.id),
-        project_id=str(report.project_id),
-        type=report.type,
-        title=report.title,
-        period_start=report.period_start,
-        period_end=report.period_end,
-        data=report.data,
-        is_shared=report.is_shared,
-        share_token=report.share_token,
-        created_at=report.created_at,
-    )
+    return ReportResponse.model_validate(report)
 
 
 @router.get("/{report_id}/pdf")

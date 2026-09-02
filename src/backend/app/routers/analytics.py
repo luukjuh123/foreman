@@ -27,86 +27,40 @@ async def get_dashboard_analytics(
     owner_id = current_user.id
     today = date.today()
 
-    # --- Active projects ---
-    active_projects_count: int = (
-        await db.execute(
-            select(func.count())
-            .select_from(Project)
-            .where(
-                Project.owner_id == owner_id,
-                Project.status == "active",
-                Project.deleted_at.is_(None),
-            )
-        )
-    ).scalar_one()
+    async def _count(stmt) -> int:
+        return (await db.execute(stmt)).scalar_one()
 
-    # --- Overdue tasks ---
-    # Tasks whose end_date < today and status != "done", in active projects
-    overdue_tasks_count: int = (
-        await db.execute(
-            select(func.count())
-            .select_from(Task)
-            .join(Phase, Task.phase_id == Phase.id)
-            .join(Project, Phase.project_id == Project.id)
-            .where(
-                Project.owner_id == owner_id,
-                Project.deleted_at.is_(None),
-                Task.end_date < today,
-                Task.status != "done",
-            )
-        )
-    ).scalar_one()
+    active_projects_count = await _count(
+        select(func.count()).select_from(Project).where(
+            Project.owner_id == owner_id, Project.status == "active", Project.deleted_at.is_(None)))
 
-    # --- Monthly revenue (paid invoices this month) ---
-    now = datetime.now(tz=UTC)
-    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    overdue_tasks_count = await _count(
+        select(func.count()).select_from(Task)
+        .join(Phase, Task.phase_id == Phase.id).join(Project, Phase.project_id == Project.id)
+        .where(Project.owner_id == owner_id, Project.deleted_at.is_(None),
+               Task.end_date < today, Task.status != "done"))
 
-    monthly_revenue_cents: int = (
-        await db.execute(
-            select(func.coalesce(func.sum(Invoice.total_cents), 0)).where(
-                Invoice.owner_id == owner_id,
-                Invoice.status == "paid",
-                Invoice.paid_at >= month_start,
-                Invoice.deleted_at.is_(None),
-            )
-        )
-    ).scalar_one()
+    month_start = datetime.now(tz=UTC).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    monthly_revenue_cents = await _count(
+        select(func.coalesce(func.sum(Invoice.total_cents), 0)).where(
+            Invoice.owner_id == owner_id, Invoice.status == "paid",
+            Invoice.paid_at >= month_start, Invoice.deleted_at.is_(None)))
 
-    # --- Staff utilization (% of active staff with an assignment this week) ---
-    # Week = Mon 00:00 UTC through end of Sunday UTC
-    weekday = today.weekday()  # 0 = Monday
-    week_start_dt = datetime(today.year, today.month, today.day, tzinfo=UTC) - timedelta(days=weekday)
+    week_start_dt = datetime(today.year, today.month, today.day, tzinfo=UTC) - timedelta(days=today.weekday())
     week_end_dt = week_start_dt + timedelta(days=7)
+    active_staff_filter = [Staff.owner_id == owner_id, Staff.active.is_(True), Staff.deleted_at.is_(None)]
 
-    total_staff: int = (
-        await db.execute(
-            select(func.count())
-            .select_from(Staff)
-            .where(
-                Staff.owner_id == owner_id,
-                Staff.active.is_(True),
-                Staff.deleted_at.is_(None),
-            )
-        )
-    ).scalar_one()
+    total_staff = await _count(
+        select(func.count()).select_from(Staff).where(*active_staff_filter))
 
     if total_staff == 0:
         staff_utilization_percent = 0.0
     else:
-        # Count distinct staff with at least one assignment overlapping this week
-        assigned_staff: int = (
-            await db.execute(
-                select(func.count(func.distinct(StaffAssignment.staff_id)))
-                .join(Staff, StaffAssignment.staff_id == Staff.id)
-                .where(
-                    Staff.owner_id == owner_id,
-                    Staff.active.is_(True),
-                    Staff.deleted_at.is_(None),
-                    StaffAssignment.start_at < week_end_dt,
-                    StaffAssignment.end_at > week_start_dt,
-                )
-            )
-        ).scalar_one()
+        assigned_staff = await _count(
+            select(func.count(func.distinct(StaffAssignment.staff_id)))
+            .join(Staff, StaffAssignment.staff_id == Staff.id)
+            .where(*active_staff_filter, StaffAssignment.start_at < week_end_dt,
+                   StaffAssignment.end_at > week_start_dt))
         staff_utilization_percent = round((assigned_staff / total_staff) * 100, 1)
 
     return DashboardAnalyticsResponse(

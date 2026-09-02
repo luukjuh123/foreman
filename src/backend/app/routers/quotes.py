@@ -253,19 +253,11 @@ async def convert_quote(
             vat_total_cents=quote.vat_total_cents,
             total_cents=quote.total_cents,
         )
-        for idx, ql in enumerate(quote.lines):
-            invoice.lines.append(
-                InvoiceLine(
-                    position=idx,
-                    description=ql.description,
-                    quantity=ql.quantity,
-                    unit=ql.unit,
-                    unit_price_cents=ql.unit_price_cents,
-                    vat_rate_bp=ql.vat_rate_bp,
-                    line_net_cents=ql.line_net_cents,
-                    line_vat_cents=ql.line_vat_cents,
-                )
-            )
+        _COPY = ("description", "quantity", "unit", "unit_price_cents", "vat_rate_bp", "line_net_cents", "line_vat_cents")
+        invoice.lines = [
+            InvoiceLine(position=idx, **{f: getattr(ql, f) for f in _COPY})
+            for idx, ql in enumerate(quote.lines)
+        ]
         db.add(invoice)
         await db.flush()
         invoice_id = invoice.id

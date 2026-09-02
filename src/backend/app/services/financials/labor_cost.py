@@ -56,19 +56,17 @@ class LaborCostEstimator:
         )
         tasks = list(result.scalars().all())
 
-        report = LaborCostReport(hourly_rate_cents=self._rate)
-        for task in tasks:
-            hours = float(task.estimated_hours or 0.0)
-            cost = int(hours * self._rate)
-            report.tasks.append(
-                TaskLaborLine(
-                    task_id=task.id,
-                    name=task.name,
-                    estimated_hours=hours,
-                    cost_cents=cost,
-                )
+        lines = [
+            TaskLaborLine(
+                task_id=t.id, name=t.name,
+                estimated_hours=(h := float(t.estimated_hours or 0.0)),
+                cost_cents=int(h * self._rate),
             )
-            report.total_hours += hours
-            report.total_cents += cost
-
-        return report
+            for t in tasks
+        ]
+        return LaborCostReport(
+            hourly_rate_cents=self._rate,
+            tasks=lines,
+            total_hours=sum(l.estimated_hours for l in lines),
+            total_cents=sum(l.cost_cents for l in lines),
+        )

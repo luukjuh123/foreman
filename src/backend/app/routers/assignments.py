@@ -92,20 +92,27 @@ async def list_assignments(
     return [StaffAssignmentResponse.model_validate(a) for a in result.scalars().all()]
 
 
+async def _get_owned_assignment_or_404(
+    assignment_id: uuid.UUID, owner_id: uuid.UUID, db: AsyncSession,
+) -> StaffAssignment:
+    result = await db.execute(
+        select(StaffAssignment)
+        .join(Staff, StaffAssignment.staff_id == Staff.id)
+        .where(StaffAssignment.id == assignment_id, Staff.owner_id == owner_id)
+    )
+    a = result.scalar_one_or_none()
+    if a is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assignment not found")
+    return a
+
+
 @router.get("/{assignment_id}", response_model=StaffAssignmentResponse)
 async def get_assignment(
     assignment_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> StaffAssignmentResponse:
-    result = await db.execute(
-        select(StaffAssignment)
-        .join(Staff, StaffAssignment.staff_id == Staff.id)
-        .where(StaffAssignment.id == assignment_id, Staff.owner_id == current_user.id)
-    )
-    a = result.scalar_one_or_none()
-    if a is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assignment not found")
+    a = await _get_owned_assignment_or_404(assignment_id, current_user.id, db)
     return StaffAssignmentResponse.model_validate(a)
 
 
@@ -115,13 +122,6 @@ async def delete_assignment(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    result = await db.execute(
-        select(StaffAssignment)
-        .join(Staff, StaffAssignment.staff_id == Staff.id)
-        .where(StaffAssignment.id == assignment_id, Staff.owner_id == current_user.id)
-    )
-    a = result.scalar_one_or_none()
-    if a is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assignment not found")
+    a = await _get_owned_assignment_or_404(assignment_id, current_user.id, db)
     await db.delete(a)
     await db.commit()

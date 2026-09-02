@@ -147,14 +147,11 @@ async def update_incident(
 ) -> IncidentResponse:
     incident = await _get_incident_or_404(incident_id, current_user.id, db)
 
-    update_data = body.model_dump(exclude_unset=True)
-
-    # Auto-set resolved_at when status transitions to resolved
-    if update_data.get("status") == "resolved" and incident.status != "resolved":
-        update_data.setdefault("resolved_at", datetime.now(UTC))
-
-    for field, value in update_data.items():
-        setattr(incident, field, value)
+    updates = body.model_dump(exclude_unset=True)
+    if updates.get("status") == "resolved" and incident.status != "resolved":
+        updates.setdefault("resolved_at", datetime.now(UTC))
+    for k, v in updates.items():
+        setattr(incident, k, v)
 
     await db.commit()
     await db.refresh(incident)
