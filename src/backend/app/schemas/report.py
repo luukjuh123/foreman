@@ -13,6 +13,7 @@ class ReportGenerateRequest(BaseModel):
     type: Literal["weekly", "completion"]
     period_start: date | None = None
     period_end: date | None = None
+    include_photos: bool = True
 
 
 class ReportResponse(BaseModel):

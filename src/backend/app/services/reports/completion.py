@@ -9,6 +9,8 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
+from app.models.process import Process
+from app.models.process_photo import ProcessPhoto
 from app.models.project import Phase, Project
 from app.services.reports.engine import aggregate_project_data
 from sqlalchemy import select
@@ -27,11 +29,67 @@ def _duration_days(start: str | None, end: str | None) -> int | None:
     return (e - s).days + 1
 
 
+def _photo_to_dict(photo: ProcessPhoto, process_label: str | None) -> dict[str, Any]:
+    return {
+        "id": str(photo.id),
+        "image_url": photo.image_url,
+        "completion_pct": photo.completion_pct,
+        "process_label": process_label,
+        "recognized_process_id": str(photo.recognized_process_id) if photo.recognized_process_id else None,
+        "reasoning": photo.reasoning,
+        "created_at": photo.created_at.isoformat() if photo.created_at else None,
+    }
+
+
+async def _fetch_all_project_photos(
+    db: AsyncSession,
+    project_id: uuid.UUID,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Return (flat_chronological_list, before_after_timeline_by_phase)."""
+    result = await db.execute(
+        select(ProcessPhoto, Process.name)
+        .join(Process, ProcessPhoto.recognized_process_id == Process.id, isouter=True)
+        .where(ProcessPhoto.project_id == project_id)
+        .order_by(ProcessPhoto.created_at)
+    )
+    rows = result.all()
+
+    flat: list[dict[str, Any]] = []
+    by_phase_map: dict[str, list[dict[str, Any]]] = {}
+
+    for photo, process_name in rows:
+        photo_dict = _photo_to_dict(photo, process_name)
+        flat.append(photo_dict)
+        label = process_name or "Onbekend"
+        by_phase_map.setdefault(label, []).append(photo_dict)
+
+    # Build before/after entries: first photo = before, last photo = after (None if only one).
+    timeline: list[dict[str, Any]] = []
+    for label, photos in by_phase_map.items():
+        before = photos[0]
+        after = photos[-1] if len(photos) > 1 else None
+        timeline.append({
+            "process_label": label,
+            "before": before,
+            "after": after,
+            "photo_count": len(photos),
+            "photos": photos,
+        })
+
+    return flat, timeline
+
+
 async def generate_completion_report(
     db: AsyncSession,
     project_id: uuid.UUID,
+    *,
+    include_photos: bool = True,
 ) -> dict[str, Any]:
     """Generate a full project completion report.
+
+    Args:
+        include_photos: When True (default), embed all project photos with a
+            before/after timeline per recognized process.
 
     Raises ``LookupError`` if the project does not exist.
     """
@@ -98,6 +156,11 @@ async def generate_completion_report(
             }
         )
 
+    if include_photos:
+        photos_flat, photo_timeline = await _fetch_all_project_photos(db, project_id)
+    else:
+        photos_flat, photo_timeline = [], []
+
     return {
         "type": "completion",
         "project": base["project"],
@@ -107,7 +170,7 @@ async def generate_completion_report(
         "timeline": timeline,
         "costs_vs_budget": costs_vs_budget,
         "phase_summary": phase_summary,
-        # Free-text lessons & photos aren't modelled yet — slots reserved.
         "lessons_learned": [],
-        "photos": [],
+        "photos": photos_flat,
+        "photo_timeline_by_phase": photo_timeline,
     }

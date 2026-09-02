@@ -8,9 +8,11 @@ per phase. Pure data — persistence, PDF, and email layers compose on top.
 from __future__ import annotations
 
 import uuid
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
+from app.models.process import Process
+from app.models.process_photo import ProcessPhoto
 from app.models.project import Phase, Project, Task
 from app.services.reports.engine import _task_in_period, aggregate_project_data
 from sqlalchemy import select
@@ -26,12 +28,69 @@ def _ensure_monday(week_start: date) -> None:
         raise ValueError(f"week_start must be a Monday; got {week_start.isoformat()} (weekday={week_start.weekday()})")
 
 
+def _photo_to_dict(photo: ProcessPhoto, process_label: str | None) -> dict[str, Any]:
+    return {
+        "id": str(photo.id),
+        "image_url": photo.image_url,
+        "completion_pct": photo.completion_pct,
+        "process_label": process_label,
+        "recognized_process_id": str(photo.recognized_process_id) if photo.recognized_process_id else None,
+        "reasoning": photo.reasoning,
+        "created_at": photo.created_at.isoformat() if photo.created_at else None,
+    }
+
+
+async def _fetch_photos_for_period(
+    db: AsyncSession,
+    project_id: uuid.UUID,
+    period_start: date,
+    period_end: date,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Fetch photos within [period_start, period_end]; return (flat_list, by_phase_list)."""
+    start_dt = datetime(period_start.year, period_start.month, period_start.day, tzinfo=timezone.utc)
+    end_dt = datetime(period_end.year, period_end.month, period_end.day, 23, 59, 59, tzinfo=timezone.utc)
+
+    result = await db.execute(
+        select(ProcessPhoto, Process.name)
+        .join(Process, ProcessPhoto.recognized_process_id == Process.id, isouter=True)
+        .where(
+            ProcessPhoto.project_id == project_id,
+            ProcessPhoto.created_at >= start_dt,
+            ProcessPhoto.created_at <= end_dt,
+        )
+        .order_by(ProcessPhoto.created_at)
+    )
+    rows = result.all()
+
+    flat: list[dict[str, Any]] = []
+    by_phase_map: dict[str, list[dict[str, Any]]] = {}
+
+    for photo, process_name in rows:
+        photo_dict = _photo_to_dict(photo, process_name)
+        flat.append(photo_dict)
+        label = process_name or "Onbekend"
+        by_phase_map.setdefault(label, []).append(photo_dict)
+
+    by_phase: list[dict[str, Any]] = [
+        {"process_label": label, "photos": photos}
+        for label, photos in by_phase_map.items()
+    ]
+
+    return flat, by_phase
+
+
 async def generate_weekly_report(
     db: AsyncSession,
     project_id: uuid.UUID,
     week_start: date,
+    *,
+    include_photos: bool = True,
 ) -> dict[str, Any]:
     """Generate a weekly report for ``project_id`` covering ``[week_start, +6]``.
+
+    Args:
+        include_photos: When True (default), fetch and embed site photos taken
+            during the report period, grouped by process label.
 
     Raises:
         ValueError: ``week_start`` is not a Monday.
@@ -92,6 +151,13 @@ async def generate_weekly_report(
                     }
                 )
 
+    if include_photos:
+        photos_flat, photos_by_phase = await _fetch_photos_for_period(
+            db, project_id, week_start, week_end
+        )
+    else:
+        photos_flat, photos_by_phase = [], []
+
     return {
         "type": "weekly",
         "project": base["project"],
@@ -109,7 +175,6 @@ async def generate_weekly_report(
         "completed_this_week": completed_this_week,
         "hours_by_phase": list(hours_by_phase_map.values()),
         "next_week_plan": next_week_plan,
-        # Photo model is a Phase-3 backend item; expose an empty slot so
-        # downstream PDF / email templates can render unconditionally.
-        "photos": [],
+        "photos": photos_flat,
+        "photos_by_phase": photos_by_phase,
     }
