@@ -8,15 +8,18 @@ Create Date: 2026-05-19 09:00:00
 
 from __future__ import annotations
 
-from typing import Sequence, Union
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
 
 revision: str = "5d2f1a3b7c01"
-down_revision: Union[str, Sequence[str], None] = "30246b22cf35"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = "30246b22cf35"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

@@ -8,7 +8,7 @@ from app.models.project import Phase, Project, Task
 from app.models.template import ProjectTemplate
 from app.models.user import User
 from app.routers.auth import get_current_user
-from app.schemas.project import PhaseResponse, ProjectResponse
+from app.schemas.project import ProjectResponse
 from app.schemas.template import (
     CreateFromTemplateRequest,
     FromProjectRequest,
