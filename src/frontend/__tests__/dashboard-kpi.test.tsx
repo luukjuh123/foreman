@@ -103,7 +103,7 @@ describe("Dashboard KPI — active projects count", () => {
     }));
     mockApiFetch();
 
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
+    const { default: DashboardPage } = await import("@/app/dashboard/overview/page");
     await act(async () => { render(<DashboardPage />); });
 
     expect(screen.getByTestId("kpi-active-projects")).toHaveTextContent("2");
@@ -137,7 +137,7 @@ describe("Dashboard KPI — overdue tasks", () => {
     }));
     mockApiFetch();
 
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
+    const { default: DashboardPage } = await import("@/app/dashboard/overview/page");
     await act(async () => { render(<DashboardPage />); });
 
     expect(screen.getByTestId("kpi-overdue-tasks")).toHaveTextContent("2");
@@ -153,7 +153,7 @@ describe("Dashboard KPI — overdue tasks", () => {
     }));
     mockApiFetch();
 
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
+    const { default: DashboardPage } = await import("@/app/dashboard/overview/page");
     await act(async () => { render(<DashboardPage />); });
 
     expect(screen.getByTestId("kpi-overdue-tasks")).toHaveTextContent("0");
@@ -178,7 +178,7 @@ describe("Dashboard KPI — monthly revenue", () => {
       { id: "inv4", status: "sent", total_cents: 10000, paid_at: null }, // not paid, exclude
     ]);
 
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
+    const { default: DashboardPage } = await import("@/app/dashboard/overview/page");
     await act(async () => { render(<DashboardPage />); });
 
     // 50000 + 30000 = 80000 cents = €800.00
@@ -193,7 +193,7 @@ describe("Dashboard KPI — monthly revenue", () => {
     }));
     mockApiFetch();
 
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
+    const { default: DashboardPage } = await import("@/app/dashboard/overview/page");
     await act(async () => { render(<DashboardPage />); });
 
     expect(screen.getByTestId("kpi-monthly-revenue")).toHaveTextContent("0");
@@ -218,7 +218,7 @@ describe("Dashboard KPI — outstanding invoices (Phase 22 replaces staff utiliz
       { id: "inv4", status: "draft", total_cents: 5000, paid_at: null }, // exclude
     ]);
 
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
+    const { default: DashboardPage } = await import("@/app/dashboard/overview/page");
     await act(async () => { render(<DashboardPage />); });
 
     // 40000 + 25000 = 65000 cents = €650,00
@@ -251,7 +251,7 @@ describe("Dashboard KPI — staff utilization endpoint still called", () => {
     }));
     vi.doMock("@/lib/api", () => ({ apiFetch: apiFetchMock }));
 
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
+    const { default: DashboardPage } = await import("@/app/dashboard/overview/page");
     await act(async () => { render(<DashboardPage />); });
 
     const utilizationCalls = apiFetchMock.mock.calls.filter(
@@ -288,7 +288,7 @@ describe("Dashboard KPI — staff utilization endpoint still called", () => {
       }),
     }));
 
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
+    const { default: DashboardPage } = await import("@/app/dashboard/overview/page");
     await act(async () => { render(<DashboardPage />); });
 
     expect(screen.getByTestId("kpi-overdue-tasks")).toHaveTextContent("1");

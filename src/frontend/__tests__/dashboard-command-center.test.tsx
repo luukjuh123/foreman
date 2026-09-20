@@ -146,7 +146,7 @@ describe("Dashboard Command Center — greeting header", () => {
 
   it("renders a Dutch time-of-day greeting", async () => {
     mockDeps();
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
+    const { default: DashboardPage } = await import("@/app/dashboard/overview/page");
     await act(async () => {
       render(<DashboardPage />);
     });
@@ -161,7 +161,7 @@ describe("Dashboard Command Center — greeting header", () => {
 
   it("renders today's date in Dutch locale format", async () => {
     mockDeps();
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
+    const { default: DashboardPage } = await import("@/app/dashboard/overview/page");
     await act(async () => {
       render(<DashboardPage />);
     });
@@ -177,7 +177,7 @@ describe("Dashboard Command Center — greeting header", () => {
 
   it("renders quick-action button Nieuw project", async () => {
     mockDeps();
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
+    const { default: DashboardPage } = await import("@/app/dashboard/overview/page");
     await act(async () => {
       render(<DashboardPage />);
     });
@@ -190,7 +190,7 @@ describe("Dashboard Command Center — greeting header", () => {
 
   it("renders quick-action button Factuur", async () => {
     mockDeps();
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
+    const { default: DashboardPage } = await import("@/app/dashboard/overview/page");
     await act(async () => {
       render(<DashboardPage />);
     });
@@ -214,7 +214,7 @@ describe("Dashboard Command Center — KPI row", () => {
       makeProject({ id: "2", status: "active" }),
       makeProject({ id: "3", status: "completed" }),
     ]);
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
+    const { default: DashboardPage } = await import("@/app/dashboard/overview/page");
     await act(async () => {
       render(<DashboardPage />);
     });
@@ -240,7 +240,7 @@ describe("Dashboard Command Center — KPI row", () => {
         { id: "i3", status: "paid", total_cents: 50000, paid_at: "2026-06-01" }, // exclude
       ],
     );
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
+    const { default: DashboardPage } = await import("@/app/dashboard/overview/page");
     await act(async () => {
       render(<DashboardPage />);
     });
@@ -262,7 +262,7 @@ describe("Dashboard Command Center — KPI row", () => {
         },
       ],
     );
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
+    const { default: DashboardPage } = await import("@/app/dashboard/overview/page");
     await act(async () => {
       render(<DashboardPage />);
     });
@@ -287,7 +287,7 @@ describe("Dashboard Command Center — KPI row", () => {
         ],
       }),
     ]);
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
+    const { default: DashboardPage } = await import("@/app/dashboard/overview/page");
     await act(async () => {
       render(<DashboardPage />);
     });
@@ -342,7 +342,7 @@ describe("Dashboard Command Center — loading state", () => {
       getProjectColor: vi.fn().mockReturnValue("#3b82f6"),
     }));
 
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
+    const { default: DashboardPage } = await import("@/app/dashboard/overview/page");
     render(<DashboardPage />);
 
     expect(screen.getByTestId("dashboard-loading")).toBeInTheDocument();
@@ -370,7 +370,7 @@ describe("Dashboard Command Center — error state", () => {
       getProjectColor: vi.fn().mockReturnValue("#3b82f6"),
     }));
 
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
+    const { default: DashboardPage } = await import("@/app/dashboard/overview/page");
     await act(async () => {
       render(<DashboardPage />);
     });
@@ -391,7 +391,7 @@ describe("Dashboard Command Center — actieve projecten section", () => {
       makeProject({ id: "2", name: "Nieuwbouw De Vries", status: "active" }),
       makeProject({ id: "3", name: "Afgerond project", status: "completed" }),
     ]);
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
+    const { default: DashboardPage } = await import("@/app/dashboard/overview/page");
     await act(async () => {
       render(<DashboardPage />);
     });
@@ -403,7 +403,7 @@ describe("Dashboard Command Center — actieve projecten section", () => {
 
   it("shows empty state when no projects", async () => {
     mockDeps([]);
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
+    const { default: DashboardPage } = await import("@/app/dashboard/overview/page");
     await act(async () => {
       render(<DashboardPage />);
     });
@@ -427,7 +427,7 @@ describe("Dashboard Command Center — actieve projecten section", () => {
         ],
       }),
     ]);
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
+    const { default: DashboardPage } = await import("@/app/dashboard/overview/page");
     await act(async () => {
       render(<DashboardPage />);
     });
@@ -470,7 +470,7 @@ describe("Dashboard Command Center — vandaag agenda strip", () => {
         ],
       },
     ]);
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
+    const { default: DashboardPage } = await import("@/app/dashboard/overview/page");
     await act(async () => {
       render(<DashboardPage />);
     });
@@ -481,7 +481,7 @@ describe("Dashboard Command Center — vandaag agenda strip", () => {
 
   it("shows empty state when no tasks today", async () => {
     mockDeps();
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
+    const { default: DashboardPage } = await import("@/app/dashboard/overview/page");
     await act(async () => {
       render(<DashboardPage />);
     });
@@ -509,7 +509,7 @@ describe("Dashboard Command Center — aandacht nodig panel", () => {
         },
       ],
     );
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
+    const { default: DashboardPage } = await import("@/app/dashboard/overview/page");
     await act(async () => {
       render(<DashboardPage />);
     });
@@ -521,7 +521,7 @@ describe("Dashboard Command Center — aandacht nodig panel", () => {
 
   it("shows no daily actions when nothing needs attention", async () => {
     mockDeps([], []);
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
+    const { default: DashboardPage } = await import("@/app/dashboard/overview/page");
     await act(async () => {
       render(<DashboardPage />);
     });

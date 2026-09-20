@@ -327,7 +327,7 @@ describe("Dashboard page — staff utilization card", () => {
       getProjectColor: vi.fn().mockReturnValue("#3b82f6"),
     }));
 
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
+    const { default: DashboardPage } = await import("@/app/dashboard/overview/page");
     await act(async () => { render(<DashboardPage />); });
 
     // Phase 22: staff utilization is no longer a KPI card; overdue tasks card is the replacement.
@@ -346,7 +346,7 @@ describe("Dashboard page — staff utilization card", () => {
     }));
     vi.doMock("@/lib/agenda", () => ({ fetchWeekAgenda: vi.fn().mockImplementation(() => new Promise(() => {})) }));
 
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
+    const { default: DashboardPage } = await import("@/app/dashboard/overview/page");
     await act(async () => { render(<DashboardPage />); });
 
     expect(screen.getByTestId("dashboard-loading")).toBeInTheDocument();
@@ -362,7 +362,7 @@ describe("Dashboard page — staff utilization card", () => {
     }));
     vi.doMock("@/lib/agenda", () => ({ fetchWeekAgenda: vi.fn().mockRejectedValue(new Error("Netwerk fout")) }));
 
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
+    const { default: DashboardPage } = await import("@/app/dashboard/overview/page");
     await act(async () => { render(<DashboardPage />); });
 
     expect(screen.getByTestId("dashboard-error")).toBeInTheDocument();
@@ -397,7 +397,7 @@ describe("Dashboard page — Actieve Projecten section", () => {
       getProjectColor: vi.fn().mockReturnValue("#3b82f6"),
     }));
 
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
+    const { default: DashboardPage } = await import("@/app/dashboard/overview/page");
     await act(async () => { render(<DashboardPage />); });
 
     // Phase 22: empty state text is "Nog geen projecten."
@@ -421,7 +421,7 @@ describe("Dashboard page — Actieve Projecten section", () => {
       getProjectColor: vi.fn().mockReturnValue("#3b82f6"),
     }));
 
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
+    const { default: DashboardPage } = await import("@/app/dashboard/overview/page");
     await act(async () => { render(<DashboardPage />); });
 
     // Active projects appear in Recente Projecten
@@ -441,7 +441,7 @@ describe("Dashboard page — Actieve Projecten section", () => {
       getProjectColor: vi.fn().mockReturnValue("#3b82f6"),
     }));
 
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
+    const { default: DashboardPage } = await import("@/app/dashboard/overview/page");
     await act(async () => { render(<DashboardPage />); });
 
     // Phase 22: empty upcoming tasks text is "Geen aankomende taken."
@@ -460,7 +460,7 @@ describe("Dashboard page — Actieve Projecten section", () => {
       getProjectColor: vi.fn().mockReturnValue("#3b82f6"),
     }));
 
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
+    const { default: DashboardPage } = await import("@/app/dashboard/overview/page");
     await act(async () => { render(<DashboardPage />); });
 
     // Page still loads (agenda failure is handled gracefully)

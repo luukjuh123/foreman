@@ -168,7 +168,7 @@ describe("apiFetch – 401 auto-refresh + retry", () => {
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
   useRouter: vi.fn(() => ({ push: vi.fn(), replace: vi.fn() })),
-  usePathname: vi.fn(() => "/dashboard"),
+  usePathname: vi.fn(() => "/dashboard/projects"),
 }));
 
 vi.mock("next/link", () => ({
@@ -201,7 +201,7 @@ vi.mock("@/components/mobile-time-tracker", () => ({
   default: () => null,
 }));
 
-describe("DashboardLayout auth guard", () => {
+describe("Connected dashboard routes auth guard", () => {
   afterEach(() => {
     localStorage.clear();
     vi.clearAllMocks();
