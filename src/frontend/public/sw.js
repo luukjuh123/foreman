@@ -1,45 +1,94 @@
-/**
- * Foreman service worker — offline caching + Web Push event handling.
- */
-
-const CACHE_NAME = "foreman-v1";
-const PRECACHE_URLS = ["/", "/dashboard"];
-
-// ---------------------------------------------------------------------------
-// Install — precache shell
-// ---------------------------------------------------------------------------
+/* Only cache the public local planner and versioned assets. Never cache API or authenticated pages. */
+const CACHE_NAME = "foreman-planner-v2";
+const PLANNER_ROUTES = [
+  "/dashboard",
+  "/jobs",
+  "/crew",
+  "/materials",
+  "/safety",
+  "/settings",
+];
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_URLS))
+    (async () => {
+      const cache = await caches.open(CACHE_NAME);
+      await cache.addAll([
+        "/offline.html",
+        "/manifest.json",
+        "/icons/icon-192x192.png",
+        "/icons/icon-512x512.png",
+      ]);
+      // Cache route documents and their assets, including on the first visit before control is claimed.
+      await Promise.all(
+        PLANNER_ROUTES.map(async (route) => {
+          try {
+            const response = await fetch(route);
+            if (!response.ok) return;
+            const html = await response.clone().text();
+            await cache.put(route, response);
+            const assets = [
+              ...new Set(
+                Array.from(
+                  html.matchAll(/(?:src|href)="([^" ]+)"/g),
+                  (match) => match[1],
+                ).filter((url) => url.startsWith("/_next/static/")),
+              ),
+            ];
+            await Promise.allSettled(
+              assets.map((url) => cache.add(url.replaceAll("&amp;", "&"))),
+            );
+          } catch {
+            /* A later visit will cache routes that were temporarily unavailable. */
+          }
+        }),
+      );
+      await self.skipWaiting();
+    })(),
   );
-  self.skipWaiting();
 });
-
-// ---------------------------------------------------------------------------
-// Activate — clean up old caches
-// ---------------------------------------------------------------------------
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
-    )
+    (async () => {
+      const keys = await caches.keys();
+      await Promise.all(
+        keys
+          .filter((key) => key.startsWith("foreman-") && key !== CACHE_NAME)
+          .map((key) => caches.delete(key)),
+      );
+      await self.clients.claim();
+    })(),
   );
-  self.clients.claim();
 });
-
-// ---------------------------------------------------------------------------
-// Fetch — network-first with cache fallback
-// ---------------------------------------------------------------------------
 self.addEventListener("fetch", (event) => {
-  if (event.request.method !== "GET") return;
+  const request = event.request;
+  const url = new URL(request.url);
+  if (request.method !== "GET" || url.origin !== self.location.origin) return;
+  const document =
+    request.mode === "navigate" && PLANNER_ROUTES.includes(url.pathname);
+  const asset =
+    url.pathname.startsWith("/_next/static/") ||
+    url.pathname.startsWith("/icons/");
+  if (!document && !asset) return;
   event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        const clone = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+    (async () => {
+      const cache = await caches.open(CACHE_NAME);
+      const key = document ? url.pathname : request;
+      const cached = await cache.match(key);
+      if (asset && cached) return cached;
+      try {
+        const response = await fetch(request);
+        if (response.ok && !response.redirected)
+          await cache.put(key, response.clone());
+        if (!response.ok && cached) return cached;
         return response;
-      })
-      .catch(() => caches.match(event.request))
+      } catch {
+        return (
+          cached ||
+          (document ? await cache.match("/offline.html") : null) ||
+          new Response("Offline", { status: 503 })
+        );
+      }
+    })(),
   );
 });
 
@@ -58,14 +107,16 @@ self.addEventListener("push", (event) => {
 
   const options = {
     body: body || "",
-    icon: "/icon-192.png",
-    badge: "/icon-96.png",
+    icon: "/icons/icon-192x192.png",
+    badge: "/icons/icon-192x192.png",
     tag: type || "foreman-notification",
     data: extraData || {},
     requireInteraction: false,
   };
 
-  event.waitUntil(self.registration.showNotification(title || "Foreman", options));
+  event.waitUntil(
+    self.registration.showNotification(title || "Foreman", options),
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -98,6 +149,6 @@ self.addEventListener("notificationclick", (event) => {
         if (self.clients.openWindow) {
           return self.clients.openWindow(url);
         }
-      })
+      }),
   );
 });

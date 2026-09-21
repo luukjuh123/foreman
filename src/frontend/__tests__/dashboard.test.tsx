@@ -270,7 +270,7 @@ describe("DashboardPage", () => {
       getProjectColor: vi.fn().mockReturnValue("#3b82f6"),
     }));
 
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
+    const { default: DashboardPage } = await import("@/app/dashboard/overview/page");
 
     await act(async () => {
       render(<DashboardPage />);
@@ -294,7 +294,7 @@ describe("DashboardPage", () => {
       apiFetch: vi.fn().mockReturnValue(new Promise(() => {})),
     }));
 
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
+    const { default: DashboardPage } = await import("@/app/dashboard/overview/page");
 
     render(<DashboardPage />);
 
@@ -311,7 +311,7 @@ describe("DashboardPage", () => {
       apiFetch: vi.fn().mockRejectedValue(new Error("network error")),
     }));
 
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
+    const { default: DashboardPage } = await import("@/app/dashboard/overview/page");
 
     await act(async () => {
       render(<DashboardPage />);
@@ -333,7 +333,7 @@ describe("DashboardPage", () => {
       getProjectColor: vi.fn().mockReturnValue("#3b82f6"),
     }));
 
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
+    const { default: DashboardPage } = await import("@/app/dashboard/overview/page");
 
     await act(async () => {
       render(<DashboardPage />);
@@ -360,7 +360,7 @@ describe("DashboardPage", () => {
     }));
     mockApiFetch();
 
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
+    const { default: DashboardPage } = await import("@/app/dashboard/overview/page");
 
     await act(async () => {
       render(<DashboardPage />);
@@ -397,7 +397,7 @@ describe("DashboardPage", () => {
     }));
     mockApiFetch();
 
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
+    const { default: DashboardPage } = await import("@/app/dashboard/overview/page");
 
     await act(async () => {
       render(<DashboardPage />);
@@ -415,7 +415,7 @@ describe("DashboardPage", () => {
     }));
     mockApiFetch();
 
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
+    const { default: DashboardPage } = await import("@/app/dashboard/overview/page");
 
     await act(async () => {
       render(<DashboardPage />);

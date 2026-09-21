@@ -348,7 +348,7 @@ describe("DashboardPage onboarding redirect", () => {
     const mockPush = vi.fn();
     vi.mocked(useRouter).mockReturnValue({ push: mockPush, replace: vi.fn() } as never);
 
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
+    const { default: DashboardPage } = await import("@/app/dashboard/overview/page");
 
     await act(async () => {
       render(<DashboardPage />);
@@ -366,7 +366,7 @@ describe("DashboardPage onboarding redirect", () => {
     const mockPush = vi.fn();
     vi.mocked(useRouter).mockReturnValue({ push: mockPush, replace: vi.fn() } as never);
 
-    const { default: DashboardPage } = await import("@/app/dashboard/page");
+    const { default: DashboardPage } = await import("@/app/dashboard/overview/page");
 
     await act(async () => {
       render(<DashboardPage />);
